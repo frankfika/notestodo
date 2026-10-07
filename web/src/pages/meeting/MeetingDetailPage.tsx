@@ -93,6 +93,13 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   const [tab, setTab] = useState<Tab>('summary')
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [seekRequest, setSeekRequest] = useState<number | null>(null)
+  const [playheadMs, setPlayheadMs] = useState<number | null>(null)
+
+  const seekToSegment = (ms: number): void => {
+    setSeekRequest(ms)
+    setTab('audio')
+  }
 
   const jumpToTranscript = (t: Todo): void => {
     if (t.transcript_span?.start_ms != null) {
@@ -223,9 +230,20 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           />
         )}
         {tab === 'transcript' && (
-          <TranscriptTab transcriptId={meeting.id} highlightStartMs={highlightStartMs} />
+          <TranscriptTab
+            transcriptId={meeting.id}
+            highlightStartMs={highlightStartMs}
+            playheadMs={playheadMs}
+            onSeekTo={seekToSegment}
+          />
         )}
-        {tab === 'audio' && <AudioTab meetingId={meeting.id} />}
+        {tab === 'audio' && (
+          <AudioTab
+            meetingId={meeting.id}
+            seekRequest={seekRequest}
+            onPlayheadUpdate={setPlayheadMs}
+          />
+        )}
         </div>
       </div>
       {chatOpen && (
@@ -395,10 +413,12 @@ function TodosTab({
 
 // ── 转录 Tab ──────────────────────────────────────────────────────
 function TranscriptTab({
-  transcriptId, highlightStartMs,
+  transcriptId, highlightStartMs, playheadMs, onSeekTo,
 }: {
   transcriptId: string
   highlightStartMs: number | null
+  playheadMs: number | null
+  onSeekTo: (ms: number) => void
 }): JSX.Element {
   const transcript = useLiveQuery(
     () => db.transcripts.where('meeting_id').equals(transcriptId).first(),
@@ -423,6 +443,14 @@ function TranscriptTab({
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [targetIndex, transcriptId])
 
+  // 当前播放高亮：playheadMs 落在哪一段
+  const activeIndex = playheadMs != null && transcript
+    ? transcript.segments.findIndex(
+        (seg, i) => seg.start_ms <= playheadMs &&
+          (i === transcript.segments.length - 1 || transcript.segments[i + 1].start_ms > playheadMs),
+      )
+    : -1
+
   if (!transcript) {
     return <EmptyState icon="◌" title="转录尚未完成" hint="录音结束、联网后会自动转录。" />
   }
@@ -435,17 +463,23 @@ function TranscriptTab({
       {transcript.segments.map((seg, i) => {
         const label = transcript.speaker_names[seg.speaker_label] ?? seg.speaker_label
         const isHighlight = i === targetIndex
+        const isActive = i === activeIndex
         return (
           <div
             id={`seg-${transcriptId}-${i}`}
             key={i}
-            className={`flex items-baseline gap-3 rounded-md transition-colors duration-200 ${
-              isHighlight ? 'bg-accent/15 ring-1 ring-accent/40 px-2 -mx-2' : ''
+            className={`group flex items-baseline gap-3 rounded-md transition-colors duration-200 ${
+              isActive ? 'bg-accent/12 ring-1 ring-accent/30 px-2 -mx-2'
+              : isHighlight ? 'bg-accent/15 ring-1 ring-accent/40 px-2 -mx-2'
+              : ''
             }`}
           >
-            <span className="font-mono tabular-nums text-[11px] text-text-3 w-16 shrink-0">
-              {fmtClock(seg.start_ms)}
-            </span>
+            <button
+              type="button"
+              onClick={() => onSeekTo(seg.start_ms)}
+              className="font-mono tabular-nums text-[11px] text-text-3 hover:text-accent w-16 shrink-0 text-left transition-colors"
+              title={`跳到 ${fmtClock(seg.start_ms)} 播放`}
+            >{fmtClock(seg.start_ms)}</button>
             <span className="chip shrink-0">{label}</span>
             <span className="text-sm text-text-1 leading-relaxed flex-1 min-w-0">{seg.text}</span>
           </div>
@@ -456,7 +490,13 @@ function TranscriptTab({
 }
 
 // ── 录音 Tab ──────────────────────────────────────────────────────
-function AudioTab({ meetingId }: { meetingId: string }): JSX.Element {
+function AudioTab({
+  meetingId, seekRequest, onPlayheadUpdate,
+}: {
+  meetingId: string
+  seekRequest: number | null
+  onPlayheadUpdate: (ms: number | null) => void
+}): JSX.Element {
   const chunks = useLiveQuery(
     () => db.audioChunks.where('meeting_id').equals(meetingId).sortBy('seq'),
     [meetingId],
@@ -464,6 +504,7 @@ function AudioTab({ meetingId }: { meetingId: string }): JSX.Element {
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     if (chunks.length === 0) {
@@ -485,6 +526,15 @@ function AudioTab({ meetingId }: { meetingId: string }): JSX.Element {
     }
   }, [chunks])
 
+  // 处理来自转录的 seek 请求：跳转到指定毫秒并自动播放
+  useEffect(() => {
+    if (seekRequest == null) return
+    const el = audioRef.current
+    if (!el) return
+    el.currentTime = seekRequest / 1000
+    void el.play().catch(() => { /* user gesture needed */ })
+  }, [seekRequest])
+
   if (chunks.length === 0) {
     return <EmptyState icon="◌" title="没有可播放的录音" hint="该会议没有保留音频分片（可能为日历预占会议）。" />
   }
@@ -494,9 +544,24 @@ function AudioTab({ meetingId }: { meetingId: string }): JSX.Element {
       <div className="section-title">录音回放</div>
       <div className="text-xs text-text-3">
         {chunks.length} 片 · 总时长 {fmtClock(chunks.reduce((a, c) => a + c.duration_ms, 0))}
+        {seekRequest != null && (
+          <span className="ml-2 text-accent">· 跳到 {fmtClock(seekRequest)}</span>
+        )}
       </div>
       {audioUrl ? (
-        <audio controls src={audioUrl} className="w-full mt-2" preload="metadata" />
+        <audio
+          ref={audioRef}
+          controls
+          src={audioUrl}
+          className="w-full mt-2"
+          preload="metadata"
+          onTimeUpdate={(e) => {
+            const t = (e.target as HTMLAudioElement).currentTime
+            onPlayheadUpdate(Math.round(t * 1000))
+          }}
+          onPause={() => onPlayheadUpdate(null)}
+          onEnded={() => onPlayheadUpdate(null)}
+        />
       ) : (
         <div className="text-xs text-text-3">{err ?? '生成 blob URL 失败'}</div>
       )}

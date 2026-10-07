@@ -80,4 +80,43 @@ test.describe('Shibei shell smoke', () => {
     await page.waitForTimeout(800)
     await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
   })
+
+  test('新建一个 Objective 时 持久化到 IndexedDB', async ({ page }) => {
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    await page.getByRole('button', { name: '待办' }).click()
+    await page.waitForTimeout(300)
+
+    const newBtn = page.getByRole('button', { name: /新建 Objective/ }).first()
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 })
+    const beforeCount = await page.evaluate(async () => {
+      return new Promise<number>((res) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction('todos', 'readonly')
+          const cr = tx.objectStore('todos').count()
+          cr.onsuccess = () => res(cr.result)
+        }
+        req.onerror = () => res(-1)
+      })
+    })
+    await newBtn.click()
+    await page.waitForTimeout(800)
+    const afterCount = await page.evaluate(async () => {
+      return new Promise<number>((res) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction('todos', 'readonly')
+          const cr = tx.objectStore('todos').count()
+          cr.onsuccess = () => res(cr.result)
+        }
+        req.onerror = () => res(-1)
+      })
+    })
+    expect(afterCount).toBe(beforeCount + 1)
+    // 新建的 Objective 应该出现在页面上
+    await expect(page.locator('text=新工作目标').first()).toBeVisible({ timeout: 3000 })
+  })
 })
