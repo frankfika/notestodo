@@ -153,4 +153,25 @@ test.describe('Shibei shell smoke', () => {
     const topbar = await page.locator('button:has(span.kbd)').first().innerText()
     expect(topbar).toContain(expected)
   })
+
+  test('PWA manifest / index.html、icons、sw 均可响应', async ({ page }) => {
+    await page.goto(BASE)
+    for (const p of [
+      '/manifest.webmanifest',
+      '/sw.js',
+      '/icons/icon-192.png',
+      '/icons/icon-512.png',
+      '/icons/apple-touch-icon.png',
+    ]) {
+      const res = await page.request.get(BASE.replace(/\/$/, '') + p)
+      expect(res.status(), `${p} should be 200`).toBe(200)
+    }
+    // manifest 解析合法 + name/start_url/display 正确
+    const m = await page.request.get(BASE.replace(/\/$/, '') + '/manifest.webmanifest')
+    const json = (await m.json()) as Record<string, unknown>
+    expect(json.name).toBeTruthy()
+    expect(json.start_url).toBe('/')
+    expect(json.display).toBe('standalone')
+    expect(Array.isArray(json.icons)).toBe(true)
+  })
 })

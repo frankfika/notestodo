@@ -1,0 +1,31 @@
+{
+  "name": "拾贝 Shibei — AI 会议笔记与待办",
+  "short_name": "拾贝",
+  "description": "开会时只管说话，散会时纪要和待办已经排好。本地优先，BYOK，多端可装。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0d10",
+  "theme_color": "#7cb8ff",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "开始录音",
+      "short_name": "录制",
+      "url": "/?action=record",
+      "description": "一键开始新会议录音"
+    },
+    {
+      "name": "命令面板",
+      "short_name": "搜索",
+      "url": "/?action=cmdk",
+      "description": "打开 ⌘K 命令面板"
+    }
+  ]
+}
