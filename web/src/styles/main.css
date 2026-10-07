@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+/* ── 拾贝设计令牌（docs/DESIGN.md §5.4）──────────────────────────────
+   中性灰为主轴，单一强调色；层级只靠字重与灰度；4pt 网格。        */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --accent: oklch(70% 0.12 230);
+  --accent-strong: oklch(78% 0.13 230);
+  --accent-contrast: oklch(20% 0.02 250);
+  --danger: oklch(64% 0.18 25);
+  --warning: oklch(74% 0.13 85);
+  --ring: oklch(70% 0.12 230 / 0.55);
+}
+
+:root.dark {
+  --bg: oklch(16% 0.012 260);
+  --bg-raise: oklch(19.5% 0.013 260);
+  --bg-overlay: oklch(23% 0.014 260);
+  --line: oklch(28% 0.013 260);
+  --line-strong: oklch(34% 0.014 260);
+  --text-1: oklch(93% 0.008 260);
+  --text-2: oklch(76% 0.011 260);
+  --text-3: oklch(58% 0.013 260);
+  --text-disabled: oklch(42% 0.013 260);
+  --scrim: oklch(10% 0.01 260 / 0.72);
+}
+
+:root:not(.dark) {
+  --bg: oklch(98% 0.004 260);
+  --bg-raise: oklch(100% 0 0);
+  --bg-overlay: oklch(96.5% 0.005 260);
+  --line: oklch(90% 0.006 260);
+  --line-strong: oklch(84% 0.008 260);
+  --text-1: oklch(24% 0.02 260);
+  --text-2: oklch(40% 0.018 260);
+  --text-3: oklch(54% 0.017 260);
+  --text-disabled: oklch(68% 0.014 260);
+  --scrim: oklch(30% 0.02 260 / 0.35);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-raise: var(--bg-raise);
+  --color-bg-overlay: var(--bg-overlay);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-disabled: var(--text-disabled);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-scrim: var(--scrim);
+  --font-sans: -apple-system, "SF Pro Text", Inter, "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --ease-out-expo: cubic-bezier(0.2, 0, 0, 1);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-text-1 font-sans text-[14px] leading-[1.6] antialiased;
+  font-feature-settings: "tnum";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+/* 滚动条：克制 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ── 通用原语 ─────────────────────────────────────────────────────── */
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-bg-raise;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
+           transition-all duration-150 select-none cursor-pointer
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-contrast hover:bg-accent-strong active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn text-text-2 hover:bg-bg-overlay hover:text-text-1;
+  }
+  .btn-outline {
+    @apply btn border border-line-strong text-text-2 hover:text-text-1 hover:bg-bg-overlay;
+  }
+  .btn-danger {
+    @apply btn text-danger hover:bg-danger/10;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-text-1
+           placeholder:text-text-3 outline-none transition-shadow duration-150
+           focus:border-line-strong focus:ring-2 focus:ring-(--ring);
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium
+           bg-bg-overlay text-text-2 border border-line;
+  }
+  .icon-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-3
+           hover:bg-bg-overlay hover:text-text-1 transition-colors cursor-pointer;
+  }
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-line
+           bg-bg-overlay px-1 font-mono text-[11px] text-text-3;
+  }
+  .divider {
+    @apply border-t border-line;
+  }
+  .label {
+    @apply text-xs font-medium text-text-3 mb-1.5 block;
+  }
+  .section-title {
+    @apply text-[13px] font-semibold text-text-3 tracking-wide;
+  }
+}
+
+/* 动效原则：150-250ms ease-out，禁弹跳 */
+@theme inline {
+  --transition-fast: 150ms var(--ease-out-expo);
+  --transition-med: 220ms var(--ease-out-expo);
+}
+
+/* 录音红点呼吸 2.4s */
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+.rec-dot {
+  animation: breathe 2.4s var(--ease-out-expo) infinite;
+}
+
+/* 页面切换淡入 */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: fade-in 160ms var(--ease-out-expo);
+}
+
+/* 步骤条流转 */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot, .page-enter { animation: none; }
+}
