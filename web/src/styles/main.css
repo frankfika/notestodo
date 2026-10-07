@@ -94,21 +94,34 @@ body {
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-accent text-accent-contrast hover:bg-accent-strong active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
+           transition-all duration-150 select-none cursor-pointer
+           bg-accent text-accent-contrast hover:bg-accent-strong active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply btn text-text-2 hover:bg-bg-overlay hover:text-text-1;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
+           transition-all duration-150 select-none cursor-pointer
+           text-text-2 hover:bg-bg-overlay hover:text-text-1
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-outline {
-    @apply btn border border-line-strong text-text-2 hover:text-text-1 hover:bg-bg-overlay;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
+           transition-all duration-150 select-none cursor-pointer
+           border border-line-strong hover:bg-bg-overlay hover:text-text-1
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-danger {
-    @apply btn text-danger hover:bg-danger/10;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
+           transition-all duration-150 select-none cursor-pointer
+           text-danger hover:bg-danger/10
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .input {
     @apply w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-text-1
-           placeholder:text-text-3 outline-none transition-shadow duration-150
-           focus:border-line-strong focus:ring-2 focus:ring-(--ring);
+           outline-none transition-shadow duration-150
+           placeholder:text-text-3
+           focus:border-line-strong;
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium
@@ -137,6 +150,12 @@ body {
 @theme inline {
   --transition-fast: 150ms var(--ease-out-expo);
   --transition-med: 220ms var(--ease-out-expo);
+}
+
+/* focus ring 用 box-shadow 实现，避免 Tailwind v4 @apply 链式扩展的兼容问题 */
+.input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+  outline: none;
 }
 
 /* 录音红点呼吸 2.4s */
