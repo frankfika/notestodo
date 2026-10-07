@@ -7,8 +7,12 @@ import { useMemo } from 'react'
  */
 
 interface Block {
-  kind: 'h1' | 'h2' | 'h3' | 'ul' | 'ol' | 'code' | 'p' | 'hr'
+  kind: 'h1' | 'h2' | 'h3' | 'ul' | 'ol' | 'ul-tasks' | 'quote' | 'code' | 'p' | 'hr'
   items?: string[]
+  /**
+   * 仅 ul-tasks 用：`true` 已勾选，`false` 未勾选；与 items 一一对应。
+   */
+  checked?: boolean[]
 }
 
 function parseBlocks(src: string): Block[] {
@@ -38,6 +42,31 @@ function parseBlocks(src: string): Block[] {
       i++
       continue
     }
+    // 引用块（可多行）
+    if (/^>\s?/.test(line)) {
+      const buf: string[] = []
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        buf.push(lines[i].replace(/^>\s?/, ''))
+        i++
+      }
+      blocks.push({ kind: 'quote', items: [buf.join(' / ')] })
+      continue
+    }
+    // GFM 任务列表（[-*][ \t ]+[[ xX]][ \t ]+...）
+    if (/^\s*[-*]\s+\[[ xX]\]\s+/.test(raw)) {
+      const items: string[] = []
+      const checked: boolean[] = []
+      while (i < lines.length && /^\s*[-*]\s+\[[ xX]\]\s+/.test(lines[i])) {
+        const m = /^\s*[-*]\s+\[(.)\]\s+(.+)$/.exec(lines[i])
+        if (m) {
+          checked.push(m[1].toLowerCase() === 'x')
+          items.push(m[2])
+        }
+        i++
+      }
+      blocks.push({ kind: 'ul-tasks', items, checked })
+      continue
+    }
     if (/^\s*[-*]\s+/.test(raw)) {
       const items: string[] = []
       while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
@@ -64,6 +93,7 @@ function parseBlocks(src: string): Block[] {
       lines[i].trim() !== '' &&
       !/^(#{1,3})\s+/.test(lines[i]) &&
       !/^```/.test(lines[i]) &&
+      !/^>\s?/.test(lines[i]) &&
       !/^\s*[-*]\s+/.test(lines[i]) &&
       !/^\s*\d+\.\s+/.test(lines[i]) &&
       !/^---+$/.test(lines[i].trim())
@@ -134,6 +164,13 @@ export default function MarkdownView({ source }: MarkdownViewProps): JSX.Element
         if (b.kind === 'h1') return <h1 key={i} className="text-2xl font-semibold text-text-1 mt-2">{inline(b.items![0], `h1-${i}`)}</h1>
         if (b.kind === 'h2') return <h2 key={i} className="text-lg font-semibold text-text-1 mt-4">{inline(b.items![0], `h2-${i}`)}</h2>
         if (b.kind === 'h3') return <h3 key={i} className="text-base font-semibold text-text-2 mt-3">{inline(b.items![0], `h3-${i}`)}</h3>
+        if (b.kind === 'quote') {
+          return (
+            <blockquote key={i} className="border-l-2 border-accent/40 pl-3 text-text-2 my-2 italic">
+              {inline(b.items![0], `q-${i}`)}
+            </blockquote>
+          )
+        }
         if (b.kind === 'ul') {
           return (
             <ul key={i} className="list-disc list-outside pl-5 space-y-1 marker:text-text-3">
@@ -146,6 +183,26 @@ export default function MarkdownView({ source }: MarkdownViewProps): JSX.Element
             <ol key={i} className="list-decimal list-outside pl-5 space-y-1 marker:text-text-3">
               {b.items!.map((it, j) => <li key={j}>{inline(it, `ol-${i}-${j}`)}</li>)}
             </ol>
+          )
+        }
+        if (b.kind === 'ul-tasks') {
+          return (
+            <ul key={i} className="space-y-1 pl-0 list-none">
+              {b.items!.map((it, j) => {
+                const checked = b.checked![j]
+                return (
+                  <li key={j} className="flex items-baseline gap-2 text-[14.5px]">
+                    <span
+                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
+                        checked ? 'bg-accent border-accent text-accent-contrast' : 'border-line-strong text-text-3'
+                      }`}
+                      aria-hidden
+                    >{checked ? '✓' : ''}</span>
+                    <span className={checked ? 'line-through text-text-3' : 'text-text-1'}>{inline(it, `ult-${i}-${j}`)}</span>
+                  </li>
+                )
+              })}
+            </ul>
           )
         }
         if (b.kind === 'code') {

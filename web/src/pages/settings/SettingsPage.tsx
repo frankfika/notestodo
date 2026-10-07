@@ -3,6 +3,7 @@ import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../../types'
 import { getSettings, saveSettings } from '../../db/settings'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
+import { exportData, importData } from '../../data/io'
 import FieldRow from '../../components/FieldRow'
 
 /**
@@ -158,14 +159,8 @@ export default function SettingsPage(): JSX.Element {
           />
         </Section>
 
-        <Section title="数据" desc="v1 导出 JSON 元数据（音频 blob 暂未打包，zip 待 M2）。">
-          <div className="flex items-center gap-2">
-            <button onClick={() => void exportData()} className="btn-outline text-sm h-9">
-              ⤓ 导出
-            </button>
-            <ImportButton onImported={() => flash('导入完成 — 正在重载')} />
-            <span className="text-[11px] text-text-3">导出 = 单个 .json 文件；导入会覆盖所有实体。</span>
-          </div>
+        <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。">
+          <ExportImportRow flash={flash} />
         </Section>
 
         <Section title="诊断">
@@ -339,92 +334,67 @@ function IcsListEditor({
   )
 }
 
-function ImportButton({ onImported }: { onImported: () => void }): JSX.Element {
+function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Element {
   const ref = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [lastMsg, setLastMsg] = useState<string | null>(null)
+
+  async function doExport(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    setLastMsg('正在打包…')
+    try {
+      const r = await exportData((p) => setLastMsg(p.message))
+      setLastMsg(`已导出 ${r.filename}（${(r.sizeBytes / 1024).toFixed(0)} KB · ${r.manifest.table_counts.audioChunks} 段音频）`)
+      flash(`已导出 ${r.manifest.table_counts.audioChunks} 段音频`)
+    } catch (e: unknown) {
+      setLastMsg('导出失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function doImport(file: File): Promise<void> {
+    if (busy) return
+    if (!window.confirm(`导入会覆盖当前所有数据，确认？`)) return
+    setBusy(true)
+    setLastMsg('正在解压并写入…')
+    try {
+      const r = await importData(file, (p) => setLastMsg(p.message))
+      setLastMsg(`已恢复 ${r.audioCount} 段音频（${r.manifest.table_counts.meetings} 场会议）`)
+      flash('导入完成 — 即将重载')
+      setTimeout(() => location.reload(), 1200)
+    } catch (e: unknown) {
+      setLastMsg('导入失败：' + (e instanceof Error ? e.message : String(e)))
+      setBusy(false)
+    }
+  }
+
   return (
-    <>
-      <button onClick={() => ref.current?.click()} className="btn-outline text-sm h-9">
-        ⤴ 导入
-      </button>
-      <input
-        ref={ref}
-        type="file"
-        accept="application/json"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (!f) return
-          void doImport(f, onImported)
-          e.target.value = ''
-        }}
-      />
-    </>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <button onClick={() => void doExport()} disabled={busy} className="btn-outline text-sm h-9">
+          {busy ? '处理中…' : '导出 .zip'}
+        </button>
+        <button onClick={() => ref.current?.click()} disabled={busy} className="btn-outline text-sm h-9">
+          导入 .zip
+        </button>
+        <input
+          ref={ref}
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (!f) return
+            void doImport(f)
+            e.target.value = ''
+          }}
+        />
+      </div>
+      {lastMsg && (
+        <div className="text-[11px] text-text-3">{lastMsg}</div>
+      )}
+    </div>
   )
-}
-
-// ── 导出 / 导入 ──────────────────────────────────────────────────
-
-interface ExportShape {
-  schema: 'shibei-export'
-  version: 1
-  exported_at: string
-  tables: Record<string, unknown[]>
-}
-
-async function exportData(): Promise<void> {
-  // 导出 9 张业务表（audioChunks 的 Blob 不能 JSON 化，跳过）
-  const tables: ExportShape['tables'] = {}
-  for (const name of ['meetings', 'transcripts', 'notes', 'summaries', 'templates', 'todos', 'tags', 'tagBindings', 'chatMessages', 'kv', 'queueJobs'] as const) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const t = (db as any)[name]
-    if (!t || typeof t.toArray !== 'function') continue
-    tables[name] = await t.toArray()
-  }
-  const payload: ExportShape = {
-    schema: 'shibei-export',
-    version: 1,
-    exported_at: new Date().toISOString(),
-    tables,
-  }
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  a.href = url
-  a.download = `shibei-${stamp}.json`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-async function doImport(file: File, onImported: () => void): Promise<void> {
-  try {
-    const text = await file.text()
-    const data = JSON.parse(text) as ExportShape
-    if (data.schema !== 'shibei-export') throw new Error('文件格式不匹配 (schema 不为 shibei-export)')
-    if (!data.tables || typeof data.tables !== 'object') throw new Error('文件不含 tables')
-
-    if (!window.confirm(`导入 ${Object.keys(data.tables).length} 张表的数据？将覆盖当前所有数据。`)) return
-
-    // 导入顺序：先清空，再按依赖顺序写入
-    for (const name of ['meetings', 'transcripts', 'notes', 'summaries', 'templates', 'todos', 'tags', 'tagBindings', 'chatMessages', 'kv', 'queueJobs'] as const) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const t = (db as any)[name]
-      if (!t || typeof t.clear !== 'function') continue
-      await t.clear()
-    }
-    for (const name of ['meetings', 'transcripts', 'notes', 'summaries', 'templates', 'todos', 'tags', 'tagBindings', 'chatMessages', 'kv', 'queueJobs'] as const) {
-      const rows = data.tables[name]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const t = (db as any)[name]
-      if (!t || !Array.isArray(rows) || rows.length === 0) continue
-      await t.bulkPut(rows)
-    }
-    onImported()
-    setTimeout(() => location.reload(), 600)
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    window.alert('导入失败：' + msg)
-  }
 }

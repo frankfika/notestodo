@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtClock, fmtDateTime, now, uid } from '../../lib/id'
-import type { Meeting, MeetingStatus, SummaryTemplate, Todo } from '../../types'
+import type { ChatMessage, Meeting, MeetingStatus, SummaryTemplate, Todo } from '../../types'
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import TodoRow from '../../components/TodoRow'
 import { runSummarizePipeline } from '../../pipeline/summarize'
+import { callLLM } from '../../llm/client'
+import { getSettings } from '../../db/settings'
 
 type Tab = 'summary' | 'todos' | 'transcript' | 'audio'
 
@@ -83,8 +85,14 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     [],
   ) ?? []
 
+  const chatMessages = useLiveQuery(
+    () => db.chatMessages.where('meeting_id').equals(meeting.id).sortBy('created_at'),
+    [meeting.id],
+  ) ?? []
+
   const [tab, setTab] = useState<Tab>('summary')
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const jumpToTranscript = (t: Todo): void => {
     if (t.transcript_span?.start_ms != null) {
@@ -146,8 +154,9 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-[760px] mx-auto px-6 py-8">
+    <div className="h-full overflow-hidden flex">
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className={`mx-auto px-6 py-8 ${chatOpen ? 'max-w-[640px]' : 'max-w-[760px]'}`}>
         {/* 顶部 */}
         <div className="flex items-start gap-3 mb-2">
           <button
@@ -173,8 +182,8 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
         <div className="flex items-center gap-2 mt-3 mb-4">
           <RerunDropdown templates={templates} onPick={rerunWith} />
           <button
-            onClick={() => window.alert('对话功能即将推出')}
-            className="btn-outline text-xs h-8"
+            onClick={() => setChatOpen((v) => !v)}
+            className={`btn-outline text-xs h-8 ${chatOpen ? 'text-accent border-accent/40' : ''}`}
           >对话</button>
           <button onClick={() => void deleteMeeting()} className="btn-danger text-xs h-8 ml-auto">
             删除
@@ -217,7 +226,17 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           <TranscriptTab transcriptId={meeting.id} highlightStartMs={highlightStartMs} />
         )}
         {tab === 'audio' && <AudioTab meetingId={meeting.id} />}
+        </div>
       </div>
+      {chatOpen && (
+        <ChatPanel
+          meeting={meeting}
+          transcript={transcript}
+          summary={summary}
+          messages={chatMessages}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -482,5 +501,154 @@ function AudioTab({ meetingId }: { meetingId: string }): JSX.Element {
         <div className="text-xs text-text-3">{err ?? '生成 blob URL 失败'}</div>
       )}
     </div>
+  )
+}
+
+// ── AI 对话面板 ─────────────────────────────────────────────
+function ChatPanel({
+  meeting, transcript, summary, messages, onClose,
+}: {
+  meeting: Meeting
+  transcript: { segments: { speaker_label: string; text: string; start_ms: number; end_ms: number }[] } | undefined
+  summary: { content_md: string } | undefined
+  messages: ChatMessage[]
+  onClose: () => void
+}): JSX.Element {
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages.length])
+
+  async function send(): Promise<void> {
+    const text = input.trim()
+    if (!text || busy) return
+    setInput('')
+    setErr(null)
+    setBusy(true)
+
+    const userMsg: ChatMessage = {
+      id: uid(),
+      meeting_id: meeting.id,
+      role: 'user',
+      content: text,
+      created_at: now(),
+      updated_at: now(),
+      deleted_at: null,
+      sync_version: 0,
+    }
+    await db.chatMessages.add(userMsg)
+
+    try {
+      const settings = await getSettings()
+      if (!settings.llm_api_key) {
+        throw new Error('请先在「设置」页填 LLM API Key')
+      }
+      const transcriptText = transcript?.segments
+        .map((s) => `[${fmtClock(s.start_ms)}] ${s.speaker_label}: ${s.text}`)
+        .join('\n') ?? '(无转录)'
+      const summaryText = summary?.content_md ?? '(暂无纪要)'
+
+      const system = `你是本次会议的 AI 助手。会议信息：
+- 标题：${meeting.title}
+- 时间：${meeting.started_at}
+- 时长：${fmtClock(meeting.audio.duration_ms)}
+
+## 转录全文（按时间排序，时间戳为 MM:SS）
+${transcriptText}
+
+## AI 纪要
+${summaryText}
+
+请只基于上述上下文回答；引用转录时给出形如 [MM:SS] 的时间戳；不知道就说不知道。`
+
+      const llmInput: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [{ role: 'system', content: system }]
+      for (const m of messages) llmInput.push({ role: m.role, content: m.content })
+      llmInput.push({ role: 'user', content: text })
+
+      const reply = await callLLM(settings, llmInput, { maxTokens: 1024, temperature: 0.3 })
+
+      const aiMsg: ChatMessage = {
+        id: uid(),
+        meeting_id: meeting.id,
+        role: 'assistant',
+        content: reply,
+        created_at: now(),
+        updated_at: now(),
+        deleted_at: null,
+        sync_version: 0,
+      }
+      await db.chatMessages.add(aiMsg)
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <aside className="w-[420px] shrink-0 border-l border-line bg-bg-raise flex flex-col">
+      <div className="flex items-center gap-2 px-4 h-12 border-b border-line">
+        <span className="text-text-2 text-sm">对话</span>
+        <span className="chip">{messages.length}</span>
+        <button onClick={onClose} className="icon-btn ml-auto" title="关闭" aria-label="关闭">✕</button>
+      </div>
+      <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {messages.length === 0 && (
+          <div className="text-center text-text-3 text-sm py-8">
+            对这场会议提问。<br />
+            <span className="text-[11px]">上下文：纪要 + 全文转录</span>
+          </div>
+        )}
+        {messages.map((m) => (
+          <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div
+              className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap break-words ${
+                m.role === 'user'
+                  ? 'bg-accent text-accent-contrast rounded-br-md'
+                  : 'bg-bg-overlay text-text-1 rounded-bl-md border border-line'
+              }`}
+            >
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {busy && (
+          <div className="flex justify-start">
+            <div className="bg-bg-overlay border border-line rounded-2xl rounded-bl-md px-3.5 py-2 text-[13px] text-text-3">
+              <span className="rec-dot">●</span> 思考中…
+            </div>
+          </div>
+        )}
+        {err && <div className="text-xs text-danger text-center">{err}</div>}
+      </div>
+      <div className="border-t border-line p-3">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void send()
+            }
+          }}
+          rows={2}
+          className="input text-sm"
+          placeholder="提问这场会议…（Enter 发送，Shift+Enter 换行）"
+          disabled={busy}
+        />
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-[11px] text-text-3">上下文：纪要 + 全文转录</span>
+          <button
+            onClick={() => void send()}
+            disabled={busy || !input.trim()}
+            className="btn-primary text-xs h-7 ml-auto"
+          >发送</button>
+        </div>
+      </div>
+    </aside>
   )
 }
