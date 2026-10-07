@@ -35,6 +35,17 @@ export function fmtDate(iso: string | undefined, withYear = false): string {
   const d = new Date(iso)
   const p = (n: number) => String(n).padStart(2, '0')
   const md = `${p(d.getMonth() + 1)}月${p(d.getDate())}日`
+  // 相对日期：今天/昨天/明天 — 人扫一眼比"10月07日"快一档。withYear 时不启用。
+  const nowD = new Date()
+  const dayDiff = Math.round(
+    (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() -
+      new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime()) / 86400000,
+  )
+  if (!withYear) {
+    if (dayDiff === 0) return '今天'
+    if (dayDiff === -1) return '昨天'
+    if (dayDiff === 1) return '明天'
+  }
   return withYear ? `${d.getFullYear()}年${md}` : md
 }
 
