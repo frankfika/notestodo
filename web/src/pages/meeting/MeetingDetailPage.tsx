@@ -10,6 +10,7 @@ import TodoRow from '../../components/TodoRow'
 import { runSummarizePipeline } from '../../pipeline/summarize'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
+import { chunksInOrder } from '../../audio/merge'
 
 type Tab = 'summary' | 'todos' | 'transcript' | 'audio'
 
@@ -498,7 +499,7 @@ function AudioTab({
   onPlayheadUpdate: (ms: number | null) => void
 }): JSX.Element {
   const chunks = useLiveQuery(
-    () => db.audioChunks.where('meeting_id').equals(meetingId).sortBy('seq'),
+    () => db.audioChunks.where('meeting_id').equals(meetingId).toArray(),
     [meetingId],
   ) ?? []
 
@@ -513,7 +514,14 @@ function AudioTab({
     }
     let url: string | null = null
     try {
-      const blob = new Blob(chunks.map((c) => c.blob), { type: chunks[0].blob.type || 'audio/webm' })
+      // 与 mergeAudioChunks 共享同一排序规则 — 用户播放听到的就是转录用的音频
+      const ordered = chunksInOrder(chunks).filter((c) => c.blob && c.blob.size > 0)
+      if (ordered.length === 0) {
+        setAudioUrl(null)
+        setErr('该会议只有占位分片（空数据）')
+        return
+      }
+      const blob = new Blob(ordered.map((c) => c.blob), { type: ordered[0].blob.type || 'audio/webm' })
       url = URL.createObjectURL(blob)
       setAudioUrl(url)
       setErr(null)

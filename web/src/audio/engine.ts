@@ -2,6 +2,7 @@ import { db } from '../db/db'
 import { now, uid } from '../lib/id'
 import { setRecorderPartial, useRecorder } from '../state/recorder'
 import { runTranscribePipeline } from '../pipeline/transcribe'
+import { chunksInOrder } from './merge'
 import type {
   AudioChunk,
   Meeting,
@@ -535,14 +536,8 @@ async function finaliseMeeting(meetingId: string): Promise<void> {
     .where('meeting_id')
     .equals(meetingId)
     .toArray()
-  // 与 mergeAudioChunks 一致：数据分片按 seq，tail(-1) 最后；空 placeholder 不计
-  chunks.sort((a, b) => {
-    const ta = a.seq === -1 ? 1 : 0
-    const tb = b.seq === -1 ? 1 : 0
-    if (ta !== tb) return ta - tb
-    return a.seq - b.seq
-  })
-  const dataChunks = chunks.filter((c) => c.blob && c.blob.size > 0)
+  // 与 mergeAudioChunks 共享 chunksInOrder —— 三处排序必须一致
+  const dataChunks = chunksInOrder(chunks).filter((c) => c.blob && c.blob.size > 0)
   const meeting = (await db.meetings.get(meetingId)) as Meeting | undefined
   if (!meeting) return
 
