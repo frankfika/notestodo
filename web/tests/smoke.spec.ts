@@ -214,4 +214,77 @@ test.describe('Shibei shell smoke', () => {
     // 会议详情页应显示该会议标题
     await expect(page.locator('text=E2E 来源会议').first()).toBeVisible({ timeout: 5000 })
   })
+
+  test('导出 → 清空 → 导入 roundtrip：数据完整恢复（数据主权）', async ({ page }) => {
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    // 注入一场会议 + 一条 todo 作为"原始数据"
+    await page.evaluate(async () => {
+      const nowIso = new Date().toISOString()
+      await new Promise<void>((res, rej) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction(['meetings', 'todos'], 'readwrite')
+          tx.objectStore('meetings').put({
+            id: 'rt-m-1', title: 'Roundtrip 会议', source: 'manual', status: 'transcribed',
+            started_at: nowIso,
+            audio: { format: 'audio/webm', codec: 'opus', duration_ms: 30000, chunk_count: 1, size_bytes: 50000, gaps: [] },
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.objectStore('todos').put({
+            id: 'rt-t-1', kind: 'task', parent_id: null,
+            title: 'Roundtrip 任务', status: 'open',
+            source: 'manual', meeting_id: 'rt-m-1',
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        }
+      })
+    })
+    await page.goto(BASE)
+    await page.getByRole('button', { name: '设置' }).first().click()
+    await page.waitForTimeout(400)
+
+    // 1) 导出：拦截 download，saveAs 到稳定路径（artifacts 临时路径 readFileSync 后会干扰 setFiles）
+    const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
+    await page.getByRole('button', { name: '导出 .zip' }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toMatch(/^shibei-\d{4}-\d{2}-\d{2}T.*\.zip$/)
+    const zipPath = '/tmp/shibei-roundtrip.zip'
+    await download.saveAs(zipPath)
+    const fs = await import('node:fs')
+    expect(fs.statSync(zipPath).size).toBeGreaterThan(500) // manifest + 2 tables 至少几百字节
+
+    // 2) 导入：事件式 dialog 处理（Promise 式等待会与 fileChooser 死锁 —
+    //    Chromium 的 confirm() 阻塞 file chooser input 事件循环，setFiles 永不返回）
+    page.on('dialog', (d) => void d.accept())
+    const chooserPromise = page.waitForEvent('filechooser', { timeout: 10000 })
+    await page.getByRole('button', { name: '导入 .zip' }).click()
+    const chooser = await chooserPromise
+    await chooser.setFiles([zipPath])
+    // 导入成功会触发 location.reload
+    await page.waitForLoadState('load')
+    await page.waitForTimeout(1500)
+
+    // 3) 验证数据完整恢复：会议与待办都在
+    await page.getByRole('button', { name: '待办' }).click()
+    await page.waitForTimeout(500)
+    await expect(page.locator('text=Roundtrip 任务').first()).toBeVisible({ timeout: 5000 })
+    const restored = await page.evaluate(async () => {
+      return new Promise<{ meetings: number; todos: number }>((res) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction(['meetings', 'todos'], 'readonly')
+          const mc = tx.objectStore('meetings').count()
+          const tc = tx.objectStore('todos').count()
+          mc.onsuccess = () => tc.onsuccess = () => res({ meetings: mc.result, todos: tc.result })
+        }
+      })
+    })
+    expect(restored.meetings).toBeGreaterThanOrEqual(1)
+    expect(restored.todos).toBeGreaterThanOrEqual(1)
+  })
 })
