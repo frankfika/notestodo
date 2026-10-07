@@ -221,17 +221,36 @@ export async function stopRecorder(): Promise<string | null> {
   const meetingId = active.meetingId
   setRecorderPartial({ phase: 'stopping' })
 
+  // 关键：recorder.stop() 会触发最后一次 ondataavailable（tail chunk）。
+  // 必须保持 active 直到它落库，否则 allocateSeq 返回 null → tail chunk
+  // 被写成 seq=-1，merge/finalise 按 seq 排序时最后一段音频会排到最前
+  //（长录音转录错序的根因）。先记下引用再等待。
+  const recorder = active.recorder
+  const stream = active.stream
+  const timer = active.timer
+  const finalFlush = new Promise<void>((resolve) => {
+    const prevOnData = recorder.ondataavailable
+    recorder.ondataavailable = (ev) => {
+      // 仍走原 handler —— active 尚未清空，tail chunk 拿到真实 seq
+      if (prevOnData) prevOnData.call(recorder, ev)
+      resolve()
+    }
+    // 兜底：某些实现 stop() 后不再派发 dataavailable（如无数据可冲）
+    setTimeout(resolve, 1500)
+  })
+
   // Stop the recorder (this triggers one final ondataavailable + onstop).
   try {
-    if (active.recorder.state !== 'inactive') {
-      active.recorder.stop()
+    if (recorder.state !== 'inactive') {
+      recorder.stop()
     }
   } catch {
     // ignore — we'll still tear everything down.
   }
+  await finalFlush
 
   // Stop all tracks so the mic indicator goes away.
-  for (const track of active.stream.getTracks()) {
+  for (const track of stream.getTracks()) {
     try {
       track.stop()
     } catch {
@@ -239,8 +258,8 @@ export async function stopRecorder(): Promise<string | null> {
     }
   }
 
-  if (active.timer !== null) {
-    clearInterval(active.timer)
+  if (timer !== null) {
+    clearInterval(timer)
   }
   active = null
 
@@ -515,19 +534,27 @@ async function finaliseMeeting(meetingId: string): Promise<void> {
   const chunks = await db.audioChunks
     .where('meeting_id')
     .equals(meetingId)
-    .sortBy('seq')
+    .toArray()
+  // 与 mergeAudioChunks 一致：数据分片按 seq，tail(-1) 最后；空 placeholder 不计
+  chunks.sort((a, b) => {
+    const ta = a.seq === -1 ? 1 : 0
+    const tb = b.seq === -1 ? 1 : 0
+    if (ta !== tb) return ta - tb
+    return a.seq - b.seq
+  })
+  const dataChunks = chunks.filter((c) => c.blob && c.blob.size > 0)
   const meeting = (await db.meetings.get(meetingId)) as Meeting | undefined
   if (!meeting) return
 
-  const totalDuration = chunks.reduce((s, c) => s + c.duration_ms, 0)
-  const totalSize = chunks.reduce((s, c) => s + c.size_bytes, 0)
+  const totalDuration = dataChunks.reduce((s, c) => s + c.duration_ms, 0)
+  const totalSize = dataChunks.reduce((s, c) => s + c.size_bytes, 0)
 
   await db.meetings.update(meetingId, {
     ended_at: now(),
     audio: {
       ...meeting.audio,
       duration_ms: totalDuration,
-      chunk_count: chunks.length,
+      chunk_count: dataChunks.length,
       size_bytes: totalSize,
     },
     updated_at: now(),

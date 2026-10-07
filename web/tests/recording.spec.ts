@@ -66,14 +66,16 @@ test.describe('真实录音链路（fake mic）', () => {
     expect(rows.meetings.length).toBeGreaterThanOrEqual(1)
     const meeting = rows.meetings[rows.meetings.length - 1] as Record<string, unknown>
     expect(meeting.status).toBeDefined()
-    // 采集断言：至少 1 个含真实音频的分片。短录（< 5 分钟分片间隔）时
-    // 数据集中在停止时的 tail chunk（设计上 seq=-1 排最后），属正常路径。
+    // 采集断言：至少 1 个含真实音频的分片。引擎修复后 tail flush 在 active
+    // 存活期间落库 → 拿到真实 seq；仅当 stop() 未派发 flush 时才回退 -1。
     expect(rows.chunks.length).toBeGreaterThanOrEqual(1)
     const withAudio = rows.chunks.filter(
       (c) => (c as Record<string, unknown>).size_bytes > 1000,
     )
     expect(withAudio.length).toBeGreaterThanOrEqual(1)
-    // 至少一个分片有合法 seq（placeholder=0 或数据分片 ≥1；tail 允许 -1）
-    expect(rows.chunks.some((c) => Number((c as Record<string, unknown>).seq) >= 0)).toBe(true)
+    // 含音频的分片必须都有合法 seq（≥0）—— seq=-1 会让 merge 时最后一段排最前
+    expect(
+      withAudio.every((c) => Number((c as Record<string, unknown>).seq) >= 0),
+    ).toBe(true)
   })
 })
