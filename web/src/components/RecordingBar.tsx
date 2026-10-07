@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react'
 import { useRecorder } from '../state/recorder'
 import { useUI } from '../state/ui'
 import { fmtClock } from '../lib/id'
+import LevelMeter from './LevelMeter'
 
 /**
  * 顶部录音状态条，仅在录制/异常时出现；停止时完全退出 DOM（不占空间、不打扰）。
  * 永远只有一个主操作（停止），其他让路。
+ *
+ * 视觉反馈：红点呼吸 + 实时时钟 + 5 段实时麦克风电平条，
+ * 让用户立即看到"麦在响"，解决"我按了录音但真的录上了吗"的疑虑。
  */
 export default function RecordingBar() {
   const phase = useRecorder((s) => s.phase)
   const elapsedMs = useRecorder((s) => s.elapsedMs)
   const meeting = useRecorder((s) => s.meeting)
   const chunkCount = useRecorder((s) => s.chunkCount)
+  const audioLevel = useRecorder((s) => s.audioLevel)
   const error = useRecorder((s) => s.error)
   const stop = useRecorder((s) => s.stop)
   const goMeeting = useUI((s) => s.goMeeting)
@@ -37,6 +41,7 @@ export default function RecordingBar() {
           <span className="rec-dot text-danger text-lg leading-none">●</span>
           <span className="font-medium text-text-1">正在录音</span>
           <span className="font-mono tabular-nums text-text-1">{fmtClock(elapsedMs)}</span>
+          <LevelMeter level={audioLevel} />
           {meeting && (
               <button
                 onClick={() => goMeeting(meeting.id)}

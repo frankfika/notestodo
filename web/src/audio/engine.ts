@@ -43,6 +43,11 @@ interface ActiveEngine {
   seq: number
   /** setInterval handle for the elapsed-timer pump */
   timer: number | null
+  /** setInterval handle for the audio level pump */
+  levelTimer: number | null
+  /** AudioContext + AnalyserNode for live level metering */
+  audioCtx: AudioContext | null
+  analyser: AnalyserNode | null
   /** pending resume after a visibility/track-ended interruption */
   resuming: boolean
 }
@@ -115,6 +120,25 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
   const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
   const startedAtMs = Date.now()
 
+  // 实时电平表：AudioContext + AnalyserNode，从同一 stream 拉取但不录音流本身。
+  // analyser 的目的是"让用户看见麦在响"——录音仍走 MediaRecorder。
+  let audioCtx: AudioContext | null = null
+  let analyser: AnalyserNode | null = null
+  try {
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (AC) {
+      audioCtx = new AC()
+      const source = audioCtx.createMediaStreamSource(stream)
+      analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.6
+      source.connect(analyser)
+    }
+  } catch (e: unknown) {
+    // 不影响录音主路径
+    console.warn('AudioContext analyser 初始化失败', e)
+  }
+
   active = {
     meetingId,
     stream,
@@ -124,6 +148,9 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     lastChunkAt: null,
     seq: 1, // 0 is reserved for the placeholder row created with the meeting
     timer: null,
+    levelTimer: null,
+    audioCtx,
+    analyser,
     resuming: false,
   }
 
@@ -162,6 +189,21 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
   }, 250)
 
   active.timer = timer
+
+  // 实时电平（0..1）每 100ms 上报一次，让 UI 看见麦在响
+  const levelBuf = active.analyser ? new Uint8Array(active.analyser.fftSize) : null
+  const levelTimer = window.setInterval(() => {
+    if (!active || !active.analyser || !levelBuf) return
+    active.analyser.getByteTimeDomainData(levelBuf)
+    let sum = 0
+    for (let i = 0; i < levelBuf.length; i++) {
+      const v = (levelBuf[i] - 128) / 128
+      sum += v * v
+    }
+    const rms = Math.sqrt(sum / levelBuf.length)
+    setRecorderPartial({ audioLevel: Math.min(1, rms * 2.5) })
+  }, 100)
+  active.levelTimer = levelTimer
 
   setRecorderPartial({
     phase: 'recording',
@@ -507,6 +549,15 @@ function teardown(): void {
     }
   }
   if (active.timer !== null) clearInterval(active.timer)
+  if (active.levelTimer !== null) clearInterval(active.levelTimer)
+  if (active.audioCtx) {
+    try {
+      void active.audioCtx.close()
+    } catch {
+      // ignore
+    }
+  }
+  setRecorderPartial({ audioLevel: 0 })
   active = null
 }
 

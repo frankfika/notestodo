@@ -119,4 +119,12 @@ test.describe('Shibei shell smoke', () => {
     // 新建的 Objective 应该出现在页面上
     await expect(page.locator('text=新工作目标').first()).toBeVisible({ timeout: 3000 })
   })
+
+  test('未录音时音频条不应出现（idle 状态下 DOM 不渲染）', async ({ page }) => {
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    // 录音条的容器在 idle 时返回 null — RecordingBar 整体不挂载
+    const bar = page.locator('span.rec-dot').first()
+    await expect(bar).toHaveCount(0)
+  })
 })

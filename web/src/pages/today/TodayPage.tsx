@@ -7,6 +7,7 @@ import { getCachedSettings } from '../../db/settings'
 import { fetchCalendar, type CalendarEvent } from '../../calendar/ics'
 import { fmtClock, fmtDateTime, today as todayIso } from '../../lib/id'
 import EmptyState from '../../components/EmptyState'
+import LevelMeter from '../../components/LevelMeter'
 
 /**
  * Today 页：默认首页。三块——
@@ -21,6 +22,7 @@ export default function TodayPage(): JSX.Element {
   const phase = useRecorder((s) => s.phase)
   const elapsedMs = useRecorder((s) => s.elapsedMs)
   const recorderMeeting = useRecorder((s) => s.meeting)
+  const audioLevel = useRecorder((s) => s.audioLevel)
   const stop = useRecorder((s) => s.stop)
   const start = useRecorder((s) => s.start)
 
@@ -144,7 +146,10 @@ export default function TodayPage(): JSX.Element {
             <div className="flex items-center gap-3">
               <span className="rec-dot text-2xl text-danger">●</span>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-text-1">正在录音</div>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-medium text-text-1">正在录音</span>
+                  <LevelMeter level={audioLevel} size={20} />
+                </div>
                 <div className="font-mono tabular-nums text-2xl text-text-1 mt-0.5">{fmtClock(elapsedMs)}</div>
                 {recorderMeeting && (
                   <button

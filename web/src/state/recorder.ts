@@ -27,6 +27,8 @@ interface RecorderStore {
   chunkCount: number
   /** 浏览器录音被中断（切后台/系统打断） */
   interrupted: boolean
+  /** 实时麦克风电平 (0..1 RMS)，由 analyser 每 100ms 上报；未录音时为 0 */
+  audioLevel: number
   error: string | null
 
   // 以下 action 由引擎实现注入（见 audio/engine.ts 的 bindRecorderEngine）
@@ -41,6 +43,7 @@ export const useRecorder = create<RecorderStore>((set) => ({
   elapsedMs: 0,
   chunkCount: 0,
   interrupted: false,
+  audioLevel: 0,
   error: null,
 
   // 默认实现会被 engine.ts 覆盖；这里给安全兜底
