@@ -174,4 +174,44 @@ test.describe('Shibei shell smoke', () => {
     expect(json.display).toBe('standalone')
     expect(Array.isArray(json.icons)).toBe(true)
   })
+
+  test('待办可跳回来源会议（跟进闭环）', async ({ page }) => {
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    // 注入一场会议 + 一个关联该会议的待办
+    await page.evaluate(async () => {
+      const nowIso = new Date().toISOString()
+      await new Promise<void>((res, rej) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction(['meetings', 'todos'], 'readwrite')
+          tx.objectStore('meetings').put({
+            id: 'e2e-m-1', title: 'E2E 来源会议', source: 'manual', status: 'summarized',
+            started_at: nowIso,
+            audio: { format: 'audio/webm', codec: 'opus', duration_ms: 60000, chunk_count: 2, size_bytes: 100000, gaps: [] },
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.objectStore('todos').put({
+            id: 'e2e-t-1', kind: 'task', parent_id: null,
+            title: '来自会议的任务', status: 'open',
+            source: 'ai', meeting_id: 'e2e-m-1',
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        }
+      })
+    })
+    await page.goto(BASE)
+    await page.getByRole('button', { name: '待办' }).click()
+    await page.waitForTimeout(500)
+    // 来源会议链接可见 → 点击 → 跳到会议详情
+    const link = page.getByRole('button', { name: /E2E 来源会议/ }).first()
+    await expect(link).toBeVisible({ timeout: 5000 })
+    await link.click()
+    await page.waitForTimeout(600)
+    // 会议详情页应显示该会议标题
+    await expect(page.locator('text=E2E 来源会议').first()).toBeVisible({ timeout: 5000 })
+  })
 })

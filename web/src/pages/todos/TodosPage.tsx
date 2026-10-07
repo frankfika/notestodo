@@ -304,6 +304,12 @@ function KrBlock({
 function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; indent?: number }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const isDone = todo.status === 'done'
+  const goMeeting = useUI((s) => s.goMeeting)
+  // 会议来源：提取自会议的待办可以一键跳回（需求 #3 跟进闭环）
+  const meeting = useLiveQuery(
+    async () => todo.meeting_id ? await db.meetings.get(todo.meeting_id) : undefined,
+    [todo.meeting_id ?? ''],
+  )
   const styleFont = todo.kind === 'objective'
     ? 'text-lg font-semibold'
     : todo.kind === 'kr'
@@ -338,6 +344,15 @@ function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; in
             {todo.status !== 'open' && todo.status !== 'done' && <span className="chip">{STATUS_LABELS[todo.status]}</span>}
             {todo.due_date && <span>· {todo.due_date}</span>}
             {todo.assignee && <span>· @{todo.assignee}</span>}
+            {meeting && (
+              <button
+                onClick={() => goMeeting(meeting.id)}
+                className="text-accent/80 hover:text-accent transition-colors"
+                title="打开这场会议"
+              >
+                · ● {meeting.title}
+              </button>
+            )}
           </div>
         </div>
         <button
