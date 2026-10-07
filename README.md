@@ -24,6 +24,7 @@
 │   └── SHARED_SPEC.md       # 模块开发规约（多 agent 协作接口）
 ├── research/                # 调研报告：竞品、开源方案
 ├── web/                     # React + Vite + Dexie 前端
+│   ├── src-tauri/           # Tauri 2 mac 原生壳（Rust + WKWebView）
 │   └── src/
 │       ├── audio/           # 录音引擎（分片、异常恢复）
 │       ├── pipeline/        # 转录/总结编排、任务恢复
@@ -47,6 +48,14 @@ cd web
 pnpm install
 pnpm dev      # http://localhost:5173
 pnpm build    # 打包到 dist/
+```
+
+**mac 原生客户端（Tauri 2）**：`web/src-tauri/` 已就绪，Rust + WKWebView 壳，体积约 10MB。
+
+```bash
+cd web
+pnpm tauri dev     # 原生窗口开发模式（自动起 vite）
+pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 ```
 
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
