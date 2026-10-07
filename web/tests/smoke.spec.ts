@@ -262,6 +262,55 @@ test.describe('Shibei shell smoke', () => {
       .catch(() => expect(page.locator('input').first()).toHaveValue(/E2E 来源笔记/, { timeout: 5000 }))
   })
 
+  test('tag 过滤：点击 tag chip 只显示绑定该 tag 的任务（充分发挥 tags）', async ({ page }) => {
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    // 注入 2 条 todo + 1 个 tag + 绑定（只绑任务 A）
+    await page.evaluate(async () => {
+      const nowIso = new Date().toISOString()
+      const id = () => crypto.randomUUID()
+      const tagId = id()
+      const aId = id()
+      const bId = id()
+      await new Promise<void>((res, rej) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction(['tags', 'tagBindings', 'todos'], 'readwrite')
+          tx.objectStore('tags').put({
+            id: tagId, name: 'urgent', color: '#888',
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.objectStore('todos').put({
+            id: aId, kind: 'task', parent_id: null, title: 'TaggedA-带标签任务', status: 'open',
+            source: 'manual', created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.objectStore('todos').put({
+            id: bId, kind: 'task', parent_id: null, title: 'PlainB-无标签任务', status: 'open',
+            source: 'manual', created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.objectStore('tagBindings').put({
+            id: id(), tag_id: tagId, target_type: 'todo', target_id: aId,
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        }
+      })
+    })
+    await page.goto(BASE)
+    await page.getByRole('button', { name: '待办' }).click()
+    await page.waitForTimeout(600)
+    // tag 行出现 → 点击 #urgent
+    const tagChip = page.getByRole('button', { name: /^#urgent/ }).first()
+    await expect(tagChip).toBeVisible({ timeout: 5000 })
+    await tagChip.click()
+    await page.waitForTimeout(500)
+    // 只剩带标签的任务
+    await expect(page.locator('text=TaggedA-带标签任务').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=PlainB-无标签任务')).toHaveCount(0, { timeout: 3000 })
+  })
+
   test('导出 → 清空 → 导入 roundtrip：数据完整恢复（数据主权）', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)

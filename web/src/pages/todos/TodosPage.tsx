@@ -36,6 +36,32 @@ export default function TodosPage(): JSX.Element {
   const focusId = useUI((s) => s.todoFocusId)
 
   const [filter, setFilter] = useState<Filter>('全部')
+  // tag 过滤：null = 不过滤；否则为 tag id（单选，保持极简）
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+
+  // 「充分发挥 tags」（需求 #3）：聚合所有 tag + todo↔tag 绑定关系，供过滤
+  const allTags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
+  const todoBindings = useLiveQuery(
+    () => db.tagBindings.where('target_type').equals('todo').toArray(),
+    [],
+  ) ?? []
+  const tagIdsByTodo = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const b of todoBindings) {
+      if (b.deleted_at !== null) continue
+      const list = m.get(b.target_id) ?? []
+      list.push(b.tag_id)
+      m.set(b.target_id, list)
+    }
+    return m
+  }, [todoBindings])
+  const tagUsageCount = useMemo(() => {
+    const c = new Map<string, number>()
+    for (const ids of tagIdsByTodo.values()) {
+      for (const id of ids) c.set(id, (c.get(id) ?? 0) + 1)
+    }
+    return c
+  }, [tagIdsByTodo])
 
   const counts = useMemo(() => {
     const t = todayIso()
@@ -50,13 +76,17 @@ export default function TodosPage(): JSX.Element {
   const filtered = useMemo(() => {
     const t = todayIso()
     return todos.filter((x) => {
+      if (tagFilter) {
+        const ids = tagIdsByTodo.get(x.id) ?? []
+        if (!ids.includes(tagFilter)) return false
+      }
       if (filter === '全部') return x.status !== 'cancelled'
       if (filter === '进行') return x.status === 'open' || x.status === 'pending_review'
       if (filter === '今日') return (x.status === 'open' || x.status === 'pending_review') && x.due_date === t
       if (filter === '已完成') return x.status === 'done'
       return true
     })
-  }, [todos, filter])
+  }, [todos, filter, tagFilter, tagIdsByTodo])
 
   const free = useMemo(() => filtered.filter((t) => t.kind === 'task' && t.parent_id === null), [filtered])
   const objectives = useMemo(() => filtered.filter((t) => t.kind === 'objective'), [filtered])
@@ -120,7 +150,7 @@ export default function TodosPage(): JSX.Element {
         </div>
 
         {/* 过滤 pills */}
-        <div className="flex items-center gap-1 mb-6">
+        <div className="flex items-center gap-1 mb-2">
           {(['全部', '进行', '今日', '已完成'] as Filter[]).map((f) => {
             const c = f === '全部' ? counts.all : f === '进行' ? counts.open : f === '今日' ? counts.today : counts.done
             const active = filter === f
@@ -138,6 +168,42 @@ export default function TodosPage(): JSX.Element {
           })}
         </div>
 
+        {/* tag 过滤行：只显示已被至少一条 todo 使用的 tag */}
+        {(allTags.length > 0 && todoBindings.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-5">
+            <button
+              onClick={() => setTagFilter(null)}
+              className={`px-2.5 h-6 text-[11px] rounded-full border transition-colors ${
+                tagFilter === null
+                  ? 'border-accent text-accent'
+                  : 'border-line text-text-3 hover:text-text-2 hover:border-line-strong'
+              }`}
+            >
+              # 全部
+            </button>
+            {allTags
+              .filter((t) => (tagUsageCount.get(t.id) ?? 0) > 0)
+              .map((t) => {
+                const active = tagFilter === t.id
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTagFilter(active ? null : t.id)}
+                    className={`px-2.5 h-6 text-[11px] rounded-full border transition-colors ${
+                      active
+                        ? 'border-accent bg-accent/15 text-accent'
+                        : 'border-line text-text-3 hover:text-text-2 hover:border-line-strong'
+                    }`}
+                    title={`${tagUsageCount.get(t.id)} 条任务`}
+                  >
+                    #{t.name}
+                    <span className="ml-1 opacity-60 tabular-nums">{tagUsageCount.get(t.id)}</span>
+                  </button>
+                )
+              })}
+          </div>
+        )}
+        <div className={allTags.length > 0 && todoBindings.length > 0 ? '' : 'mt-6'}>
         {/* 自由任务 */}
         <SectionHeader
           title="自由任务"
@@ -149,7 +215,7 @@ export default function TodosPage(): JSX.Element {
           <div className="text-xs text-text-3 px-3 py-2 mb-6">无</div>
         ) : (
           <ul className="card divide-y divide-line mb-8">
-            {free.map((t) => <TodoLine key={t.id} todo={t} allTodos={todos} />)}
+            {free.map((t) => <TodoLine key={t.id} todo={t} allTodos={todos} onFilterByTag={setTagFilter} />)}
           </ul>
         )}
 
@@ -177,11 +243,13 @@ export default function TodosPage(): JSX.Element {
                     allTodos={todos}
                     onCreateKr={() => void createKr(o)}
                     onCreateTask={() => void createTask(o)}
+                    onFilterByTag={setTagFilter}
                   />
                 </li>
               ))}
           </ul>
         )}
+        </div>
       </div>
     </div>
   )
@@ -223,7 +291,7 @@ function SectionHeader({ title, hint, onAdd, addLabel }: { title: string; hint?:
 }
 
 function ObjectiveBlock({
-  objective, krs, tasksByParent, allTodos, onCreateKr, onCreateTask,
+  objective, krs, tasksByParent, allTodos, onCreateKr, onCreateTask, onFilterByTag,
 }: {
   objective: Todo
   krs: Todo[]
@@ -231,6 +299,7 @@ function ObjectiveBlock({
   allTodos: Todo[]
   onCreateKr: () => void
   onCreateTask: () => void
+  onFilterByTag?: (tagId: string) => void
 }): JSX.Element {
   return (
     <div data-todo-id={objective.id} className="card p-4">
@@ -243,7 +312,7 @@ function ObjectiveBlock({
           title="删除 Objective（软删除）"
         >删除</button>
       </div>
-      <TodoLine todo={objective} allTodos={allTodos} />
+      <TodoLine todo={objective} allTodos={allTodos} onFilterByTag={onFilterByTag} />
       <div className="ml-6 mt-4 space-y-3">
         {krs.length === 0 && (
           <div className="text-xs text-text-3 px-1">还没有 KR。</div>
@@ -256,6 +325,7 @@ function ObjectiveBlock({
               kr={kr}
               tasks={tasks}
               allTodos={allTodos}
+              onFilterByTag={onFilterByTag}
               onAddTask={() => {
                 const t = blank('task', kr.id, '新任务')
                 void db.todos.add(t)
@@ -273,21 +343,21 @@ function ObjectiveBlock({
 }
 
 function KrBlock({
-  kr, tasks, allTodos, onAddTask,
-}: { kr: Todo; tasks: Todo[]; allTodos: Todo[]; onAddTask: () => void }): JSX.Element {
+  kr, tasks, allTodos, onAddTask, onFilterByTag,
+}: { kr: Todo; tasks: Todo[]; allTodos: Todo[]; onAddTask: () => void; onFilterByTag?: (tagId: string) => void }): JSX.Element {
   return (
     <div data-todo-id={kr.id} className="border-l-2 border-line pl-4">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-semibold tracking-wider text-text-3">KR</span>
       </div>
-      <TodoLine todo={kr} allTodos={allTodos} />
+      <TodoLine todo={kr} allTodos={allTodos} onFilterByTag={onFilterByTag} />
       <ul className="ml-6 mt-1.5 space-y-0.5">
         {tasks.length === 0 && (
           <li className="text-xs text-text-3 px-1">无 Task</li>
         )}
         {tasks.map((t) => (
           <li key={t.id} data-todo-id={t.id}>
-            <TodoLine todo={t} allTodos={allTodos} indent={0} />
+            <TodoLine todo={t} allTodos={allTodos} indent={0} onFilterByTag={onFilterByTag} />
           </li>
         ))}
         <li>
@@ -301,7 +371,7 @@ function KrBlock({
   )
 }
 
-function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; indent?: number }): JSX.Element {
+function TodoLine({ todo, allTodos, indent, onFilterByTag }: { todo: Todo; allTodos: Todo[]; indent?: number; onFilterByTag?: (tagId: string) => void }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const isDone = todo.status === 'done'
   const goMeeting = useUI((s) => s.goMeeting)
@@ -315,6 +385,18 @@ function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; in
     async () => todo.origin_note_id ? await db.notes.get(todo.origin_note_id) : undefined,
     [todo.origin_note_id ?? ''],
   )
+  const rowTags = useLiveQuery(
+    async () => {
+      const bindings = await db.tagBindings
+        .where('[target_type+target_id]')
+        .equals(['todo', todo.id])
+        .toArray()
+      const ids = bindings.filter((b) => b.deleted_at === null).map((b) => b.tag_id)
+      if (ids.length === 0) return []
+      return db.tags.where('id').anyOf(ids).toArray()
+    },
+    [todo.id],
+  ) ?? []
   const styleFont = todo.kind === 'objective'
     ? 'text-lg font-semibold'
     : todo.kind === 'kr'
@@ -367,6 +449,16 @@ function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; in
                 · ✎ {note.title || '未命名笔记'}
               </button>
             )}
+            {(rowTags).map((tag) => (
+              <button
+                key={tag.id}
+                onClick={() => onFilterByTag?.(tag.id)}
+                className="text-accent/70 hover:text-accent transition-colors"
+                title={`按 #${tag.name} 过滤`}
+              >
+                · #{tag.name}
+              </button>
+            ))}
           </div>
         </div>
         <button
