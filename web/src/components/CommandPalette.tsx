@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useUI } from '../state/ui'
 import { useRecorder } from '../state/recorder'
+import { mod } from '../lib/id'
 
 interface Item {
   group: '动作' | '跳转' | '新建'
@@ -30,10 +31,11 @@ export default function CommandPalette() {
 
   const items: Item[] = useMemo(() => {
     const go = useUI.getState()
+    const recHint = `${mod()}⇧R`
     const recAction: Item =
       phase === 'recording'
-        ? { group: '动作', label: '停止录音', hint: '⌘⇧R', run: () => stop() }
-        : { group: '动作', label: '开始录音', hint: '⌘⇧R', run: () => start() }
+        ? { group: '动作', label: '停止录音', hint: recHint, run: () => stop() }
+        : { group: '动作', label: '开始录音', hint: recHint, run: () => start() }
     return [
       recAction,
       { group: '动作', label: '导出全部数据', run: () => void go.goSettings() },

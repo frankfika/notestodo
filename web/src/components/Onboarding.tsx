@@ -4,6 +4,7 @@ import { db } from '../db/db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { saveSettings } from '../db/settings'
 import { useUI } from '../state/ui'
+import { mod } from '../lib/id'
 
 /**
  * 首次启动引导：右下角可关闭面板——始终不拦截主 UI。
@@ -97,7 +98,7 @@ export default function Onboarding(): JSX.Element | null {
         <div>
           <h3 className="text-base font-semibold text-text-1 mb-2">开会时只管说话</h3>
           <p className="text-xs text-text-2 leading-relaxed mb-4">
-            按 <span className="kbd">⌘⇧R</span> 一键录音；录音结束自动转录 + 生成纪要 + 提取行动项。
+            按 <span className="kbd">{mod()}⇧R</span> 一键录音；录音结束自动转录 + 生成纪要 + 提取行动项。
             所有数据存你本机 IndexedDB，导出 .zip 备份即可带走。
           </p>
           <div className="flex items-center gap-2">
@@ -174,8 +175,8 @@ export default function Onboarding(): JSX.Element | null {
         <div>
           <h3 className="text-base font-semibold text-text-1 mb-2">一切就绪</h3>
           <p className="text-xs text-text-2 leading-relaxed mb-4">
-            按 <span className="kbd">⌘⇧R</span> 开始录音。
-            <br />· ⌘K 唤出命令面板（跳转 / 录制 / 导出）
+            按 <span className="kbd">{mod()}⇧R</span> 开始录音。
+            <br />· {mod()}K 唤出命令面板（跳转 / 录制 / 导出）
             <br />· 录制完成的会议会出现在「会议」列表，自动转录 + 总结
           </p>
           <div className="flex items-center gap-2">

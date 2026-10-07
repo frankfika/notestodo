@@ -1,3 +1,14 @@
+/**
+ * 平台相关的修饰键符号：
+ *   mac → ⌘
+ *   其他 → ⌃
+ * 用法：`<span>{mod()}K</span>` 让快捷键提示在 Mac/Win/Linux 上都正确。
+ */
+export function mod(): string {
+  if (typeof navigator === 'undefined') return '⌘'
+  return /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : '⌃'
+}
+
 export function uid(): string {
   return crypto.randomUUID()
 }

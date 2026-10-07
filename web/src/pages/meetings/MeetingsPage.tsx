@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
-import { fmtClock, fmtDate, fmtDateTime } from '../../lib/id'
+import { fmtClock, fmtDate, fmtDateTime, mod } from '../../lib/id'
 import type { Meeting, MeetingStatus } from '../../types'
 import EmptyState from '../../components/EmptyState'
 
@@ -78,7 +78,7 @@ export default function MeetingsPage(): JSX.Element {
           <EmptyState
             icon="◌"
             title="还没有会议"
-            hint="按 ⌘⇧R 或点右上角立刻开始。"
+            hint={`按 ${mod()}⇧R 或点右上角立刻开始。`}
             action={
               <button onClick={() => void start()} className="btn-primary h-8 text-xs">● 开始录音</button>
             }

@@ -5,7 +5,7 @@ import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
 import { getCachedSettings } from '../../db/settings'
 import { fetchCalendar, type CalendarEvent } from '../../calendar/ics'
-import { fmtClock, fmtDateTime, today as todayIso } from '../../lib/id'
+import { fmtClock, fmtDateTime, mod, today as todayIso } from '../../lib/id'
 import EmptyState from '../../components/EmptyState'
 import LevelMeter from '../../components/LevelMeter'
 
@@ -136,7 +136,7 @@ export default function TodayPage(): JSX.Element {
             <h1 className="text-2xl font-semibold tracking-tight text-text-1 mt-1">今天</h1>
           </div>
           <button onClick={() => setCmdkOpen(true)} className="btn-outline text-xs h-8">
-            <span className="kbd mr-1.5">⌘K</span>搜索 / 命令
+            <span className="kbd mr-1.5">{mod()}K</span>搜索 / 命令
           </button>
         </div>
 
@@ -185,7 +185,7 @@ export default function TodayPage(): JSX.Element {
             <EmptyState
               icon="◌"
               title="今天还没有待办"
-              hint="按 ⌘⇧R 开一场会议，或在「待办」页新建一个 Objective。"
+              hint={`按 ${mod()}⇧R 开一场会议，或在「待办」页新建一个 Objective。`}
               action={
                 <button onClick={() => void start()} className="btn-primary h-8 text-xs">
                   ● 开始录音

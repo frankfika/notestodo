@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
-import { fmtClock, fmtDateTime, now, uid } from '../../lib/id'
+import { fmtClock, fmtDateTime, mod, now, uid } from '../../lib/id'
 import type { ChatMessage, Meeting, MeetingStatus, SummaryTemplate, Todo } from '../../types'
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
@@ -55,7 +55,7 @@ export default function MeetingDetailPage(): JSX.Element {
         <EmptyState
           icon="◐"
           title="没有选中的会议"
-          hint="回到会议列表选择一条，或按 ⌘⇧R 新建一场。"
+          hint={`回到会议列表选择一条，或按 ${mod()}⇧R 新建一场。`}
           action={
             <button onClick={goMeetings} className="btn-outline h-8 text-xs">→ 会议列表</button>
           }

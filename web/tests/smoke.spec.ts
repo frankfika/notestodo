@@ -142,4 +142,15 @@ test.describe('Shibei shell smoke', () => {
     const onboardingCard = page.locator('text=欢迎使用拾贝').first()
     await expect(onboardingCard).toHaveCount(0, { timeout: 2000 })
   })
+
+  test('快捷键提示跟随平台（mac=⌘ / 其他=⌃）', async ({ page }) => {
+    // Playwright 在 macOS 跑 → navigator.platform 含 'mac'，应输出 ⌘
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    const isMac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))
+    const expected = isMac ? '⌘' : '⌃'
+    // Topbar 上 ⌘K 按钮里有正确的符号
+    const topbar = await page.locator('button:has(span.kbd)').first().innerText()
+    expect(topbar).toContain(expected)
+  })
 })
