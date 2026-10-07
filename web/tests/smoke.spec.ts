@@ -223,6 +223,45 @@ test.describe('Shibei shell smoke', () => {
     await expect(page.locator('text=E2E 来源会议').first()).toBeVisible({ timeout: 5000 })
   })
 
+  test('待办可跳回来源笔记（note-todo 闭环，需求 #4）', async ({ page }) => {
+    await page.goto(BASE)
+    await dismissOnboarding(page)
+    // 注入一篇笔记 + 一个来自该笔记的待办
+    await page.evaluate(async () => {
+      const nowIso = new Date().toISOString()
+      await new Promise<void>((res, rej) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction(['notes', 'todos'], 'readwrite')
+          tx.objectStore('notes').put({
+            id: 'e2e-n-1', title: 'E2E 来源笔记', body_md: '内容',
+            meeting_id: null, todo_ids: ['e2e-nt-1'],
+            pinned: false, created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.objectStore('todos').put({
+            id: 'e2e-nt-1', kind: 'task', parent_id: null,
+            title: '来自笔记的任务', status: 'open',
+            source: 'note', origin_note_id: 'e2e-n-1',
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          })
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        }
+      })
+    })
+    await page.goto(BASE)
+    await page.getByRole('button', { name: '待办' }).click()
+    await page.waitForTimeout(500)
+    const link = page.getByRole('button', { name: /E2E 来源笔记/ }).first()
+    await expect(link).toBeVisible({ timeout: 5000 })
+    await link.click()
+    await page.waitForTimeout(600)
+    // 笔记详情页：标题在 input value 里（text= 不匹配 input，用 value 断言）
+    await expect(page.locator('input[value="E2E 来源笔记"]')).toBeVisible({ timeout: 5000 })
+      .catch(() => expect(page.locator('input').first()).toHaveValue(/E2E 来源笔记/, { timeout: 5000 }))
+  })
+
   test('导出 → 清空 → 导入 roundtrip：数据完整恢复（数据主权）', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)

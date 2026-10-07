@@ -305,10 +305,15 @@ function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; in
   const [editing, setEditing] = useState(false)
   const isDone = todo.status === 'done'
   const goMeeting = useUI((s) => s.goMeeting)
-  // 会议来源：提取自会议的待办可以一键跳回（需求 #3 跟进闭环）
+  const goNote = useUI((s) => s.goNote)
+  // 来源闭环：会议待办跳回会议（需求 #3），笔记待办跳回笔记（需求 #4）
   const meeting = useLiveQuery(
     async () => todo.meeting_id ? await db.meetings.get(todo.meeting_id) : undefined,
     [todo.meeting_id ?? ''],
+  )
+  const note = useLiveQuery(
+    async () => todo.origin_note_id ? await db.notes.get(todo.origin_note_id) : undefined,
+    [todo.origin_note_id ?? ''],
   )
   const styleFont = todo.kind === 'objective'
     ? 'text-lg font-semibold'
@@ -351,6 +356,15 @@ function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; in
                 title="打开这场会议"
               >
                 · ● {meeting.title}
+              </button>
+            )}
+            {note && (
+              <button
+                onClick={() => goNote(note.id)}
+                className="text-accent/80 hover:text-accent transition-colors"
+                title="打开这篇笔记"
+              >
+                · ✎ {note.title || '未命名笔记'}
               </button>
             )}
           </div>
