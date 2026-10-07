@@ -16,6 +16,7 @@ export default function RecordingBar() {
   const meeting = useRecorder((s) => s.meeting)
   const chunkCount = useRecorder((s) => s.chunkCount)
   const audioLevel = useRecorder((s) => s.audioLevel)
+  const interrupted = useRecorder((s) => s.interrupted)
   const error = useRecorder((s) => s.error)
   const stop = useRecorder((s) => s.stop)
   const goMeeting = useUI((s) => s.goMeeting)
@@ -23,7 +24,11 @@ export default function RecordingBar() {
   if (phase === 'idle') return null
 
   const isError = phase === 'error'
-  const accentClass = isError ? 'bg-danger/15 border-danger/40' : 'bg-danger/8 border-danger/30'
+  const accentClass = isError
+    ? 'bg-danger/15 border-danger/40'
+    : interrupted
+      ? 'bg-amber-500/15 border-amber-500/40' // 麦克风被中断/恢复中 — 警示而非危险
+      : 'bg-danger/8 border-danger/30'
 
   return (
     <div className={`flex items-center gap-3 px-5 h-12 border-b ${accentClass} text-sm`}>
@@ -38,8 +43,10 @@ export default function RecordingBar() {
         </>
       ) : (
         <>
-          <span className="rec-dot text-danger text-lg leading-none">●</span>
-          <span className="font-medium text-text-1">正在录音</span>
+          <span className={`rec-dot text-lg leading-none ${interrupted ? 'text-amber-500' : 'text-danger'}`}>●</span>
+          <span className="font-medium text-text-1">
+            {interrupted ? '麦克风被中断，正在恢复…' : '正在录音'}
+          </span>
           <span className="font-mono tabular-nums text-text-1">{fmtClock(elapsedMs)}</span>
           <LevelMeter level={audioLevel} />
           {meeting && (
@@ -52,7 +59,7 @@ export default function RecordingBar() {
               </button>
             )}
           <span className="text-text-3 text-xs">
-            已保存 {chunkCount} 片
+            已保存 {chunkCount} 片{interrupted && ' · 有空白段'}
           </span>
           <button
             onClick={() => void stop()}

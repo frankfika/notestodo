@@ -628,3 +628,22 @@ function defaultTitle(): string {
   const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   return `会议 · ${stamp}`
 }
+
+// 开发模式调试入口：暴露 active stream 让 e2e 能模拟麦克风中断（track ended）。
+// 生产构建会被 vite tree-shake 掉（import.meta.env.DEV 在 prod 为 false）。
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(window as unknown as { __shibeiDebug?: unknown }).__shibeiDebug = {
+    getActiveStream: (): MediaStream | null => (active ? active.stream : null),
+    forceTrackEnded: (): void => {
+      if (!active) return
+      // 主动停掉所有 track → 触发已经绑定的 'ended' 监听 → 走恢复逻辑
+      active.stream.getTracks().forEach((t) => t.stop())
+    },
+  }
+  // 暴露 recorder zustand store 的 setter，e2e 可以驱动 UI 状态机
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  import('../state/recorder').then((m) => {
+    ;(window as unknown as { __setRecorderState?: typeof m.useRecorder.setState }).__setRecorderState = m.useRecorder.setState
+  })
+}
