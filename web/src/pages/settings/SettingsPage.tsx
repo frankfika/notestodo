@@ -5,6 +5,7 @@ import { getSettings, saveSettings } from '../../db/settings'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
 import { exportData, importData } from '../../data/io'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
+import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
 
 /**
@@ -95,6 +96,7 @@ export default function SettingsPage(): JSX.Element {
               placeholder="claude-3-5-sonnet-..."
             />
           </FieldRow>
+          <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />
         </Section>
 
         <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。">
@@ -130,6 +132,7 @@ export default function SettingsPage(): JSX.Element {
               placeholder="asr-1.0"
             />
           </FieldRow>
+          <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />
         </Section>
 
         <Section title="隐私" desc="音频归属与外观。">
@@ -193,6 +196,42 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
       </div>
       <div className="space-y-3">{children}</div>
     </section>
+  )
+}
+
+/**
+ * 连接测试：BYOK 的信任闭环 — 填完 key 立刻验证，而不是等第一场会议失败。
+ * dirty 时置灰（当前未保存的草稿不代表将保存的配置）。
+ */
+function ConnectionTestRow({ kind, settings, dirty }: { kind: 'llm' | 'asr'; settings: AppSettings; dirty: boolean }): JSX.Element {
+  const [testing, setTesting] = useState(false)
+  const [result, setResult] = useState<TestResult | null>(null)
+
+  async function run(): Promise<void> {
+    if (testing) return
+    setTesting(true)
+    setResult(null)
+    const r = kind === 'llm' ? await testLLMConnection(settings) : await testASRConnection(settings)
+    setResult(r)
+    setTesting(false)
+  }
+
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <button
+        onClick={() => void run()}
+        disabled={testing || dirty}
+        className="btn-outline text-xs h-8 px-3"
+        title={dirty ? '有未保存的修改 — 先保存再测试' : undefined}
+      >
+        {testing ? '测试中…' : '测试连接'}
+      </button>
+      {result && (
+        <span className={`text-xs ${result.ok ? 'text-accent' : 'text-danger'}`}>
+          {result.ok ? '✓ ' : '✕ '}{result.message}
+        </span>
+      )}
+    </div>
   )
 }
 

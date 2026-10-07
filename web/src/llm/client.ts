@@ -1,4 +1,5 @@
 import type { AppSettings } from '../types'
+import { joinUrl } from './url'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -215,11 +216,6 @@ function splitSystemMessages(messages: ChatMessage[]): {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function joinUrl(base: string, path: string): string {
-  const b = base.replace(/\/+$/, '')
-  const p = path.startsWith('/') ? path : `/${path}`
-  return `${b}${p}`
-}
 
 function truncate(s: string, max = 400): string {
   const trimmed = s.trim()
