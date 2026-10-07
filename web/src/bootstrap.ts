@@ -21,21 +21,22 @@ function bindOnboardingAutoDismiss(): void {
     if (row?.value === true) return
     await db.kv.put({ key: ONBOARDING_KEY, value: true })
   }
-  // 监听创建
-  db.meetings.hook('creating', () => {
-    void dismissIfPending()
-  })
-  db.todos.hook('creating', () => {
-    void dismissIfPending()
-  })
+  // 监听创建。
+  // 注意：Dexie 的 creating hook 在调用方写事务的 zone 内执行；若直接调用
+  // dismissIfPending()，其 kv 读写会被绑进该事务 —— 而单表自动事务
+  // （如录音分片的 audioChunks put）不含 kv，会抛 NotFoundError。
+  // setTimeout(…, 0) 让收引导动作逃出 Dexie zone，以独立事务安全执行。
+  const dismissSoon = (): void => {
+    setTimeout(() => void dismissIfPending().catch(() => undefined), 0)
+  }
+  db.meetings.hook('creating', dismissSoon)
+  db.todos.hook('creating', dismissSoon)
   db.notes.hook('creating', (_key, note) => {
     // 区分 seed 噪声（title='未命名笔记' 且 body_md=''）——seed 写的是 '未命名笔记'，
     // 但用户新建也是这个标题。最简：只忽略 body_md === '' 且 title 为空的"纯占位"事件。
-    if (note.title && note.title.trim()) void dismissIfPending()
+    if (note.title && note.title.trim()) dismissSoon()
   })
-  db.audioChunks.hook('creating', () => {
-    void dismissIfPending()
-  })
+  db.audioChunks.hook('creating', dismissSoon)
 }
 
 /** 应用启动：迁移数据库 → 种子数据 → 主题 → 录音引擎 → 恢复中断的任务 */
