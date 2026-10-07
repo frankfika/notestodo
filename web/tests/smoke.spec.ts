@@ -127,4 +127,19 @@ test.describe('Shibei shell smoke', () => {
     const bar = page.locator('span.rec-dot').first()
     await expect(bar).toHaveCount(0)
   })
+
+  test('首次用户动作自动关闭 onboarding（AI-native 信号：无需再手把手）', async ({ page }) => {
+    await page.goto(BASE)
+    // 不要 dismiss — 让 onboarding 第一次显示
+    // 触发第一个真实动作 — 创建 Objective
+    await page.getByRole('button', { name: '待办' }).click()
+    await page.waitForTimeout(300)
+    const newBtn = page.getByRole('button', { name: /新建 Objective/ }).first()
+    await newBtn.waitFor({ state: 'visible', timeout: 5000 })
+    await newBtn.click()
+    await page.waitForTimeout(800)
+    // onboarding 卡片应该自动消失
+    const onboardingCard = page.locator('text=欢迎使用拾贝').first()
+    await expect(onboardingCard).toHaveCount(0, { timeout: 2000 })
+  })
 })

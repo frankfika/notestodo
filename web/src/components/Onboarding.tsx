@@ -1,39 +1,37 @@
 import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { saveSettings } from '../db/settings'
 import { useUI } from '../state/ui'
 
-const ONBOARDING_KEY = 'onboarding_done_v1'
-
 /**
  * 首次启动引导：右下角可关闭面板——始终不拦截主 UI。
  *       使用者可随手点开 / 关掉；全部 3 步完成才标记 done。
+ *
+ * 完成 / 关闭事件通过 db.kv['onboarding_done_v1'] 持久化，外部代码
+ * （如开始录音）也可以写入它表示用户已"上手"。
  */
 export default function Onboarding(): JSX.Element | null {
-  const [open, setOpen] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [step, setStep] = useState(0)
   const [draft, setDraft] = useState<AppSettings>(DEFAULT_SETTINGS)
   const goSettings = useUI((s) => s.goSettings)
 
+  // 通过 liveQuery 监听 onboarding_done_v1；外部写入后自动隐藏
+  const onboardingRow = useLiveQuery(() => db.kv.get('onboarding_done_v1'), [])
+  const done = onboardingRow?.value === true
+  const open = !done
+
   useEffect(() => {
-    let active = true
-    void db.kv.get(ONBOARDING_KEY).then((row) => {
-      if (!active) return
-      const done = row?.value === true
-      if (!done) setOpen(true)
-    })
     void db.kv.get('settings').then((srow) => {
-      if (!active) return
       if (srow?.value) setDraft({ ...DEFAULT_SETTINGS, ...(srow.value as Partial<AppSettings>) })
     })
-    return () => { active = false }
   }, [])
 
   async function close(done: boolean): Promise<void> {
-    if (done) await db.kv.put({ key: ONBOARDING_KEY, value: true })
-    setOpen(false)
+    if (done) await db.kv.put({ key: 'onboarding_done_v1', value: true })
+    // 不需要 setOpen(false)：liveQuery 会驱动重新渲染
   }
 
   async function saveKeysAndNext(): Promise<void> {

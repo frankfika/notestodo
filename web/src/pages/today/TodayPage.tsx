@@ -270,14 +270,6 @@ export default function TodayPage(): JSX.Element {
             </ul>
           )}
         </section>
-
-        {/* 提示卡 */}
-        <section className="card p-4 flex items-center gap-3">
-          <span className="text-lg text-text-3">⌘K</span>
-          <div className="flex-1 text-xs text-text-2">
-            按 <span className="kbd">⌘K</span> 打开命令面板：跳转、开始录音、导出数据。
-          </div>
-        </section>
       </div>
     </div>
   )

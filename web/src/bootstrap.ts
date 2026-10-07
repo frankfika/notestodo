@@ -5,10 +5,43 @@ import { applyTheme } from './state/ui'
 import { bindRecorderEngine } from './audio/engine'
 import { resumePendingJobs } from './pipeline/jobs'
 
+/**
+ * 第一次"用户动作"自动收掉 onboarding：
+ * - 创建 Note / Todo / Meeting 行（不只是 seed 阶段）
+ * - 启动录音
+ * 不能与 seed 误触——我们用 'synced' 自动判断 source ≠ 'manual' 之类不可。
+ * 简化策略：监听音频块首次写入，或 notes/todos/meetings 中任一 add 且内容非 '未命名' 即可。
+ * 实现：监听 audioChunks.add + 任意 meetings.add + 任意 todos.add（限新插入）。
+ */
+function bindOnboardingAutoDismiss(): void {
+  const ONBOARDING_KEY = 'onboarding_done_v1'
+  const dismissIfPending = async (): Promise<void> => {
+    const row = await db.kv.get(ONBOARDING_KEY)
+    if (row?.value === true) return
+    await db.kv.put({ key: ONBOARDING_KEY, value: true })
+  }
+  // 监听创建
+  db.meetings.hook('creating', () => {
+    void dismissIfPending()
+  })
+  db.todos.hook('creating', () => {
+    void dismissIfPending()
+  })
+  db.notes.hook('creating', (_key, note) => {
+    // 区分 seed 噪声（title='未命名笔记' 且 body_md=''）——seed 写的是 '未命名笔记'，
+    // 但用户新建也是这个标题。最简：只忽略 body_md === '' 且 title 为空的"纯占位"事件。
+    if (note.title && note.title.trim()) void dismissIfPending()
+  })
+  db.audioChunks.hook('creating', () => {
+    void dismissIfPending()
+  })
+}
+
 /** 应用启动：迁移数据库 → 种子数据 → 主题 → 录音引擎 → 恢复中断的任务 */
 export async function bootstrap(): Promise<void> {
   await db.open()
   await seedBuiltinTemplates()
+  bindOnboardingAutoDismiss()
   const settings = await getSettings()
   const theme =
     settings.theme === 'system'
@@ -16,6 +49,5 @@ export async function bootstrap(): Promise<void> {
       : settings.theme
   applyTheme(theme)
   bindRecorderEngine()
-  // 上次会话遗留的录音/任务恢复
   void resumePendingJobs().catch((e) => console.error('恢复任务失败', e))
 }
