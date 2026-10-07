@@ -7,7 +7,7 @@ import EmptyState from '../../components/EmptyState'
 
 /**
  * 笔记列表：左侧全部笔记；右侧「新建笔记」按钮。
- * 会议纪要类型的 Note 也展示在列表里，但带 📌 标记。
+ * 会议纪要类型的 Note 也展示在列表里，但带「会议」标记。
  */
 export default function NotesPage(): JSX.Element {
   const notes = useLiveQuery(
@@ -68,7 +68,7 @@ export default function NotesPage(): JSX.Element {
                   className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-bg-overlay/40 transition-colors"
                 >
                   <span className="text-base">
-                    {n.meeting_id ? '📌' : n.pinned ? '📎' : '✎'}
+                    {n.meeting_id ? '◆' : n.pinned ? '▣' : '✎'}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-text-1 truncate">{n.title || '未命名笔记'}</div>

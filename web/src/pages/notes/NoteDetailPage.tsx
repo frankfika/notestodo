@@ -114,16 +114,20 @@ export default function NoteDetailPage(): JSX.Element {
             placeholder="标题"
             className="flex-1 bg-transparent text-2xl font-semibold text-text-1 outline-none placeholder:text-text-3"
           />
-          <span className="text-[11px] text-text-3">{lastSaved}</span>
+          <span className="text-[11px] text-text-3">
+            {dirty ? '编辑中…' : `已存 ${lastSaved}`}
+          </span>
           <button
             onClick={() => void togglePin()}
             className={`btn-outline text-xs h-8 ${note.pinned ? 'text-accent border-accent/40' : ''}`}
             title="置顶"
-          >📎</button>
+          >{note.pinned ? '已置顶' : '置顶'}</button>
           <button onClick={() => void insertTodo()} className="btn-primary text-xs h-8" title="从当前笔记新建一条 Task">
             + 插入待办
           </button>
-          <button onClick={() => void deleteNote()} className="btn-danger text-xs h-8" title="删除">🗑</button>
+          <button onClick={() => void deleteNote()} className="btn-danger text-xs h-8" title="删除">
+            删除
+          </button>
         </div>
 
         {/* 分割编辑 */}
@@ -133,7 +137,8 @@ export default function NoteDetailPage(): JSX.Element {
               value={draftBody}
               onChange={(e) => setDraftBody(e.target.value)}
               placeholder="# 标题&#10;&#10;开始写作……选中文字再点上方「插入待办」可基于选中片段建任务。"
-              className="w-full min-h-[60vh] bg-transparent text-[15px] leading-[1.7] text-text-1 placeholder:text-text-3 outline-none resize-y"
+              className="w-full min-h-[60vh] bg-transparent text-[15px] leading-[1.7] text-text-1 placeholder:text-text-3 outline-none resize-y font-mono"
+              spellCheck={false}
             />
           </div>
           <div className="card p-5">

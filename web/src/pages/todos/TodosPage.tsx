@@ -241,7 +241,7 @@ function ObjectiveBlock({
           onClick={() => void db.todos.update(objective.id, { deleted_at: now(), updated_at: now() })}
           className="btn-danger text-xs h-6 ml-auto"
           title="删除 Objective（软删除）"
-        >🗑</button>
+        >删除</button>
       </div>
       <TodoLine todo={objective} allTodos={allTodos} />
       <div className="ml-6 mt-4 space-y-3">
@@ -336,8 +336,8 @@ function TodoLine({ todo, allTodos, indent }: { todo: Todo; allTodos: Todo[]; in
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-text-3">
             {todo.status !== 'open' && todo.status !== 'done' && <span className="chip">{STATUS_LABELS[todo.status]}</span>}
-            {todo.due_date && <span>📅 {todo.due_date}</span>}
-            {todo.assignee && <span>👤 {todo.assignee}</span>}
+            {todo.due_date && <span>· {todo.due_date}</span>}
+            {todo.assignee && <span>· @{todo.assignee}</span>}
           </div>
         </div>
         <button

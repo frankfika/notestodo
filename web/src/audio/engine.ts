@@ -279,12 +279,23 @@ async function createMeetingWithFirstChunk(
   const noteId = uid()
   const createdAt = now()
 
+  // 如果 Today 页点了"为日历事件录制"，会预先在 KV 里塞一条 meta
+  const metaRow = await db.kv.get('pending_meeting_meta').catch(() => null)
+  const meta = metaRow?.value as { title?: string; start_at?: string; calendar_event_id?: string } | undefined
+  if (meta) {
+    await db.kv.delete('pending_meeting_meta')
+  }
+
+  const finalTitle = meta?.title || title
+  const finalStartedAt = meta?.start_at || createdAt
+
   const meeting: Meeting = {
     id: meetingId,
-    title,
-    source: 'manual',
+    title: finalTitle,
+    source: meta?.calendar_event_id ? 'calendar' : 'manual',
+    calendar_event_id: meta?.calendar_event_id,
     status: 'recording',
-    started_at: createdAt,
+    started_at: finalStartedAt,
     audio: {
       format: mimeType || 'audio/webm',
       codec: mimeType.includes('opus')
@@ -306,7 +317,7 @@ async function createMeetingWithFirstChunk(
 
   const note: Note = {
     id: noteId,
-    title,
+    title: finalTitle,
     body_md: '',
     meeting_id: meetingId,
     todo_ids: [],

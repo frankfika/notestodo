@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../../types'
 import { getSettings, saveSettings } from '../../db/settings'
+import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
 import FieldRow from '../../components/FieldRow'
 
 /**
@@ -149,10 +150,11 @@ export default function SettingsPage(): JSX.Element {
           </FieldRow>
         </Section>
 
-        <Section title="日历" desc="一行一个 .ics 订阅链接；今日页会列出接下来的事件。">
+        <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书「导出链接」都行），仅本地拉取。">
           <IcsListEditor
             urls={settings.calendar_ics_urls}
             onChange={(urls) => patch({ calendar_ics_urls: urls })}
+            onFlash={flash}
           />
         </Section>
 
@@ -242,10 +244,55 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
   )
 }
 
-function IcsListEditor({ urls, onChange }: { urls: string[]; onChange: (urls: string[]) => void }): JSX.Element {
+function IcsListEditor({
+  urls, onChange, onFlash,
+}: {
+  urls: string[]
+  onChange: (urls: string[]) => void
+  onFlash: (msg: string) => void
+}): JSX.Element {
   const [draft, setDraft] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const [meta, setMeta] = useState<{ fetchedAt: number | null; count: number }>({ fetchedAt: null, count: 0 })
+
+  useEffect(() => {
+    void getCalendarCacheMeta().then(setMeta)
+  }, [urls])
+
+  async function syncNow(): Promise<void> {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      await clearCalendarCache()
+      const r = await fetchCalendar({
+        ...DEFAULT_SETTINGS,
+        calendar_ics_urls: urls,
+        llm_provider: 'anthropic-compatible',
+        llm_base_url: '',
+        llm_api_key: '',
+        llm_model: '',
+        asr_provider: 'minimax',
+        asr_base_url: '',
+        asr_api_key: '',
+        asr_model: '',
+        delete_remote_audio: true,
+        theme: 'dark',
+      })
+      if (r.error) {
+        onFlash(`部分失败：${r.error.slice(0, 60)}`)
+      } else {
+        onFlash(`已同步 ${r.events.length} 个事件`)
+      }
+      setMeta(await getCalendarCacheMeta())
+    } catch (e: unknown) {
+      onFlash('同步失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
         {urls.map((u, i) => (
           <div key={i} className="flex items-center gap-2">
             <input className="input font-mono text-xs" value={u} readOnly />
@@ -261,7 +308,7 @@ function IcsListEditor({ urls, onChange }: { urls: string[]; onChange: (urls: st
         <div className="flex items-center gap-2">
           <input
             className="input"
-            placeholder="https://calendar.example.com/abc.ics"
+            placeholder="https://calendar.example.com/abc.ics（或 webcal://）"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
@@ -275,6 +322,18 @@ function IcsListEditor({ urls, onChange }: { urls: string[]; onChange: (urls: st
             }}
             className="btn-outline text-sm h-9"
           >+ 添加</button>
+          <button
+            type="button"
+            onClick={() => void syncNow()}
+            disabled={urls.length === 0 || syncing}
+            className="btn-outline text-sm h-9"
+          >{syncing ? '同步中…' : '↻ 立即同步'}</button>
+        </div>
+        <div className="text-[11px] text-text-3">
+          {meta.fetchedAt
+            ? `上次同步：${new Date(meta.fetchedAt).toLocaleString('zh-CN')} · ${meta.count} 个事件 · 缓存 15 分钟自动刷新`
+            : '尚未同步'}
+          {' · 拉到的事件仅本机使用（local-first）'}
         </div>
     </div>
   )

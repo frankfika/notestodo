@@ -385,30 +385,31 @@ function TranscriptTab({
     () => db.transcripts.where('meeting_id').equals(transcriptId).first(),
     [transcriptId],
   )
-  if (!transcript) {
-    return <EmptyState icon="◌" title="转录尚未完成" hint="录音结束、联网后会自动转录。" />
-  }
-  if (transcript.segments.length === 0) {
-    return <EmptyState icon="◌" title="转录为空" hint="没有识别到语音——可能音频太短或麦克风静音。" />
-  }
 
   // 高亮定位：找到最接近 highlightStartMs 的 segment
-  const targetIndex = highlightStartMs == null
-    ? -1
-    : transcript.segments.reduce(
+  const targetIndex = transcript && highlightStartMs != null
+    ? transcript.segments.reduce(
         (best, seg, i, arr) =>
           Math.abs(seg.start_ms - highlightStartMs) < Math.abs(arr[best].start_ms - highlightStartMs)
             ? i
             : best,
         0,
       )
+    : -1
 
-  // 滚动到目标
+  // 滚动到目标（hooks 必须无条件调用以避免 React hook order 错位）
   useEffect(() => {
     if (targetIndex < 0) return
     const el = document.getElementById(`seg-${transcriptId}-${targetIndex}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [targetIndex, transcriptId])
+
+  if (!transcript) {
+    return <EmptyState icon="◌" title="转录尚未完成" hint="录音结束、联网后会自动转录。" />
+  }
+  if (transcript.segments.length === 0) {
+    return <EmptyState icon="◌" title="转录为空" hint="没有识别到语音——可能音频太短或麦克风静音。" />
+  }
 
   return (
     <div className="card p-5 space-y-3">

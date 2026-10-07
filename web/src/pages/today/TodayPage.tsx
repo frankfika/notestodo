@@ -1,8 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
+import { getCachedSettings } from '../../db/settings'
+import { fetchCalendar, type CalendarEvent } from '../../calendar/ics'
 import { fmtClock, fmtDateTime, today as todayIso } from '../../lib/id'
 import EmptyState from '../../components/EmptyState'
 
@@ -76,6 +78,52 @@ export default function TodayPage(): JSX.Element {
       .slice(0, 5)
   }, [upcomingMeetings])
 
+  // ── 日历订阅（settings.calendar_ics_urls）──────────────────────────
+  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([])
+  const [calError, setCalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void getCachedSettings()
+      .then((s) => fetchCalendar(s))
+      .then((r) => {
+        if (cancelled) return
+        setCalEvents(r.events)
+        setCalError(r.error ?? null)
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setCalError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [upcomingMeetings]) // 同步 on settings change (when meetings change page re-renders; manual via settings 按钮)
+
+  // 未来 12 小时之内的日程
+  const upcomingCal = useMemo(() => {
+    const now = Date.now()
+    const horizon = now + 12 * 3600_000
+    return calEvents
+      .filter((e) => {
+        const s = new Date(e.start).getTime()
+        return s >= now - 30 * 60_000 && s <= horizon
+      })
+      .slice(0, 8)
+  }, [calEvents])
+
+  async function startRecordingForEvent(ev: CalendarEvent): Promise<void> {
+    // 设置会议开始时间（保留日历事件为元信息：记录到 KV 让关联使用）
+    // 然后启动录音；engine.startRecorder 会创建一个 meeting row，
+    // 我们在 engine 启动后覆盖 title 与 started_at。
+    await db.kv.put({ key: `pending_meeting_meta`, value: {
+      title: ev.title,
+      start_at: ev.start,
+      calendar_event_id: ev.uid,
+    } })
+    await start()
+  }
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-[720px] mx-auto px-6 py-8 space-y-4">
@@ -144,7 +192,7 @@ export default function TodayPage(): JSX.Element {
               {todayTodos.map((td) => (
                 <li key={td.id} className="text-sm">
                   <span className="text-text-1">☐ {td.title}</span>
-                  {td.due_date && <span className="ml-2 text-[11px] text-text-3">📅 今天</span>}
+                  {td.due_date && <span className="ml-2 text-[11px] text-text-3">今天</span>}
                 </li>
               ))}
               {linkedTodayTodos.map((td) => (
@@ -168,18 +216,43 @@ export default function TodayPage(): JSX.Element {
             >● 新建录音</button>
           </div>
 
-          {nextMeetings.length === 0 ? (
+          {upcomingCal.length === 0 && nextMeetings.length === 0 ? (
             <EmptyState
-              icon="📅"
+              icon="◌"
               title="暂无日程"
-              hint="接入日历后会自动出现接下来的会议。现在可以点上面的「新建录音」手动开始。"
+              hint={calError
+                  ? `日历同步失败：${calError.slice(0, 80)}。可去「设置」页调整 URL，或点上面的「新建录音」手动开始。`
+                  : '接入 .ics 日历后会自动出现接下来的会议；现在可点上面的「新建录音」手动开始。'}
+              action={
+                <button onClick={() => useUI.getState().goSettings()} className="btn-outline h-8 text-xs">
+                  去设置
+                </button>
+              }
             />
           ) : (
             <ul className="divide-y divide-line">
+              {upcomingCal.map((ev) => (
+                <li
+                  key={`cal-${ev.id}`}
+                  className="flex items-center gap-3 py-2.5 group"
+                >
+                  <span className="font-mono tabular-nums text-xs text-text-3 w-12 shrink-0">
+                    {fmtDateTime(ev.start).slice(6)}
+                  </span>
+                  <span className="flex-1 text-sm text-text-1 truncate">{ev.title}</span>
+                  <span className="chip text-[10px]">{ev.source_label}</span>
+                  <button
+                    onClick={() => void startRecordingForEvent(ev)}
+                    className="opacity-0 group-hover:opacity-100 btn-primary text-xs h-7 transition-opacity"
+                  >
+                    ● 录制
+                  </button>
+                </li>
+              ))}
               {nextMeetings.map((m) => (
                 <li
                   key={m.id}
-                  className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-bg-overlay/40 -mx-2 px-2 rounded-lg transition-colors"
+                  className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-bg-overlay/40 -mx-2 px-2 transition-colors"
                   onClick={() => goMeeting(m.id)}
                 >
                   <span className="font-mono tabular-nums text-xs text-text-3 w-12 shrink-0">
