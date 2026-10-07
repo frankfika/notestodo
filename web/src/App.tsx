@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import { useUI } from './state/ui'
+import { useRecorder } from './state/recorder'
 import Sidebar from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
+import Onboarding from './components/Onboarding'
 import TodayPage from './pages/today/TodayPage'
 import MeetingsPage from './pages/meetings/MeetingsPage'
 import MeetingDetailPage from './pages/meeting/MeetingDetailPage'
@@ -15,18 +17,29 @@ import SettingsPage from './pages/settings/SettingsPage'
 export default function App() {
   const view = useUI((s) => s.view)
   const setCmdkOpen = useUI((s) => s.setCmdkOpen)
+  const start = useRecorder((s) => s.start)
+  const stop = useRecorder((s) => s.stop)
+  const phase = useRecorder((s) => s.phase)
 
-  // 全局快捷键：⌘K 命令面板
+  // 全局快捷键：⌘K 命令面板 + ⌘⇧R 录制切换
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setCmdkOpen(true)
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault()
+        if (phase === 'recording') void stop()
+        else void start()
+        return
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setCmdkOpen])
+  }, [setCmdkOpen, phase, start, stop])
 
   return (
     <div className="flex h-full">
@@ -45,6 +58,7 @@ export default function App() {
         </div>
       </main>
       <CommandPalette />
+      <Onboarding />
     </div>
   )
 }

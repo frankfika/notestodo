@@ -27,12 +27,17 @@ export class ShibeiDB extends Dexie {
       notes: 'id, meeting_id, updated_at',
       summaries: 'id, meeting_id, template_id',
       templates: 'id, is_default',
-      todos: 'id, parent_id, kind, status, due_date, meeting_id',
+      todos: 'id, parent_id, kind, status, due_date, meeting_id, origin_note_id',
       tags: 'id, name',
       tagBindings: 'id, tag_id, [target_type+target_id]',
       chatMessages: 'id, meeting_id',
       queueJobs: 'id, status, type',
       kv: 'key',
+    })
+    // v2: 增补 todos.origin_note_id 索引（修复 NoteDetailPage Dexie SchemaError）
+    this.version(2).stores({
+      todos: 'id, parent_id, kind, status, due_date, meeting_id, origin_note_id, source',
+      meetings: 'id, status, started_at, note_id, calendar_event_id',
     })
   }
 }
