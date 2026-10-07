@@ -655,7 +655,10 @@ ${summaryText}
   }
 
   return (
-    <aside className="w-[420px] shrink-0 border-l border-line bg-bg-raise flex flex-col">
+    <aside className="
+      fixed md:static inset-0 md:inset-auto z-40 md:z-auto
+      w-full md:w-[420px] shrink-0 border-l border-line bg-bg-raise flex flex-col
+    ">
       <div className="flex items-center gap-2 px-4 h-12 border-b border-line">
         <span className="text-text-2 text-sm">对话</span>
         <span className="chip">{messages.length}</span>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useUI } from './state/ui'
 import { useRecorder } from './state/recorder'
-import Sidebar from './components/Sidebar'
+import Sidebar, { BottomTabBar } from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
 import Onboarding from './components/Onboarding'
@@ -44,7 +44,7 @@ export default function App() {
   return (
     <div className="flex h-full">
       <Sidebar />
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col pb-16 md:pb-0">
         <RecordingBar />
         <div key={view} className="page-enter flex-1 min-h-0 overflow-hidden">
           {view === 'today' && <TodayPage />}
@@ -57,6 +57,7 @@ export default function App() {
           {view === 'settings' && <SettingsPage />}
         </div>
       </main>
+      <BottomTabBar />
       <CommandPalette />
       <Onboarding />
     </div>

@@ -47,7 +47,7 @@ export default function Onboarding(): JSX.Element | null {
     return (
       <button
         onClick={() => setMinimized(false)}
-        className="fixed bottom-5 right-5 z-40 card px-4 py-3 shadow-2xl hover:border-accent/40 transition-colors"
+        className="fixed bottom-5 md:bottom-5 right-5 z-40 card px-4 py-3 shadow-2xl hover:border-accent/40 transition-colors"
       >
         <div className="flex items-center gap-2">
           <span className="text-accent text-lg leading-none">●</span>
@@ -60,7 +60,7 @@ export default function Onboarding(): JSX.Element | null {
 
   return (
     <div
-      className="fixed bottom-5 right-5 z-40 w-[420px] max-w-[92vw] card p-5 shadow-2xl"
+      className="fixed bottom-20 md:bottom-5 right-3 md:right-5 z-40 w-[420px] max-w-[calc(100vw-1.5rem)] card p-5 shadow-2xl"
       role="dialog"
     >
       {/* 顶栏 */}
