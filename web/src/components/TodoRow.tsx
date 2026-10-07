@@ -9,6 +9,7 @@ export interface TodoRowProps {
   onEdit?: (t: Todo) => void
   onConfirm?: (t: Todo) => void
   onDelete?: (t: Todo) => void
+  onJumpToTranscript?: (t: Todo) => void
   showMeetingLink?: boolean
 }
 
@@ -21,6 +22,7 @@ export default function TodoRow({
   onEdit,
   onConfirm,
   onDelete,
+  onJumpToTranscript,
   showMeetingLink,
 }: TodoRowProps): JSX.Element {
   const isPending = todo.status === 'pending_review'
@@ -88,8 +90,8 @@ export default function TodoRow({
         </div>
         {(todo.due_date || todo.assignee || (tags && tags.length > 0) || (showMeetingLink && meeting)) && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-text-3">
-            {todo.due_date && <span>📅 {fmtDate(todo.due_date)}</span>}
-            {todo.assignee && <span>👤 {todo.assignee}</span>}
+            {todo.due_date && <span>· {fmtDate(todo.due_date)}</span>}
+            {todo.assignee && <span>· @{todo.assignee}</span>}
             {(tags ?? []).map((t) => (
               <span key={t.id} className="chip !py-0">#{t.name}</span>
             ))}
@@ -99,9 +101,23 @@ export default function TodoRow({
           </div>
         )}
         {todo.transcript_span?.quote && (
-          <div className="mt-1 text-[11.5px] italic text-text-3 border-l-2 border-line pl-2 line-clamp-2">
-            「{todo.transcript_span.quote}」
-          </div>
+          onJumpToTranscript && todo.meeting_id ? (
+            <button
+              type="button"
+              onClick={() => onJumpToTranscript(todo)}
+              className="mt-1 text-left text-[11.5px] italic text-accent/80 hover:text-accent border-l-2 border-accent/40 hover:border-accent pl-2 line-clamp-2 transition-colors"
+              title="跳到转录原文"
+            >
+              「{todo.transcript_span.quote}」
+              <span className="ml-1 font-mono not-italic text-text-3 text-[10px]">
+                {fmtDateTimeForSpan(todo.transcript_span.start_ms)}
+              </span>
+            </button>
+          ) : (
+            <div className="mt-1 text-[11.5px] italic text-text-3 border-l-2 border-line pl-2 line-clamp-2">
+              「{todo.transcript_span.quote}」
+            </div>
+          )
         )}
       </div>
 
@@ -122,4 +138,13 @@ export function kindLabel(kind: TodoKind): string {
   if (kind === 'objective') return 'O'
   if (kind === 'kr') return 'KR'
   return 'T'
+}
+
+function fmtDateTimeForSpan(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const p = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${p(h)}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`
 }

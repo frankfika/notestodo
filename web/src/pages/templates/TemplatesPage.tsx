@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { emptyCustomTemplate } from '../../db/seed'
+import { getSettings } from '../../db/settings'
+import { renderTemplate } from '../../llm/prompts'
+import { callLLM } from '../../llm/client'
 import { now, uid } from '../../lib/id'
 import type { SummaryTemplate } from '../../types'
 import EmptyState from '../../components/EmptyState'
@@ -150,14 +153,8 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
   }
 
   async function tryRun(): Promise<void> {
-    // 尝试动态 import Agent A 的实现；不存在则提示。
     try {
-      const [promptsMod, clientMod, dbMod] = await Promise.all([
-        import('../../llm/prompts'),
-        import('../../llm/client').catch(() => null),
-        import('../../db/settings'),
-      ])
-      const settings = await dbMod.getSettings()
+      const settings = await getSettings()
       if (!settings.llm_api_key) {
         window.alert('请先在「设置」页填好 LLM API Key。')
         return
@@ -169,12 +166,8 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
         'transcript.full': '[00:00–00:30] 说话人 1: 这是一条示例转录，用于试运行模板。',
         'transcript.speakers': '说话人 1',
       }
-      const rendered = promptsMod.renderTemplate(promptMd, vars)
-      if (!clientMod) {
-        window.alert('Agent A 的 LLM client 还未实现，无法试运行。\n\n渲染后的 prompt（前 400 字）：\n\n' + rendered.slice(0, 400))
-        return
-      }
-      const out = await clientMod.callLLM(settings, [
+      const rendered = renderTemplate(promptMd, vars)
+      const out = await callLLM(settings, [
         { role: 'system', content: '你是会议纪要助手。' },
         { role: 'user', content: rendered },
       ], { maxTokens: 500 })

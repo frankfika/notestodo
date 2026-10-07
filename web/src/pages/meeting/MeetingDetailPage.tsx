@@ -7,6 +7,7 @@ import type { Meeting, MeetingStatus, SummaryTemplate, Todo } from '../../types'
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import TodoRow from '../../components/TodoRow'
+import { runSummarizePipeline } from '../../pipeline/summarize'
 
 type Tab = 'summary' | 'todos' | 'transcript' | 'audio'
 
@@ -83,6 +84,16 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   ) ?? []
 
   const [tab, setTab] = useState<Tab>('summary')
+  const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
+
+  const jumpToTranscript = (t: Todo): void => {
+    if (t.transcript_span?.start_ms != null) {
+      setHighlightStartMs(t.transcript_span.start_ms)
+    } else if (t.meeting_id) {
+      setHighlightStartMs(0)
+    }
+    setTab('transcript')
+  }
 
   // 阶段推导
   const hasTranscript = Boolean(transcript && transcript.segments.length > 0)
@@ -116,12 +127,11 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   }
 
   async function rerunWith(templateId: string): Promise<void> {
-    const msg = '总结生成中…（Agent A 接到后会调度 LLM；当前 stub）'
-    // Agent A 的 runSummarizePipeline 尚未实现：toast 模拟。
-    if (typeof window !== 'undefined') {
-      window.alert(msg)
-    }
-    void templateId
+    // 记录选中的模板到 KVK，触发重生成
+    await db.kv.put({ key: `meeting_template_${meeting.id}`, value: templateId })
+    await runSummarizePipeline(meeting.id).catch((e) => {
+      console.error('重新生成失败', e)
+    })
   }
 
   async function deleteMeeting(): Promise<void> {
@@ -163,11 +173,11 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
         <div className="flex items-center gap-2 mt-3 mb-4">
           <RerunDropdown templates={templates} onPick={rerunWith} />
           <button
-            onClick={() => window.alert('🤖 即将推出')}
+            onClick={() => window.alert('对话功能即将推出')}
             className="btn-outline text-xs h-8"
-          >💬 对话</button>
+          >对话</button>
           <button onClick={() => void deleteMeeting()} className="btn-danger text-xs h-8 ml-auto">
-            🗑 删除
+            删除
           </button>
         </div>
 
@@ -200,9 +210,12 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             onConfirm={confirmTodo}
             onDelete={deleteTodo}
             onConfirmAll={confirmAll}
+            onJumpToTranscript={jumpToTranscript}
           />
         )}
-        {tab === 'transcript' && <TranscriptTab transcriptId={meeting.id} />}
+        {tab === 'transcript' && (
+          <TranscriptTab transcriptId={meeting.id} highlightStartMs={highlightStartMs} />
+        )}
         {tab === 'audio' && <AudioTab meetingId={meeting.id} />}
       </div>
     </div>
@@ -239,7 +252,7 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
                 >
                   <span className="mr-1.5">{t.icon}</span>
                   {t.name}
-                  {t.builtin && <span className="ml-1 text-[11px] text-text-3">🔒</span>}
+                  {t.builtin && <span className="ml-1 text-[10px] uppercase tracking-wider text-text-3">内置</span>}
                 </button>
               </li>
             ))}
@@ -322,19 +335,20 @@ function Step({ done, label }: { done: boolean; label: string }): JSX.Element {
 
 // ── 待办 Tab ──────────────────────────────────────────────────────
 function TodosTab({
-  todos, onConfirm, onDelete, onConfirmAll,
+  todos, onConfirm, onDelete, onConfirmAll, onJumpToTranscript,
 }: {
   todos: Todo[]
   onConfirm: (t: Todo) => void | Promise<void>
   onDelete: (t: Todo) => void | Promise<void>
   onConfirmAll: () => void | Promise<void>
+  onJumpToTranscript?: (t: Todo) => void
 }): JSX.Element {
   return (
     <div>
       <div className="flex items-center mb-3">
         <div className="section-title">待审待办 · {todos.length}</div>
         <button onClick={() => void onConfirmAll()} className="btn-primary text-xs h-7 ml-auto">
-          ✓ 全部确认加入待办
+          全部确认加入待办
         </button>
       </div>
 
@@ -344,7 +358,14 @@ function TodosTab({
         ) : (
           <div className="divide-y divide-line">
             {todos.map((t) => (
-              <TodoRow key={t.id} todo={t} onConfirm={onConfirm} onDelete={onDelete} showMeetingLink={false} />
+              <TodoRow
+                key={t.id}
+                todo={t}
+                onConfirm={onConfirm}
+                onDelete={onDelete}
+                onJumpToTranscript={onJumpToTranscript}
+                showMeetingLink={false}
+              />
             ))}
           </div>
         )}
@@ -354,7 +375,12 @@ function TodosTab({
 }
 
 // ── 转录 Tab ──────────────────────────────────────────────────────
-function TranscriptTab({ transcriptId }: { transcriptId: string }): JSX.Element {
+function TranscriptTab({
+  transcriptId, highlightStartMs,
+}: {
+  transcriptId: string
+  highlightStartMs: number | null
+}): JSX.Element {
   const transcript = useLiveQuery(
     () => db.transcripts.where('meeting_id').equals(transcriptId).first(),
     [transcriptId],
@@ -366,12 +392,37 @@ function TranscriptTab({ transcriptId }: { transcriptId: string }): JSX.Element 
     return <EmptyState icon="◌" title="转录为空" hint="没有识别到语音——可能音频太短或麦克风静音。" />
   }
 
+  // 高亮定位：找到最接近 highlightStartMs 的 segment
+  const targetIndex = highlightStartMs == null
+    ? -1
+    : transcript.segments.reduce(
+        (best, seg, i, arr) =>
+          Math.abs(seg.start_ms - highlightStartMs) < Math.abs(arr[best].start_ms - highlightStartMs)
+            ? i
+            : best,
+        0,
+      )
+
+  // 滚动到目标
+  useEffect(() => {
+    if (targetIndex < 0) return
+    const el = document.getElementById(`seg-${transcriptId}-${targetIndex}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [targetIndex, transcriptId])
+
   return (
     <div className="card p-5 space-y-3">
       {transcript.segments.map((seg, i) => {
         const label = transcript.speaker_names[seg.speaker_label] ?? seg.speaker_label
+        const isHighlight = i === targetIndex
         return (
-          <div key={i} className="flex items-baseline gap-3">
+          <div
+            id={`seg-${transcriptId}-${i}`}
+            key={i}
+            className={`flex items-baseline gap-3 rounded-md transition-colors duration-200 ${
+              isHighlight ? 'bg-accent/15 ring-1 ring-accent/40 px-2 -mx-2' : ''
+            }`}
+          >
             <span className="font-mono tabular-nums text-[11px] text-text-3 w-16 shrink-0">
               {fmtClock(seg.start_ms)}
             </span>
