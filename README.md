@@ -2,16 +2,18 @@
 
 > 开会时只管说话，散会时纪要和待办已经排好。
 
-一个 AI-native 的会议笔记 + 三级待办应用。Web MVP → mac/iPad/iPhone。
+一个 AI-native 的会议笔记 + 三级待办应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
 ## 核心特性
 
-- **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟。
+- **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟；电平条可见麦在响。
 - **AI 转录 + 总结**：BYOK，支持 MiniMax asr-1.0（含说话人分离）/ Deepgram Nova-3 / OpenAI Whisper；用户可自定义模板（`{{var}}` 语法）。
 - **三级待办**：Objective > KR > Task，支持 tags、日期、委派人员；会议提取的 ToDo 带「证据引文」可一键跳回转录原文。
 - **AI 对话**：会议详情页内置 ChatPanel，对这场会议的纪要+全文转录提问。
 - **日历集成**：订阅任意 .ics URL（Apple iCloud / Google / QQ / Outlook），点击事件直接启动录音（预填标题与时间）。
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
+- **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
+- **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
 
 ## 仓库结构
 
