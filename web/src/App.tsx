@@ -5,6 +5,7 @@ import Sidebar, { BottomTabBar } from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
 import Onboarding from './components/Onboarding'
+import ErrorBoundary from './components/ErrorBoundary'
 import TodayPage from './pages/today/TodayPage'
 import MeetingsPage from './pages/meetings/MeetingsPage'
 import MeetingDetailPage from './pages/meeting/MeetingDetailPage'
@@ -42,24 +43,26 @@ export default function App() {
   }, [setCmdkOpen, phase, start, stop])
 
   return (
-    <div className="flex h-full">
-      <Sidebar />
-      <main className="flex-1 min-w-0 flex flex-col pb-16 md:pb-0">
-        <RecordingBar />
-        <div key={view} className="page-enter flex-1 min-h-0 overflow-hidden">
-          {view === 'today' && <TodayPage />}
-          {view === 'meetings' && <MeetingsPage />}
-          {view === 'meeting-detail' && <MeetingDetailPage />}
-          {view === 'notes' && <NotesPage />}
-          {view === 'note-detail' && <NoteDetailPage />}
-          {view === 'todos' && <TodosPage />}
-          {view === 'templates' && <TemplatesPage />}
-          {view === 'settings' && <SettingsPage />}
-        </div>
-      </main>
-      <BottomTabBar />
-      <CommandPalette />
-      <Onboarding />
-    </div>
+    <ErrorBoundary>
+      <div className="flex h-full">
+        <Sidebar />
+        <main className="flex-1 min-w-0 flex flex-col pb-16 md:pb-0">
+          <RecordingBar />
+          <div key={view} className="page-enter flex-1 min-h-0 overflow-hidden">
+            {view === 'today' && <TodayPage />}
+            {view === 'meetings' && <MeetingsPage />}
+            {view === 'meeting-detail' && <MeetingDetailPage />}
+            {view === 'notes' && <NotesPage />}
+            {view === 'note-detail' && <NoteDetailPage />}
+            {view === 'todos' && <TodosPage />}
+            {view === 'templates' && <TemplatesPage />}
+            {view === 'settings' && <SettingsPage />}
+          </div>
+        </main>
+        <BottomTabBar />
+        <CommandPalette />
+        <Onboarding />
+      </div>
+    </ErrorBoundary>
   )
 }

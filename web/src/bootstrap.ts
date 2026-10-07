@@ -4,6 +4,7 @@ import { getSettings } from './db/settings'
 import { applyTheme } from './state/ui'
 import { bindRecorderEngine } from './audio/engine'
 import { resumePendingJobs } from './pipeline/jobs'
+import { ensurePersistentStorage } from './lib/storage'
 
 /**
  * 第一次"用户动作"自动收掉 onboarding：
@@ -39,6 +40,12 @@ function bindOnboardingAutoDismiss(): void {
 
 /** 应用启动：迁移数据库 → 种子数据 → 主题 → 录音引擎 → 恢复中断的任务 */
 export async function bootstrap(): Promise<void> {
+  // 尽早申请持久化存储：Safari ITP 7 天驱逐 / 磁盘压力驱逐会吃掉录音（数据不可再生）
+  void ensurePersistentStorage().then((s) => {
+    if (!s.persisted && s.supported) {
+      console.warn('存储持久化未获批 — 浏览器可能在磁盘压力下清理本地数据')
+    }
+  })
   await db.open()
   await seedBuiltinTemplates()
   bindOnboardingAutoDismiss()

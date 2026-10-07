@@ -76,7 +76,15 @@ test.describe('Shibei shell smoke', () => {
     await page.goto(BASE)
     await dismissOnboarding(page)
     await page.context().clearPermissions()
-    await page.keyboard.press('Meta+Shift+r')
+    // 前置测试的 location.reload 可能与 keydown 竞争；等待 load 完成后重试一次
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await page.keyboard.press('Meta+Shift+r', { timeout: 8000 })
+        break
+      } catch {
+        await page.waitForLoadState('load')
+      }
+    }
     await page.waitForTimeout(800)
     await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
   })

@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from '../../types'
 import { getSettings, saveSettings } from '../../db/settings'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
 import { exportData, importData } from '../../data/io'
+import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
 import FieldRow from '../../components/FieldRow'
 
 /**
@@ -161,6 +162,7 @@ export default function SettingsPage(): JSX.Element {
 
         <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。">
           <ExportImportRow flash={flash} />
+          <StorageStatusRow />
         </Section>
 
         <Section title="诊断">
@@ -395,6 +397,33 @@ function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Eleme
       {lastMsg && (
         <div className="text-[11px] text-text-3">{lastMsg}</div>
       )}
+    </div>
+  )
+}
+
+/**
+ * 本地存储状态：持久化是否获批 + 已用/配额。
+ * 持久化被浏览器拒绝时给出可操作的提示（数据安全是本产品的核心承诺）。
+ */
+function StorageStatusRow(): JSX.Element {
+  const [status, setStatus] = useState<StorageStatus | null>(null)
+  useEffect(() => {
+    void ensurePersistentStorage().then(setStatus)
+  }, [])
+  if (!status) return <div className="text-[11px] text-text-3">读取存储状态…</div>
+  const pct = status.quota && status.usage != null ? Math.round((status.usage / status.quota) * 100) : null
+  return (
+    <div className="flex items-center gap-2 text-[11px] text-text-3">
+      <span className={status.persisted ? 'text-accent' : 'text-danger'}>●</span>
+      <span>
+        本地存储{status.persisted ? '已持久化' : status.supported ? '未持久化' : '不支持持久化标记'}
+        {status.usage != null && status.quota != null && (
+          <> · 已用 {fmtBytes(status.usage)}{pct != null ? `（${pct}%）` : ''}</>
+        )}
+        {!status.persisted && status.supported && (
+          <span className="text-text-3"> — 建议导出 .zip 备份，浏览器可能在磁盘压力下清理数据</span>
+        )}
+      </span>
     </div>
   )
 }
