@@ -95,18 +95,17 @@ test('模板 CRUD：内置只读 + 自定义可创建/编辑/复制/删除', asy
   // 列表再 +1
   expect(await page.locator('aside li.group').count()).toBe(initialCount + 2)
 
-  // 8) 删除自定义模板（最后一个被复制出的）
-  // 选中最后一项（最新的），点 ✕ — ✕ 是 span，藏在主按钮内
-  const lastLi = page.locator('aside li.group').last()
-  await lastLi.click({ force: true })
-  await page.waitForTimeout(500)
-  // 删除按钮的 title 是"删除"
-  const xBtn = lastLi.locator('[title="删除"]').first()
+  // 8) 删除自定义模板 — 「复制为新模板」后新模板排在前面，删除最上面的自定义
+  // 自定义模板都有 ✕ 按钮 + 「复制为新模板」按钮；builtin 没有
+  const customLis = page.locator('aside li.group:has(button:has-text("复制为新模板"))')
+  const customCountBefore = await customLis.count()
+  // ✕ 是 span (title="删除" 让可访问名=删除)
+  const xBtn = customLis.first().locator('span[title="删除"]').first()
   await xBtn.click({ force: true })
   // confirm 对话框：page.on('dialog') 会 accept
   await page.waitForTimeout(1000)
-  // 列表回到 initialCount + 1
-  expect(await page.locator('aside li.group').count()).toBe(initialCount + 1)
+  // 自定义 -1
+  expect(await customLis.count()).toBe(customCountBefore - 1)
 
   // 9) 删除 builtin 模板的 ✕ 按钮不应存在
   // 选中第一个 builtin（标准会议纪要）

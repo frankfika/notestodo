@@ -625,13 +625,22 @@ function ChatPanel({
         .join('\n') ?? '(无转录)'
       const summaryText = summary?.content_md ?? '(暂无纪要)'
 
+      // 长转录成本/延迟保护：超过 12K 字符截断并附标记，LLM 上下文不被压垮
+      const TRANSCRIPT_LIMIT = 12_000
+      let transcriptBlock = transcriptText
+      if (transcriptText.length > TRANSCRIPT_LIMIT) {
+        const head = transcriptText.slice(0, TRANSCRIPT_LIMIT)
+        const dropped = transcriptText.length - TRANSCRIPT_LIMIT
+        transcriptBlock = `${head}\n\n[…以下 ${dropped} 字符被省略，原转录 ${transcript?.segments.length ?? 0} 段；如需查阅请回到会议详情。]`
+      }
+
       const system = `你是本次会议的 AI 助手。会议信息：
 - 标题：${meeting.title}
 - 时间：${meeting.started_at}
 - 时长：${fmtClock(meeting.audio.duration_ms)}
 
 ## 转录全文（按时间排序，时间戳为 MM:SS）
-${transcriptText}
+${transcriptBlock}
 
 ## AI 纪要
 ${summaryText}

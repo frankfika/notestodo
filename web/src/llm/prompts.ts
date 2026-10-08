@@ -89,10 +89,18 @@ export function defaultVars(
       duration: fmtDuration(meeting.audio.duration_ms),
     },
     transcript: {
-      full: segmentsToText(transcript.segments),
+      // 长转录成本保护：超过 16K 字符截断并附标记（summarize 容忍度高，留多一点）
+      full: truncateLong(segmentsToText(transcript.segments), 16_000, transcript.segments.length),
       speakers: speakers.join('、'),
     },
   }
+}
+
+/** 长转录截断：保留前 N 字符 + 标记省略了后续 M 段（segments 总数）。 */
+function truncateLong(text: string, limit: number, totalSegments: number): string {
+  if (text.length <= limit) return text
+  const dropped = text.length - limit
+  return `${text.slice(0, limit)}\n\n[…以下 ${dropped} 字符被省略，原转录共 ${totalSegments} 段。]`
 }
 
 /** Unique speaker labels in first-appearance order. */
