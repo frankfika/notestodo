@@ -14,7 +14,8 @@ const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 test('麦克风中断 UI：interrupted=true 时 RecordingBar 用 amber 色 + 恢复文案', async ({ page }) => {
   page.setDefaultTimeout(30_000)
 
-  await page.goto(BASE)
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(500) // 等 DEV hook import + bootstrap 完成
   const closeBtn = page.locator('button[aria-label="关闭"]').first()
   if (await closeBtn.isVisible({ timeout: 1500 }).catch(() => false)) await closeBtn.click()
 
@@ -37,7 +38,7 @@ test('麦克风中断 UI：interrupted=true 时 RecordingBar 用 amber 色 + 恢
   })
 
   // 给 React 一帧时间响应 state 变化
-  await page.waitForTimeout(300)
+  await page.waitForTimeout(500)
 
   // 断言文案
   expect(page.getByText('麦克风被中断，正在恢复…')).toBeVisible({ timeout: 3_000 })
