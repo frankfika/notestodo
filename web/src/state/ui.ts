@@ -70,3 +70,9 @@ export const useUI = create<UIStore>((set) => ({
 export function applyTheme(t: 'dark' | 'light'): void {
   useUI.getState().setTheme(t)
 }
+
+// 开发模式：暴露 UI store 给 e2e 用来模拟导航（直接改 store 状态）
+// 产线 tree-shake 掉。
+if (import.meta.env.DEV) {
+  ;(window as unknown as { __uiStore?: typeof useUI }).__uiStore = useUI
+}
