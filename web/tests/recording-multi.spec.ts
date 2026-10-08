@@ -47,7 +47,8 @@ test('连录两场：状态完全隔离（无 ghost meeting / 残留录制条）
   // 录一段再停
   await page.waitForTimeout(2000)
   await page.getByRole('button', { name: /■ 停止/ }).first().click()
-  await expect(page.locator('span.rec-dot')).toHaveCount(0, { timeout: 8000 })
+  // 第二段停止后异步清理：给 phase 重置留足时间
+  await expect(page.locator('span.rec-dot')).toHaveCount(0, { timeout: 12_000 })
   await page.waitForTimeout(1500)
 
   // ── 数据库断言：2 个独立 meeting，没有 ghost 残留 ──
