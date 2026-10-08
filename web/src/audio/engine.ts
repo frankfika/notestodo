@@ -524,6 +524,13 @@ async function handleTrackEnded(meetingId: string): Promise<void> {
   } catch (e) {
     active.resuming = false
     const msg = describeError(e)
+    // 标签页不可见时 getUserMedia 也会失败 — 不应直接升 error，
+    // 保留 interrupted=true + 等 visibilitychange 回来时再试。
+    if (document.visibilityState === 'hidden') {
+      console.warn('录音恢复暂缓：标签页不可见', msg)
+      // 不清 interrupted，等待 visibilitychange 触发再次尝试
+      return
+    }
     setRecorderPartial({
       phase: 'error',
       error: `录音中断且无法恢复：${msg}`,
@@ -596,6 +603,15 @@ function bindLifecycleListeners(): void {
       // gets yanked.
       setRecorderPartial({ interrupted: true })
     } else if (document.visibilityState === 'visible' && active) {
+      // 回到前台：清 interrupted；如果 mic 已被撤销（active.stream 已死），
+      // 主动触发恢复 — handleTrackEnded 也可能被 Mic revocation 触发过，
+      // 但它可能在 tab 不可见时 acquireStream 失败留下 stuck 状态。
+      if (active.stream.getTracks().some((t) => t.readyState === 'ended')) {
+        // 重开前先把 resuming flag 清掉以避免永久阻塞
+        active.resuming = false
+        void handleTrackEnded(active.meetingId)
+        return
+      }
       setRecorderPartial({ interrupted: false })
     }
   })
