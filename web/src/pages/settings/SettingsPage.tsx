@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../../types'
 import { getSettings, saveSettings } from '../../db/settings'
+import { applyTheme } from '../../state/ui'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
 import { exportData, importData } from '../../data/io'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
@@ -30,7 +31,17 @@ export default function SettingsPage(): JSX.Element {
   }, [])
 
   function patch(p: Partial<AppSettings>): void {
-    setSettings((cur) => ({ ...cur, ...p }))
+    setSettings((cur) => {
+      const next = { ...cur, ...p }
+      // 主题立即生效（不等保存）：applyTheme 直接调 document classList
+      if (p.theme && p.theme !== cur.theme) {
+        const resolved = p.theme === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : p.theme
+        applyTheme(resolved as 'dark' | 'light')
+      }
+      return next
+    })
     setDirty(true)
   }
 
