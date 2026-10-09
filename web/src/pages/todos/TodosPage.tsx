@@ -55,6 +55,7 @@ export default function TodosPage(): JSX.Element {
     }
     return m
   }, [todoBindings])
+  // tag 使用计数只算软删除绑定为 null 的（之前会算软删除 todo 的绑定，导致过滤行虚高）
   const tagUsageCount = useMemo(() => {
     const c = new Map<string, number>()
     for (const ids of tagIdsByTodo.values()) {
@@ -501,6 +502,18 @@ function EditPopover({ todo, allTodos, onClose }: { todo: Todo; allTodos: Todo[]
   async function remove(): Promise<void> {
     if (!window.confirm(`删除「${todo.title}」？`)) return
     await db.todos.update(todo.id, { deleted_at: now(), updated_at: now(), status: 'cancelled' })
+    // 软删除 todo 时同时软删除它的 tagBindings —— 否则 tagUsageCount 虚高，
+    // 过滤行显示「#tag (3)」但实际只有 1 个活跃 todo
+    const bindings = await db.tagBindings
+      .where('target_type').equals('todo')
+      .and((b) => b.target_id === todo.id && b.deleted_at === null)
+      .toArray()
+    const deletedAt = now()
+    await db.transaction('rw', db.tagBindings, async () => {
+      for (const b of bindings) {
+        await db.tagBindings.update(b.id, { deleted_at: deletedAt, updated_at: deletedAt })
+      }
+    })
     onClose()
   }
 
