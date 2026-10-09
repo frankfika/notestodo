@@ -13,6 +13,23 @@ interface State {
  * 本地优先应用尤其重要 — IndexedDB 结构升级失败等 Dexie 错误会在 render 期抛出，
  * 数据还在磁盘上，刷新/清库提示能让用户自救。
  */
+let _throwOnce = false
+/**
+ * DEV-only 测试钩子：返回 true 一次，然后重置。
+ * 在 App 顶层渲染开头调用，触发一次抛错验证 ErrorBoundary 正常接管。
+ * 生产构建 tree-shake（import.meta.env.DEV === false）。
+ * 注：用 window 全局而非模块内变量 —— Vite HMR 在 dev 模式下可能
+ * 让模块重新求值，模块级 let 会被重置；window 跨模块实例共享。
+ */
+export function throwOnNextRenderForTest(): boolean {
+  if (!import.meta.env.DEV) return false
+  const w = window as unknown as { __ebTestThrowOnce?: boolean }
+  // 默认 false；只有显式设 true 才抛
+  if (w.__ebTestThrowOnce !== true) return false
+  // 抛一次后自动重置，避免无限抛错循环
+  w.__ebTestThrowOnce = false
+  return true
+}
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
 

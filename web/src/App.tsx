@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useUI } from './state/ui'
 import { useRecorder } from './state/recorder'
+import { throwOnNextRenderForTest } from './components/ErrorBoundary'
 import Sidebar, { BottomTabBar } from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
@@ -21,6 +22,15 @@ export default function App() {
   const start = useRecorder((s) => s.start)
   const stop = useRecorder((s) => s.stop)
   const phase = useRecorder((s) => s.phase)
+
+  // DEV-only 测试钩子：错误边界 e2e 通过它触发一次 render 时抛错
+  // 用 useEffect 在挂载后跑（避免 StrictMode 双 render 时立即重置 flag）
+  useEffect(() => {
+    if (throwOnNextRenderForTest()) {
+      // 在 effect 里同步抛 — React 会重新渲染并由外层 ErrorBoundary 接管
+      throw new Error('ErrorBoundary e2e — simulated render failure')
+    }
+  }, [])
 
   // 全局快捷键：⌘K 命令面板 + ⌘⇧R 录制切换
   useEffect(() => {
