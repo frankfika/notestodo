@@ -34,8 +34,8 @@ interface UIStore extends RouteState {
   sidebarCollapsed: boolean
   setSidebarCollapsed: (v: boolean) => void
 
-  theme: 'dark' | 'light'
-  setTheme: (t: 'dark' | 'light') => void
+  theme: 'dark' | 'light' | 'system'
+  setTheme: (t: 'dark' | 'light' | 'system') => void
 }
 
 export const useUI = create<UIStore>((set) => ({
@@ -63,11 +63,28 @@ export const useUI = create<UIStore>((set) => ({
   theme: 'dark',
   setTheme: (t) => {
     set({ theme: t })
-    document.documentElement.classList.toggle('dark', t === 'dark')
+    const resolved = t === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : t
+    document.documentElement.classList.toggle('dark', resolved === 'dark')
   },
 }))
 
-export function applyTheme(t: 'dark' | 'light'): void {
+// 监听系统主题变化 —— 选「system」的用户在 OS 切换深/浅时立即跟随
+if (typeof window !== 'undefined' && window.matchMedia) {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  const onChange = (): void => {
+    if (useUI.getState().theme === 'system') {
+      applyTheme('system') // 触发 resolved + DOM toggle
+    }
+  }
+  if (mq.addEventListener) mq.addEventListener('change', onChange)
+  else if ((mq as unknown as { addListener?: (cb: () => void) => void }).addListener) {
+    (mq as unknown as { addListener: (cb: () => void) => void }).addListener(onChange)
+  }
+}
+
+export function applyTheme(t: 'dark' | 'light' | 'system'): void {
   useUI.getState().setTheme(t)
 }
 
