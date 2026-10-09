@@ -145,6 +145,11 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   async function rerunWith(templateId: string): Promise<void> {
     // 记录选中的模板到 KVK，触发重生成
     await db.kv.put({ key: `meeting_template_${meeting.id}`, value: templateId })
+    // 删除已有 summary — 否则 runSummarizePipeline 的「idempotent: 已有 summary 直接 return」
+    // 会让「重生成」按钮完全无效。
+    await db.summaries.where('meeting_id').equals(meeting.id).delete()
+    // meeting 状态重置（与初次生成一致路径）
+    await db.meetings.update(meeting.id, { status: 'summarizing', error: undefined, updated_at: now() })
     await runSummarizePipeline(meeting.id).catch((e) => {
       console.error('重新生成失败', e)
     })
