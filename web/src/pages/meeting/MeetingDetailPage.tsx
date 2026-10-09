@@ -157,6 +157,8 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     await db.transcripts.where('meeting_id').equals(meeting.id).delete()
     await db.summaries.where('meeting_id').equals(meeting.id).delete()
     await db.todos.where('meeting_id').equals(meeting.id).delete()
+    // 之前漏了 chatMessages — 累积多了会浪费磁盘 + 让关联查询变慢
+    await db.chatMessages.where('meeting_id').equals(meeting.id).delete()
     if (meeting.note_id) await db.notes.delete(meeting.note_id)
     useUI.getState().goMeetings()
   }
