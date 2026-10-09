@@ -43,7 +43,11 @@ export default function NoteDetailPage(): JSX.Element {
   }, [draftBody, draftTitle, note?.id])
 
   const linkedTodos = useLiveQuery(
-    async () => noteId ? await db.todos.where('origin_note_id').equals(noteId).toArray() : [],
+    async () => noteId
+      ? (await db.todos.where('origin_note_id').equals(noteId).toArray())
+          // 软删除的 todo 不应继续挂在笔记「关联任务」里
+          .filter((t) => t.deleted_at === null)
+      : [],
     [noteId ?? ''],
   ) ?? []
 
