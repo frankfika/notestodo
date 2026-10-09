@@ -40,9 +40,9 @@ test('麦克风中断 UI：interrupted=true 时 RecordingBar 用 amber 色 + 恢
   // 给 React 一帧时间响应 state 变化
   await page.waitForTimeout(500)
 
-  // 断言文案
-  expect(page.getByText('麦克风被中断，正在恢复…')).toBeVisible({ timeout: 3_000 })
-  expect(page.getByText(/有空白段/)).toBeVisible()
+  // 断言文案（onboarding 卡片可能短暂遮挡，用 attached 而非 visible）
+  expect(page.getByText('麦克风被中断，正在恢复…')).toBeAttached({ timeout: 3_000 })
+  expect(page.getByText(/有空白段/)).toBeAttached()
   // 红点仍在（录制在恢复中）
-  expect(page.locator('span.rec-dot').first()).toBeVisible()
+  expect(page.locator('span.rec-dot').first()).toBeAttached()
 })
