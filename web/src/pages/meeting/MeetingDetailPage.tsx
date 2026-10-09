@@ -606,7 +606,6 @@ function ChatPanel({
   async function send(): Promise<void> {
     const text = input.trim()
     if (!text || busy) return
-    setInput('')
     setErr(null)
     setBusy(true)
 
@@ -620,6 +619,8 @@ function ChatPanel({
       deleted_at: null,
       sync_version: 0,
     }
+    // 先 clear input，让用户感觉「已发出」；如果 LLM 失败，再恢复（让用户可以重试）
+    setInput('')
     await db.chatMessages.add(userMsg)
 
     try {
@@ -673,6 +674,8 @@ ${summaryText}
       await db.chatMessages.add(aiMsg)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
+      // LLM 失败：把 user 输入恢复回 textarea（user 已 add 到 DB，但 UI 不该让用户重打）
+      setInput(text)
     } finally {
       setBusy(false)
     }

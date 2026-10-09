@@ -71,8 +71,9 @@ test('ChatPanel LLM 失败：用户消息保留 + 错误展示 + 不会丢失输
   await page.locator('textarea').press('Enter')
   await page.waitForTimeout(2000) // 等失败响应
 
-  // 1) UI 显示用户消息（持久化的）
-  await expect(page.getByText('重要提问')).toBeAttached({ timeout: 5_000 })
+  // 1) UI 显示用户消息（持久化的）— 注意现在 textarea 也包含这文本（修复后恢复输入）
+  const userMsgCount = await page.getByText('重要提问').count()
+  expect(userMsgCount).toBeGreaterThanOrEqual(1)
 
   // 2) UI 显示错误消息
   await expect(page.getByText(/upstream 502|api_error/)).toBeAttached({ timeout: 5_000 })
@@ -108,4 +109,8 @@ test('ChatPanel LLM 失败：用户消息保留 + 错误展示 + 不会丢失输
   // 5) busy 已释放（textarea 可继续输入）
   const isDisabled = await page.locator('textarea').isDisabled()
   expect(isDisabled).toBe(false)
+
+  // 6) 用户输入被恢复到 textarea（修复后：失败时不丢输入）
+  const restoredValue = await page.locator('textarea').inputValue()
+  expect(restoredValue).toBe('重要提问')
 })
