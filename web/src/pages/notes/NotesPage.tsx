@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'
@@ -10,10 +11,18 @@ import EmptyState from '../../components/EmptyState'
  * 会议纪要类型的 Note 也展示在列表里，但带「会议」标记。
  */
 export default function NotesPage(): JSX.Element {
-  const notes = useLiveQuery(
+  const notesRaw = useLiveQuery(
     () => db.notes.orderBy('updated_at').reverse().toArray(),
     [],
   ) ?? []
+  // pinned 在前（按 updated_at 倒序），其余按 updated_at 倒序
+  const notes = useMemo(() => {
+    return [...notesRaw].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1
+      if (!a.pinned && b.pinned) return 1
+      return a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0
+    })
+  }, [notesRaw])
   const goNote = useUI((s) => s.goNote)
 
   async function createNote(): Promise<void> {
