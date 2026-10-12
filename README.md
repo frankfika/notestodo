@@ -1,14 +1,15 @@
-# 拾贝 Shibei · AI 会议笔记与待办
+# NotesToGO · 会议速记 × 嵌套 OKR
 
-> 开会时只管说话，散会时纪要和待办已经排好。
+> 开会时只记关键词，散会后一键整理成笔记；每个行动项落到正确的 KR 上。
 
-一个 AI-native 的会议笔记 + 三级待办应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
+产品名 **NotesToGO**（仓库名 notestodo，「拾贝 Shibei」为旧名/别名）。一个 AI-native 的会议速记 + 嵌套 OKR 应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
 ## 核心特性
 
 - **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟；电平条可见麦在响。
 - **AI 转录 + 总结**：BYOK，支持 MiniMax asr-1.0（含说话人分离）/ Deepgram Nova-3 / OpenAI Whisper；用户可自定义模板（`{{var}}` 语法）。
-- **三级待办**：Objective > KR > Task，支持 tags、日期、委派人员；会议提取的 ToDo 带「证据引文」可一键跳回转录原文。
+- **Scribble → Polish**：录音时速记是主角（短 bullet，回车自动续写）；停止后「整理笔记」用转录把速记扩写成完整 Markdown，写入会议笔记。原模板纪要 + 待办提取保留为「深度总结」。
+- **嵌套 OKR**：战略 O/KR → 季度 O/KR（`period` 如 `2026-Q4`）→ 项目 O/KR → Task；父子规则见 [`web/src/lib/okr.ts`](web/src/lib/okr.ts)，进度按权重逐级汇总。三种视图：**Focus**（默认：Inbox + 本季任务，无树）/ **Quarter** / **Strategy**。会议提取的 ToDo 确认后进 Inbox，或一键挂到建议的 KR；带「证据引文」可跳回转录原文。旧数据的 O/KR 自动迁移为战略层。
 - **AI 对话**：会议详情页内置 ChatPanel，对这场会议的纪要+全文转录提问。
 - **日历集成**：订阅任意 .ics URL（Apple iCloud / Google / QQ / Outlook），点击事件直接启动录音（预填标题与时间）。
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
@@ -62,8 +63,9 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 ## 设计语言
 
-- 主背景 `oklch(16%)` + 提升层 `oklch(19.5%)`，暗色默认
-- 唯一强调色：青蓝 `oklch(70% 0.12 230)`
+- **浅色默认**：暖纸色画布 `oklch(97.9% 0.009 85)` + 白色提升层、细线分隔、柔和阴影；墨色正文
+- 深色可选：柔和炭灰 `oklch(23–30%)`，不是纯黑
+- 唯一强调色：低饱和青蓝 `oklch(51% 0.075 205)`（深色下提亮）
 - 4pt 间距网格，150-250ms ease-out 动效
 - 文字符号优先（● ▣ ◆ ✎ ✓ ✕），不用 emoji
 - 详见 [`web/src/styles/main.css`](web/src/styles/main.css)
