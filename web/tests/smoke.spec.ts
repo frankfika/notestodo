@@ -95,7 +95,8 @@ test.describe('Shibei shell smoke', () => {
     await page.getByRole('button', { name: '待办' }).click()
     await page.waitForTimeout(300)
 
-    const newBtn = page.getByRole('button', { name: /新建 Objective/ }).first()
+    await page.getByRole('tab', { name: 'Strategy' }).click()
+    const newBtn = page.getByRole('button', { name: /新建战略 O/ }).first()
     await newBtn.waitFor({ state: 'visible', timeout: 5000 })
     const beforeCount = await page.evaluate(async () => {
       return new Promise<number>((res) => {
@@ -110,6 +111,8 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await newBtn.click()
+    await page.getByPlaceholder(/战略 O 标题/).fill('新工作目标')
+    await page.keyboard.press('Enter')
     await page.waitForTimeout(800)
     const afterCount = await page.evaluate(async () => {
       return new Promise<number>((res) => {
@@ -142,9 +145,12 @@ test.describe('Shibei shell smoke', () => {
     // 触发第一个真实动作 — 创建 Objective
     await page.getByRole('button', { name: '待办' }).click()
     await page.waitForTimeout(300)
-    const newBtn = page.getByRole('button', { name: /新建 Objective/ }).first()
+    await page.getByRole('tab', { name: 'Strategy' }).click()
+    const newBtn = page.getByRole('button', { name: /新建战略 O/ }).first()
     await newBtn.waitFor({ state: 'visible', timeout: 5000 })
     await newBtn.click()
+    await page.getByPlaceholder(/战略 O 标题/).fill('新工作目标')
+    await page.keyboard.press('Enter')
     await page.waitForTimeout(800)
     // onboarding 卡片应该自动消失
     const onboardingCard = page.locator('text=欢迎使用拾贝').first()

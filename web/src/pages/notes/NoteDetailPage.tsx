@@ -59,6 +59,7 @@ export default function NoteDetailPage(): JSX.Element {
     const todo: Todo = {
       id: crypto.randomUUID(),
       kind: 'task',
+      scope: null,
       parent_id: null,
       title,
       notes_md: undefined,

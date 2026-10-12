@@ -119,6 +119,7 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
     const todo: Todo = {
       id: crypto.randomUUID(),
       kind: 'task',
+      scope: null,
       parent_id: null,
       title,
       notes_md: '',

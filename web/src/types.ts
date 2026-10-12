@@ -44,6 +44,8 @@ export interface Meeting extends EntityMeta {
     gaps: [number, number][]
   }
   note_id: ID
+  /** 会中速记（Scribble）：短 bullet，Polish 时结合转录扩写进 note */
+  scribble_md?: string
   error?: string
 }
 
@@ -106,14 +108,22 @@ export interface SummaryTemplate extends EntityMeta {
   builtin: boolean
 }
 
-// ── 待办（三级：Objective > KR > Task）───────────────────────────────────────
+// ── 待办（嵌套 OKR：strategic O/KR > quarterly O/KR > project O/KR > Task）──
+// 父子规则见 lib/okr.ts
 
 export type TodoKind = 'objective' | 'kr' | 'task'
+export type OkrScope = 'strategic' | 'quarterly' | 'project'
 export type TodoStatus = 'open' | 'done' | 'cancelled' | 'pending_review'
 
 export interface Todo extends EntityMeta {
   kind: TodoKind
-  parent_id: ID | null       // kr→objective；task→kr 或 null（自由 task）
+  parent_id: ID | null       // 见 lib/okr.ts canParent；task→任意 KR 或 null（Inbox）
+  /** null 仅用于 Inbox 自由任务；挂在 KR 下的 task 继承 KR 的 scope */
+  scope: OkrScope | null
+  /** scope==='quarterly' 时必填，如 '2026-Q4' */
+  period?: string
+  /** KR→O 进度汇总权重 0–1，缺省按 1 */
+  weight?: number
   title: string
   notes_md?: string
   status: TodoStatus
@@ -192,6 +202,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   asr_api_key: '',
   asr_model: 'asr-1.0',
   delete_remote_audio: true,
-  theme: 'dark',
+  theme: 'light',
   calendar_ics_urls: [],
 }

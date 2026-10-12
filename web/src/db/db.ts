@@ -39,6 +39,15 @@ export class ShibeiDB extends Dexie {
       todos: 'id, parent_id, kind, status, due_date, meeting_id, origin_note_id, source',
       meetings: 'id, status, started_at, note_id, calendar_event_id',
     })
+    // v3: 嵌套 OKR —— 旧 objective/kr 映射为 strategic；挂在 KR 下的 task 继承 strategic，自由 task 为 null（Inbox）
+    this.version(3).stores({
+      todos: 'id, parent_id, kind, status, due_date, meeting_id, origin_note_id, source, scope, period',
+    }).upgrade((tx) =>
+      tx.table('todos').toCollection().modify((t: Todo) => {
+        if (t.scope !== undefined) return
+        t.scope = t.kind === 'task' && t.parent_id === null ? null : 'strategic'
+      }),
+    )
   }
 }
 

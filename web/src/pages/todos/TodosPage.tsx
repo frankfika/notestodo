@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
-import { now, uid } from '../../lib/id'
+import { now, today as todayIso, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
-import type { Todo, TodoKind, TodoStatus } from '../../types'
+import type { Todo, TodoStatus } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import TagPicker from '../../components/TagPicker'
+import {
+  LEVELS, canParent, childLevels, childrenIndex, currentPeriod, inheritedScope,
+  levelLabel, periodOf, periodRange, rollupProgress, shiftPeriod, subtreeIds, type Level,
+} from '../../lib/okr'
 
-type Filter = '全部' | '进行' | '今日' | '已完成'
+type Mode = 'focus' | 'quarter' | 'strategy'
+
+const MODES: { id: Mode; label: string }[] = [
+  { id: 'focus', label: 'Focus' },
+  { id: 'quarter', label: 'Quarter' },
+  { id: 'strategy', label: 'Strategy' },
+]
 
 const STATUS_LABELS: Record<TodoStatus, string> = {
   open: '进行中',
@@ -16,30 +26,38 @@ const STATUS_LABELS: Record<TodoStatus, string> = {
   pending_review: '待审',
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
+/** 每个模式「+」菜单可建的层级 */
+const MODE_LEVELS: Record<Mode, Level[]> = {
+  focus: [LEVELS[6]],
+  quarter: LEVELS.slice(2),
+  strategy: LEVELS,
+}
+
+/** 共享给子组件的数据，避免层层传 props */
+interface Ctx {
+  all: Todo[]
+  byId: Map<string, Todo>
+  kids: Map<string | null, Todo[]>
+  progress: Map<string, number>
+  period: string
+  tagFilter: string | null
+  tagIdsByTodo: Map<string, string[]>
+  setTagFilter: (id: string | null) => void
 }
 
 /**
- * 三级任务视图（Things 3 风格，单列缩进分组）：
- *   自由任务 (task, parent_id=null)
- *   Objective  →  KR  →  Task
- *
- * 顶部筛选 pills (全部/进行/今日/已完成)。
- * 任务行 hover 出现编辑 popover（title/due/assignee/tags/parent 切换）。
+ * OKR 页（嵌套：战略 → 季度 → 项目 → Task）。三种模式：
+ *   Focus    —— 默认。Inbox + 本季度未完成 Task（+ 逾期），平铺，一键完成，无树
+ *   Quarter  —— 选定季度的 季度 O → KR → 项目 O/KR → Task
+ *   Strategy —— 全树；⋯ 里改父节点（规则见 lib/okr.ts），进度逐级汇总
  */
 export default function TodosPage(): JSX.Element {
-  const todos = useLiveQuery(
-    () => db.todos.toArray(),
-    [],
-  ) ?? []
+  const raw = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const focusId = useUI((s) => s.todoFocusId)
-
-  const [filter, setFilter] = useState<Filter>('全部')
-  // tag 过滤：null = 不过滤；否则为 tag id（单选，保持极简）
+  const [mode, setMode] = useState<Mode>('focus')
+  const [period, setPeriod] = useState(currentPeriod())
   const [tagFilter, setTagFilter] = useState<string | null>(null)
 
-  // 「充分发挥 tags」（需求 #3）：聚合所有 tag + todo↔tag 绑定关系，供过滤
   const allTags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const todoBindings = useLiveQuery(
     () => db.tagBindings.where('target_type').equals('todo').toArray(),
@@ -55,7 +73,6 @@ export default function TodosPage(): JSX.Element {
     }
     return m
   }, [todoBindings])
-  // tag 使用计数只算软删除绑定为 null 的（之前会算软删除 todo 的绑定，导致过滤行虚高）
   const tagUsageCount = useMemo(() => {
     const c = new Map<string, number>()
     for (const ids of tagIdsByTodo.values()) {
@@ -64,124 +81,66 @@ export default function TodosPage(): JSX.Element {
     return c
   }, [tagIdsByTodo])
 
-  const counts = useMemo(() => {
-    const t = todayIso()
+  const ctx: Ctx = useMemo(() => {
+    const all = raw.filter((t) => t.deleted_at === null)
     return {
-      all: todos.filter((x) => x.deleted_at === null).length,
-      open: todos.filter((x) => x.status === 'open' || x.status === 'pending_review').length,
-      today: todos.filter((x) => x.due_date === t && (x.status === 'open' || x.status === 'pending_review')).length,
-      done: todos.filter((x) => x.status === 'done').length,
+      all,
+      byId: new Map(all.map((t) => [t.id, t])),
+      kids: childrenIndex(all),
+      progress: rollupProgress(all),
+      period,
+      tagFilter,
+      tagIdsByTodo,
+      setTagFilter,
     }
-  }, [todos])
+  }, [raw, period, tagFilter, tagIdsByTodo])
 
-  const filtered = useMemo(() => {
-    const t = todayIso()
-    return todos.filter((x) => {
-      if (tagFilter) {
-        const ids = tagIdsByTodo.get(x.id) ?? []
-        if (!ids.includes(tagFilter)) return false
-      }
-      if (filter === '全部') return x.status !== 'cancelled'
-      if (filter === '进行') return x.status === 'open' || x.status === 'pending_review'
-      if (filter === '今日') return (x.status === 'open' || x.status === 'pending_review') && x.due_date === t
-      if (filter === '已完成') return x.status === 'done'
-      return true
-    })
-  }, [todos, filter, tagFilter, tagIdsByTodo])
-
-  const free = useMemo(() => filtered.filter((t) => t.kind === 'task' && t.parent_id === null), [filtered])
-  const objectives = useMemo(() => filtered.filter((t) => t.kind === 'objective'), [filtered])
-  const krsByParent = useMemo(() => {
-    const m = new Map<string, Todo[]>()
-    for (const t of filtered.filter((x) => x.kind === 'kr')) {
-      const k = t.parent_id ?? ''
-      const list = m.get(k) ?? []
-      list.push(t)
-      m.set(k, list)
-    }
-    for (const list of m.values()) list.sort((a, b) => a.sort_order - b.sort_order)
-    return m
-  }, [filtered])
-  const tasksByParent = useMemo(() => {
-    const m = new Map<string, Todo[]>()
-    for (const t of filtered.filter((x) => x.kind === 'task' && x.parent_id)) {
-      const k = t.parent_id ?? ''
-      const list = m.get(k) ?? []
-      list.push(t)
-      m.set(k, list)
-    }
-    for (const list of m.values()) list.sort((a, b) => a.sort_order - b.sort_order)
-    return m
-  }, [filtered])
-
-  // 焦点滚到
+  // 外部跳转聚焦（如会议待办 → OKR）：切到 Strategy 才能看到任意层级
   useEffect(() => {
     if (!focusId) return
-    const el = document.querySelector(`[data-todo-id="${focusId}"]`)
-    if (el && 'scrollIntoView' in el) {
-      (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
+    const t = ctx.byId.get(focusId)
+    if (t && t.parent_id) setMode('strategy')
+    const id = setTimeout(() => {
+      document.querySelector(`[data-todo-id="${focusId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId])
-
-  async function createObjective(): Promise<void> {
-    const t: Todo = blank('objective', null, '新工作目标')
-    await db.todos.add(t)
-  }
-  async function createKr(parent: Todo): Promise<void> {
-    const t: Todo = blank('kr', parent.id, '新增 KR')
-    await db.todos.add(t)
-  }
-  async function createTask(parent: Todo | null): Promise<void> {
-    const t: Todo = blank('task', parent?.id ?? null, '新任务')
-    await db.todos.add(t)
-  }
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[860px] mx-auto px-6 py-8">
-        {/* 顶部 */}
-        <div className="flex items-end justify-between mb-4">
+      <div className="max-w-[820px] mx-auto px-6 py-8">
+        <div className="flex items-end gap-3 mb-5">
           <div>
-            <div className="section-title">TODOS</div>
-            <h1 className="text-2xl font-semibold text-text-1 mt-1">待办</h1>
+            <div className="section-title">OKR</div>
+            <h1 className="text-2xl font-semibold tracking-tight text-text-1 mt-1">目标与待办</h1>
           </div>
-          <button onClick={() => void createObjective()} className="btn-primary text-sm h-9 px-4">
-            + 新建 Objective
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <div role="tablist" className="flex p-0.5 rounded-lg bg-bg-overlay border border-line">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  role="tab"
+                  aria-selected={mode === m.id}
+                  onClick={() => setMode(m.id)}
+                  className={`px-3 h-7 text-xs rounded-md transition-colors ${
+                    mode === m.id ? 'bg-bg-raise text-text-1 shadow-sm font-medium' : 'text-text-3 hover:text-text-1'
+                  }`}
+                >{m.label}</button>
+              ))}
+            </div>
+            <AddMenu levels={MODE_LEVELS[mode]} ctx={ctx} />
+          </div>
         </div>
 
-        {/* 过滤 pills */}
-        <div className="flex items-center gap-1 mb-2">
-          {(['全部', '进行', '今日', '已完成'] as Filter[]).map((f) => {
-            const c = f === '全部' ? counts.all : f === '进行' ? counts.open : f === '今日' ? counts.today : counts.done
-            const active = filter === f
-            return (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 h-7 text-xs rounded-md transition-colors ${
-                  active ? 'bg-accent text-accent-contrast' : 'text-text-2 hover:bg-bg-overlay'
-                }`}
-              >
-                {f} <span className="ml-1 text-[11px] opacity-70 tabular-nums">{c}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* tag 过滤行：只显示已被至少一条 todo 使用的 tag */}
-        {(allTags.length > 0 && todoBindings.length > 0) && (
+        {allTags.length > 0 && todoBindings.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 mb-5">
             <button
               onClick={() => setTagFilter(null)}
               className={`px-2.5 h-6 text-[11px] rounded-full border transition-colors ${
-                tagFilter === null
-                  ? 'border-accent text-accent'
-                  : 'border-line text-text-3 hover:text-text-2 hover:border-line-strong'
+                tagFilter === null ? 'border-accent text-accent' : 'border-line text-text-3 hover:text-text-2 hover:border-line-strong'
               }`}
-            >
-              # 全部
-            </button>
+            ># 全部</button>
             {allTags
               .filter((t) => (tagUsageCount.get(t.id) ?? 0) > 0)
               .map((t) => {
@@ -191,9 +150,7 @@ export default function TodosPage(): JSX.Element {
                     key={t.id}
                     onClick={() => setTagFilter(active ? null : t.id)}
                     className={`px-2.5 h-6 text-[11px] rounded-full border transition-colors ${
-                      active
-                        ? 'border-accent bg-accent/15 text-accent'
-                        : 'border-line text-text-3 hover:text-text-2 hover:border-line-strong'
+                      active ? 'border-accent bg-accent/12 text-accent' : 'border-line text-text-3 hover:text-text-2 hover:border-line-strong'
                     }`}
                     title={`${tagUsageCount.get(t.id)} 条任务`}
                   >
@@ -204,66 +161,28 @@ export default function TodosPage(): JSX.Element {
               })}
           </div>
         )}
-        <div className={allTags.length > 0 && todoBindings.length > 0 ? '' : 'mt-6'}>
-        {/* 自由任务 */}
-        <SectionHeader
-          title="自由任务"
-          hint="未挂到 OKR 的任务，可拖到下方任何 Objective/KR 下。"
-          onAdd={() => void createTask(null)}
-          addLabel="+ 新建 Task"
-        />
-        {free.length === 0 ? (
-          <div className="text-xs text-text-3 px-3 py-2 mb-6">无</div>
-        ) : (
-          <ul className="card divide-y divide-line mb-8">
-            {free.map((t) => <TodoLine key={t.id} todo={t} allTodos={todos} onFilterByTag={setTagFilter} />)}
-          </ul>
-        )}
 
-        {/* Objective 树 */}
-        {objectives.length === 0 && free.length === 0 ? (
-          <div className="card">
-            <EmptyState
-              icon="◌"
-              title="还没有 Objective"
-              hint="OKR 三级任务从目标开始：先建一个 Objective，再加 KR 跟，最后挂 Task。"
-              action={<button onClick={() => void createObjective()} className="btn-primary h-8 text-xs">+ 新建 Objective</button>}
-            />
-          </div>
-        ) : (
-          <ul className="space-y-6">
-            {objectives
-              .slice()
-              .sort((a, b) => a.sort_order - b.sort_order)
-              .map((o) => (
-                <li key={o.id}>
-                  <ObjectiveBlock
-                    objective={o}
-                    krs={krsByParent.get(o.id) ?? []}
-                    tasksByParent={tasksByParent}
-                    allTodos={todos}
-                    onCreateKr={() => void createKr(o)}
-                    onCreateTask={() => void createTask(o)}
-                    onFilterByTag={setTagFilter}
-                  />
-                </li>
-              ))}
-          </ul>
-        )}
-        </div>
+        {mode === 'focus' && <FocusView ctx={ctx} />}
+        {mode === 'quarter' && <QuarterView ctx={ctx} setPeriod={setPeriod} />}
+        {mode === 'strategy' && <StrategyView ctx={ctx} />}
       </div>
     </div>
   )
 }
 
-function blank(kind: TodoKind, parentId: string | null, title: string): Todo {
+// ── 写操作（所有新建都过 canParent）────────────────────────────────
+
+async function createNode(level: Level, parent: Todo | null, title: string, period?: string): Promise<string> {
+  if (!canParent(level, parent)) throw new Error(`${levelLabel(level)} 不能挂在 ${parent ? levelLabel(parent) : '根'} 下`)
   const ts = now()
-  return {
-    id: uid(),
-    kind,
-    parent_id: parentId,
+  const id = uid()
+  const t: Todo = {
+    id,
+    kind: level.kind,
+    parent_id: parent?.id ?? null,
+    scope: inheritedScope(level, parent),
+    period: level.scope === 'quarterly' ? (parent?.period ?? period ?? currentPeriod()) : undefined,
     title,
-    notes_md: undefined,
     status: 'open',
     source: 'manual',
     sort_order: Date.now(),
@@ -272,112 +191,371 @@ function blank(kind: TodoKind, parentId: string | null, title: string): Todo {
     deleted_at: null,
     sync_version: 0,
   }
+  await db.todos.add(t)
+  return id
 }
 
-// ── 子组件 ─────────────────────────────────────────────────────────
-function SectionHeader({ title, hint, onAdd, addLabel }: { title: string; hint?: string; onAdd?: () => void; addLabel?: string }): JSX.Element {
+function matchesTag(t: Todo, ctx: Ctx): boolean {
+  return !ctx.tagFilter || (ctx.tagIdsByTodo.get(t.id) ?? []).includes(ctx.tagFilter)
+}
+
+// ── Focus ─────────────────────────────────────────────────────────
+
+function FocusView({ ctx }: { ctx: Ctx }): JSX.Element {
+  const t = todayIso()
+  const [qStart, qEnd] = periodRange(ctx.period)
+  const weekAhead = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const [showDone, setShowDone] = useState(false)
+
+  const { inbox, quarter, activeKrs, doneCount } = useMemo(() => {
+    const tasks = ctx.all.filter((x) => x.kind === 'task' && matchesTag(x, ctx))
+    const isOpen = (x: Todo) => x.status === 'open' || x.status === 'pending_review'
+    const inbox = tasks.filter((x) => x.parent_id === null && isOpen(x))
+    // 本季度：逾期 ∪ 截止在本季 ∪（无截止且未绑定其它季度）
+    const quarter = tasks
+      .filter((x) => x.parent_id !== null && isOpen(x))
+      .filter((x) => {
+        if (x.due_date) return x.due_date < t || (x.due_date >= qStart && x.due_date <= qEnd)
+        const p = periodOf(x, ctx.byId)
+        return p === undefined || p === ctx.period
+      })
+      .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
+    // 本周活跃 KR：有 7 天内到期的未完成 task，或 7 天内完成过 task
+    const active = new Set<string>()
+    for (const x of tasks) {
+      if (!x.parent_id) continue
+      const hot = (isOpen(x) && x.due_date && x.due_date <= weekAhead) || (x.status === 'done' && x.updated_at >= weekAgo)
+      if (hot) active.add(x.parent_id)
+    }
+    const activeKrs = [...active].map((id) => ctx.byId.get(id)).filter((k): k is Todo => !!k && k.kind === 'kr')
+    return { inbox, quarter, activeKrs, doneCount: tasks.filter((x) => x.status === 'done').length }
+  }, [ctx, t, qStart, qEnd, weekAhead, weekAgo])
+
+  const done = showDone
+    ? ctx.all.filter((x) => x.kind === 'task' && x.status === 'done' && matchesTag(x, ctx))
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 30)
+    : []
+
   return (
-    <div className="flex items-end mb-2 px-1">
-      <div>
-        <div className="section-title">{title}</div>
-        {hint && <div className="text-[11px] text-text-3 mt-0.5">{hint}</div>}
-      </div>
-      {onAdd && (
-        <button onClick={onAdd} className="ml-auto btn-ghost text-xs h-7 px-2">
-          {addLabel ?? '+ 新建'}
-        </button>
+    <div className="space-y-6">
+      {activeKrs.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {activeKrs.map((kr) => (
+            <div key={kr.id} className="min-w-[180px] flex-1 max-w-[260px] rounded-lg border border-line bg-bg-raise px-3 py-2">
+              <div className="text-[11px] text-text-3">{levelLabel(kr)} · 本周活跃</div>
+              <div className="text-[13px] text-text-1 truncate">{kr.title}</div>
+              <ProgressBar value={ctx.progress.get(kr.id) ?? 0} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <section>
+        <SectionHeader title="Inbox" hint="未挂到 KR 的任务；会议提取的待办确认后也落这里。" count={inbox.length} />
+        {inbox.length === 0 ? (
+          <div className="text-xs text-text-3 px-1 py-2">Inbox 清空了。</div>
+        ) : (
+          <ul className="card divide-y divide-line px-3">
+            {inbox.map((x) => <li key={x.id} data-todo-id={x.id}><TodoLine todo={x} ctx={ctx} /></li>)}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <SectionHeader title={`本季度 · ${ctx.period}`} hint="挂在 KR 下、本季要推进的任务（含逾期）。" count={quarter.length} />
+        {quarter.length === 0 ? (
+          <div className="card">
+            <EmptyState
+              title="本季度没有进行中的任务"
+              hint="在 Quarter / Strategy 模式里给 KR 挂 Task，它们会出现在这里。"
+            />
+          </div>
+        ) : (
+          <ul className="card divide-y divide-line px-3">
+            {quarter.map((x) => <li key={x.id} data-todo-id={x.id}><TodoLine todo={x} ctx={ctx} showParent /></li>)}
+          </ul>
+        )}
+      </section>
+
+      {doneCount > 0 && (
+        <section>
+          <button onClick={() => setShowDone((v) => !v)} className="btn-ghost text-xs h-7 px-2">
+            {showDone ? '隐藏' : '显示'}已完成 <span className="tabular-nums opacity-70">{doneCount}</span>
+          </button>
+          {showDone && (
+            <ul className="card divide-y divide-line px-3 mt-2">
+              {done.map((x) => <li key={x.id}><TodoLine todo={x} ctx={ctx} showParent /></li>)}
+            </ul>
+          )}
+        </section>
       )}
     </div>
   )
 }
 
-function ObjectiveBlock({
-  objective, krs, tasksByParent, allTodos, onCreateKr, onCreateTask, onFilterByTag,
-}: {
-  objective: Todo
-  krs: Todo[]
-  tasksByParent: Map<string, Todo[]>
-  allTodos: Todo[]
-  onCreateKr: () => void
-  onCreateTask: () => void
-  onFilterByTag?: (tagId: string) => void
-}): JSX.Element {
+// ── Quarter ───────────────────────────────────────────────────────
+
+function QuarterView({ ctx, setPeriod }: { ctx: Ctx; setPeriod: (p: string) => void }): JSX.Element {
+  const roots = ctx.all.filter((t) => t.kind === 'objective' && t.scope === 'quarterly' && t.period === ctx.period)
+  const otherCount = ctx.all.filter((t) => t.kind === 'objective' && t.scope === 'quarterly' && t.period !== ctx.period).length
   return (
-    <div data-todo-id={objective.id} className="card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-base">🏔</span>
-        <span className="text-xs font-semibold tracking-wider text-text-3">OBJECTIVE</span>
-        <button
-          onClick={() => void db.todos.update(objective.id, { deleted_at: now(), updated_at: now() })}
-          className="btn-danger text-xs h-6 ml-auto"
-          title="删除 Objective（软删除）"
-        >删除</button>
-      </div>
-      <TodoLine todo={objective} allTodos={allTodos} onFilterByTag={onFilterByTag} />
-      <div className="ml-6 mt-4 space-y-3">
-        {krs.length === 0 && (
-          <div className="text-xs text-text-3 px-1">还没有 KR。</div>
+    <div>
+      <div className="flex items-center gap-1 mb-4">
+        <button onClick={() => setPeriod(shiftPeriod(ctx.period, -1))} className="icon-btn !h-7 !w-7" aria-label="上一季度">‹</button>
+        <span className="text-sm font-medium text-text-1 tabular-nums w-20 text-center">{ctx.period}</span>
+        <button onClick={() => setPeriod(shiftPeriod(ctx.period, 1))} className="icon-btn !h-7 !w-7" aria-label="下一季度">›</button>
+        {ctx.period !== currentPeriod() && (
+          <button onClick={() => setPeriod(currentPeriod())} className="btn-ghost text-xs h-7 px-2">回到本季</button>
         )}
-        {krs.map((kr) => {
-          const tasks = tasksByParent.get(kr.id) ?? []
-          return (
-            <KrBlock
-              key={kr.id}
-              kr={kr}
-              tasks={tasks}
-              allTodos={allTodos}
-              onFilterByTag={onFilterByTag}
-              onAddTask={() => {
-                const t = blank('task', kr.id, '新任务')
-                void db.todos.add(t)
-              }}
-            />
-          )
-        })}
-        <div className="flex items-center gap-1 opacity-70 hover:opacity-100">
-          <button onClick={onCreateKr} className="btn-ghost text-xs h-7">+ 新建 KR</button>
-          <button onClick={onCreateTask} className="btn-ghost text-xs h-7">+ 直接挂 Task</button>
+        {otherCount > 0 && <span className="ml-auto text-[11px] text-text-3">其它季度 {otherCount} 个 O 已收起</span>}
+      </div>
+      {roots.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            title={`${ctx.period} 还没有季度目标`}
+            hint="季度 O 挂在某个战略 KR 下：用右上「+」选「季度 O」，或在 Strategy 模式里从战略 KR 往下拆。"
+          />
         </div>
-      </div>
+      ) : (
+        <ul className="space-y-3">
+          {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
+        </ul>
+      )}
     </div>
   )
 }
 
-function KrBlock({
-  kr, tasks, allTodos, onAddTask, onFilterByTag,
-}: { kr: Todo; tasks: Todo[]; allTodos: Todo[]; onAddTask: () => void; onFilterByTag?: (tagId: string) => void }): JSX.Element {
+// ── Strategy ──────────────────────────────────────────────────────
+
+function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
+  // 根 = 无父的 O/KR + 父已删除的孤儿（避免节点凭空消失）
+  const roots = ctx.all.filter((t) =>
+    t.kind !== 'task' ? (t.parent_id === null || !ctx.byId.has(t.parent_id))
+      : (t.parent_id !== null && !ctx.byId.has(t.parent_id)),
+  ).sort((a, b) => a.sort_order - b.sort_order)
+  const [adding, setAdding] = useState(false)
   return (
-    <div data-todo-id={kr.id} className="border-l-2 border-line pl-4">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-semibold tracking-wider text-text-3">KR</span>
-      </div>
-      <TodoLine todo={kr} allTodos={allTodos} onFilterByTag={onFilterByTag} />
-      <ul className="ml-6 mt-1.5 space-y-0.5">
-        {tasks.length === 0 && (
-          <li className="text-xs text-text-3 px-1">无 Task</li>
-        )}
-        {tasks.map((t) => (
-          <li key={t.id} data-todo-id={t.id}>
-            <TodoLine todo={t} allTodos={allTodos} indent={0} onFilterByTag={onFilterByTag} />
-          </li>
-        ))}
-        <li>
-          <button
-            onClick={onAddTask}
-            className="opacity-70 hover:opacity-100 text-xs text-text-3 hover:text-text-1 py-0.5"
-          >+ 新建 Task</button>
-        </li>
-      </ul>
+    <div>
+      {roots.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            title="还没有战略目标"
+            hint="从一个年度大 O 开始，往下拆 KR → 季度 O → 项目 O → Task。"
+            action={adding
+              ? <InlineAdd placeholder="战略 O 标题，回车创建" onDone={() => setAdding(false)}
+                  onSubmit={(title) => createNode(LEVELS[0], null, title)} />
+              : <button onClick={() => setAdding(true)} className="btn-primary h-8 text-xs px-3">+ 新建战略 O</button>}
+          />
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
+        </ul>
+      )}
     </div>
   )
 }
 
-function TodoLine({ todo, allTodos, indent, onFilterByTag }: { todo: Todo; allTodos: Todo[]; indent?: number; onFilterByTag?: (tagId: string) => void }): JSX.Element {
+// ── 树节点 ────────────────────────────────────────────────────────
+
+function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }): JSX.Element {
+  const [open, setOpen] = useState(true)
+  const [adding, setAdding] = useState<Level | null>(null)
+  const children = (ctx.kids.get(node.id) ?? []).filter((c) => c.kind !== 'task' || matchesTag(c, ctx))
+  const options = node.kind === 'task' ? [] : childLevels(node)
+  const isRoot = depth === 0
+
+  const body = (
+    <>
+      <div className="flex items-start gap-1">
+        {node.kind !== 'task' && (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className={`mt-2 h-4 w-4 shrink-0 text-[10px] text-text-3 hover:text-text-1 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+            aria-label={open ? '收起' : '展开'}
+          >▸</button>
+        )}
+        <div className="flex-1 min-w-0"><TodoLine todo={node} ctx={ctx} /></div>
+      </div>
+      {open && (children.length > 0 || options.length > 0) && (
+        <div className="ml-5 pl-3 border-l border-line space-y-0.5">
+          {children.map((c) => <div key={c.id}><OkrNode node={c} ctx={ctx} depth={depth + 1} /></div>)}
+          {adding ? (
+            <InlineAdd
+              placeholder={`${levelLabel(adding)} 标题，回车创建`}
+              onDone={() => setAdding(null)}
+              onSubmit={(title) => createNode(adding, node, title)}
+            />
+          ) : options.length > 0 && (
+            <div className="flex items-center gap-1 py-0.5">
+              {options.map((l) => (
+                <button
+                  key={`${l.kind}:${l.scope}`}
+                  onClick={() => setAdding(l)}
+                  className="text-[11px] text-text-3 hover:text-accent px-1.5 h-6 rounded hover:bg-bg-overlay transition-colors"
+                >+ {levelLabel(l)}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  return (
+    <div data-todo-id={node.id} className={isRoot ? 'card px-3 py-2' : ''}>{body}</div>
+  )
+}
+
+function InlineAdd({ placeholder, onSubmit, onDone }: {
+  placeholder: string
+  onSubmit: (title: string) => Promise<unknown>
+  onDone: () => void
+}): JSX.Element {
+  const [v, setV] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  return (
+    <div className="py-1">
+      <input
+        autoFocus
+        className="input h-8 text-sm"
+        placeholder={placeholder}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => { if (!v.trim()) onDone() }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onDone()
+          if (e.key === 'Enter' && v.trim()) {
+            onSubmit(v.trim()).then(() => { setV(''); onDone() }).catch((x: unknown) => setErr(x instanceof Error ? x.message : String(x)))
+          }
+        }}
+      />
+      {err && <div className="text-[11px] text-danger mt-1">{err}</div>}
+    </div>
+  )
+}
+
+// ── 「+」菜单：选层级 → 选合法父节点 → 标题 ───────────────────────
+
+function AddMenu({ levels, ctx }: { levels: Level[]; ctx: Ctx }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [level, setLevel] = useState<Level | null>(null)
+  const [parentId, setParentId] = useState('')
+  const [title, setTitle] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+
+  const parents = useMemo(
+    () => level ? ctx.all.filter((t) => t.status !== 'cancelled' && t.status !== 'done' && canParent(level, t)) : [],
+    [level, ctx.all],
+  )
+  const needsParent = level !== null && !canParent(level, null)
+
+  function close(): void {
+    setOpen(false); setLevel(null); setTitle(''); setParentId(''); setErr(null)
+  }
+  function pick(l: Level): void {
+    setLevel(l)
+    setErr(null)
+    // 季度视图下优先预选当前季度的父节点
+    const first = ctx.all.find((t) => t.status === 'open' && canParent(l, t) && (!t.period || t.period === ctx.period))
+    setParentId(canParent(l, null) ? '' : first?.id ?? '')
+  }
+  async function submit(): Promise<void> {
+    if (!level || !title.trim()) return
+    try {
+      await createNode(level, parentId ? ctx.byId.get(parentId) ?? null : null, title.trim(), ctx.period)
+      close()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => (levels.length === 1 && !open ? (setOpen(true), pick(levels[0])) : setOpen((v) => !v))}
+        className="btn-primary text-sm h-8 px-3"
+      >+ 新建</button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={close} />
+          <div className="absolute right-0 z-40 mt-1 w-[300px] card shadow-lg p-2 text-sm">
+            {!level ? (
+              <ul>
+                {levels.map((l) => (
+                  <li key={`${l.kind}:${l.scope}`}>
+                    <button onClick={() => pick(l)} className="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-bg-overlay text-text-1">
+                      {levelLabel(l)}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="space-y-2 p-1">
+                <div className="text-xs text-text-3">新建 {levelLabel(level)}</div>
+                <input
+                  autoFocus
+                  className="input h-8"
+                  placeholder="标题"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void submit(); if (e.key === 'Escape') close() }}
+                />
+                {(needsParent || parents.length > 0) && (
+                  needsParent && parents.length === 0 ? (
+                    <div className="text-[11px] text-warning">
+                      需要先有一个可挂的父节点（{LEVELS.filter((p) => canParent(level, { kind: p.kind, scope: p.scope })).map(levelLabel).join(' / ')}）。
+                    </div>
+                  ) : (
+                    <select className="input h-8" value={parentId} onChange={(e) => setParentId(e.target.value)}>
+                      {!needsParent && <option value="">Inbox（不挂 KR）</option>}
+                      {parents.map((p) => (
+                        <option key={p.id} value={p.id}>{levelLabel(p)} · {p.title}{p.period ? ` (${p.period})` : ''}</option>
+                      ))}
+                    </select>
+                  )
+                )}
+                {err && <div className="text-[11px] text-danger">{err}</div>}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => void submit()} disabled={!title.trim() || (needsParent && !parentId)} className="btn-primary text-xs h-7 px-3">创建</button>
+                  <button onClick={close} className="btn-ghost text-xs h-7 px-3">取消</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── 行 ────────────────────────────────────────────────────────────
+
+function SectionHeader({ title, hint, count }: { title: string; hint?: string; count?: number }): JSX.Element {
+  return (
+    <div className="flex items-baseline gap-2 mb-2 px-1">
+      <div className="section-title">{title}</div>
+      {count != null && <span className="text-[11px] text-text-3 tabular-nums">{count}</span>}
+      {hint && <div className="text-[11px] text-text-3 ml-auto truncate">{hint}</div>}
+    </div>
+  )
+}
+
+function ProgressBar({ value }: { value: number }): JSX.Element {
+  return (
+    <div className="mt-1.5 h-1 rounded-full bg-bg-overlay overflow-hidden" title={`${Math.round(value * 100)}%`}>
+      <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${Math.round(value * 100)}%` }} />
+    </div>
+  )
+}
+
+function TodoLine({ todo, ctx, showParent }: { todo: Todo; ctx: Ctx; showParent?: boolean }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const isDone = todo.status === 'done'
+  const isTask = todo.kind === 'task'
   const goMeeting = useUI((s) => s.goMeeting)
   const goNote = useUI((s) => s.goNote)
-  // 来源闭环：会议待办跳回会议（需求 #3），笔记待办跳回笔记（需求 #4）
   const meeting = useLiveQuery(
     async () => todo.meeting_id ? await db.meetings.get(todo.meeting_id) : undefined,
     [todo.meeting_id ?? ''],
@@ -388,187 +566,185 @@ function TodoLine({ todo, allTodos, indent, onFilterByTag }: { todo: Todo; allTo
   )
   const rowTags = useLiveQuery(
     async () => {
-      const bindings = await db.tagBindings
-        .where('[target_type+target_id]')
-        .equals(['todo', todo.id])
-        .toArray()
+      const bindings = await db.tagBindings.where('[target_type+target_id]').equals(['todo', todo.id]).toArray()
       const ids = bindings.filter((b) => b.deleted_at === null).map((b) => b.tag_id)
       if (ids.length === 0) return []
       return db.tags.where('id').anyOf(ids).toArray()
     },
     [todo.id],
   ) ?? []
-  const styleFont = todo.kind === 'objective'
-    ? 'text-lg font-semibold'
-    : todo.kind === 'kr'
-      ? 'text-[15px] font-medium'
-      : 'text-sm'
+  const parent = showParent && todo.parent_id ? ctx.byId.get(todo.parent_id) : undefined
+  const progress = ctx.progress.get(todo.id) ?? 0
+  const overdue = !isDone && todo.due_date && todo.due_date < todayIso()
 
   return (
-    <div className={`group ${indent ? `pl-${indent}` : ''}`}>
-      <div className="flex items-start gap-2 py-1.5">
-        {todo.kind === 'task' ? (
+    <div className="group">
+      <div className="flex items-start gap-2.5 py-1.5">
+        {isTask ? (
           <button
-            onClick={() => void db.todos.update(todo.id, {
-              status: isDone ? 'open' : 'done',
-              updated_at: now(),
-            })}
-            className={`mt-1.5 h-3.5 w-3.5 rounded border flex items-center justify-center text-[10px] ${
+            onClick={() => void db.todos.update(todo.id, { status: isDone ? 'open' : 'done', updated_at: now() })}
+            className={`mt-[3px] h-4 w-4 shrink-0 rounded-full border flex items-center justify-center text-[10px] transition-colors ${
               isDone ? 'bg-accent border-accent text-accent-contrast' : 'border-line-strong hover:border-accent'
             }`}
             aria-label={isDone ? '取消完成' : '完成'}
           >{isDone ? '✓' : ''}</button>
         ) : (
-          <span className="mt-1.5 h-3.5 w-3.5" />
+          <span className={`mt-[3px] shrink-0 text-[10px] font-semibold tracking-wide px-1.5 h-4 leading-4 rounded ${
+            todo.kind === 'objective' ? 'bg-accent/12 text-accent' : 'bg-bg-overlay text-text-2'
+          }`}>{levelLabel(todo)}</span>
         )}
         <div className="flex-1 min-w-0">
           <div
-            className={`${styleFont} leading-snug ${isDone ? 'line-through text-text-3' : 'text-text-1'}`}
+            className={`leading-snug ${todo.kind === 'objective' ? 'text-[15px] font-semibold' : todo.kind === 'kr' ? 'text-sm font-medium' : 'text-sm'} ${
+              isDone ? 'line-through text-text-3' : 'text-text-1'
+            }`}
             onDoubleClick={() => setEditing(true)}
-          >
-            {todo.title}
-          </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-text-3">
-            {todo.status !== 'open' && todo.status !== 'done' && <span className="chip">{STATUS_LABELS[todo.status]}</span>}
-            {todo.due_date && <span>· {todo.due_date}</span>}
-            {todo.assignee && <span>· @{todo.assignee}</span>}
+          >{todo.title}</div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-3 empty:hidden">
+            {todo.status !== 'open' && todo.status !== 'done' && <span className="chip !py-0">{STATUS_LABELS[todo.status]}</span>}
+            {todo.period && todo.kind === 'objective' && <span>{todo.period}</span>}
+            {parent && <span className="truncate max-w-[24ch]">↳ {parent.title}</span>}
+            {todo.due_date && <span className={overdue ? 'text-danger' : ''}>{todo.due_date}</span>}
+            {todo.assignee && <span>@{todo.assignee}</span>}
             {meeting && (
-              <button
-                onClick={() => goMeeting(meeting.id)}
-                className="text-accent/80 hover:text-accent transition-colors"
-                title="打开这场会议"
-              >
-                · ● {meeting.title}
+              <button onClick={() => goMeeting(meeting.id)} className="text-accent/80 hover:text-accent" title="打开这场会议">
+                会议 · {meeting.title}
               </button>
             )}
             {note && (
-              <button
-                onClick={() => goNote(note.id)}
-                className="text-accent/80 hover:text-accent transition-colors"
-                title="打开这篇笔记"
-              >
-                · ✎ {note.title || '未命名笔记'}
+              <button onClick={() => goNote(note.id)} className="text-accent/80 hover:text-accent" title="打开这篇笔记">
+                笔记 · {note.title || '未命名笔记'}
               </button>
             )}
-            {(rowTags).map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => onFilterByTag?.(tag.id)}
-                className="text-accent/70 hover:text-accent transition-colors"
-                title={`按 #${tag.name} 过滤`}
-              >
-                · #{tag.name}
+            {rowTags.map((tag) => (
+              <button key={tag.id} onClick={() => ctx.setTagFilter(tag.id)} className="text-accent/70 hover:text-accent" title={`按 #${tag.name} 过滤`}>
+                #{tag.name}
               </button>
             ))}
           </div>
+          {!isTask && (ctx.kids.get(todo.id)?.length ?? 0) > 0 && <ProgressBar value={progress} />}
         </div>
+        {!isTask && (ctx.kids.get(todo.id)?.length ?? 0) > 0 && (
+          <span className="mt-[3px] text-[11px] text-text-3 tabular-nums">{Math.round(progress * 100)}%</span>
+        )}
         <button
           onClick={() => setEditing((v) => !v)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity icon-btn !h-7 !w-7"
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity icon-btn !h-7 !w-7"
           aria-label="编辑"
           title="编辑"
         >⋯</button>
       </div>
-      {editing && (
-        <EditPopover
-          todo={todo}
-          allTodos={allTodos}
-          onClose={() => setEditing(false)}
-        />
-      )}
+      {editing && <EditPopover todo={todo} ctx={ctx} onClose={() => setEditing(false)} />}
     </div>
   )
 }
 
-function EditPopover({ todo, allTodos, onClose }: { todo: Todo; allTodos: Todo[]; onClose: () => void }): JSX.Element {
+function EditPopover({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: () => void }): JSX.Element {
   const [title, setTitle] = useState(todo.title)
   const [due, setDue] = useState(todo.due_date ?? '')
   const [assignee, setAssignee] = useState(todo.assignee ?? '')
   const [parentId, setParentId] = useState<string>(todo.parent_id ?? '')
+  const [period, setPeriod] = useState(todo.period ?? '')
+  const [weight, setWeight] = useState(todo.weight != null ? String(todo.weight) : '')
+  const [err, setErr] = useState<string | null>(null)
+
+  const level: Level = { kind: todo.kind, scope: todo.kind === 'task' ? null : todo.scope }
+  const parentOptions = useMemo(() => {
+    const own = subtreeIds(todo.id, ctx.all)
+    return ctx.all.filter((t) => !own.has(t.id) && t.status !== 'cancelled' && canParent(level, t))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todo.id, ctx.all])
+  const rootOk = canParent(level, null)
+  const parentWeighted = todo.parent_id !== null
 
   async function save(): Promise<void> {
-    const patch: Partial<Todo> = {
+    const parent = parentId ? ctx.byId.get(parentId) ?? null : null
+    if (!canParent(level, parent)) {
+      setErr(`${levelLabel(level)} 不能挂在 ${parent ? levelLabel(parent) : '根'} 下`)
+      return
+    }
+    if (todo.scope === 'quarterly' && !/^\d{4}-Q[1-4]$/.test(period)) {
+      setErr('季度节点需要 period，格式如 2026-Q4')
+      return
+    }
+    const w = weight.trim() === '' ? undefined : Number(weight)
+    if (w !== undefined && !(w >= 0 && w <= 1)) {
+      setErr('权重需在 0–1 之间')
+      return
+    }
+    await db.todos.update(todo.id, {
       title: title.trim() || todo.title,
       due_date: due || undefined,
       assignee: assignee.trim(),
-      parent_id: parentId || null,
+      parent_id: parent?.id ?? null,
+      scope: inheritedScope(level, parent),
+      period: todo.scope === 'quarterly' ? period : todo.period,
+      weight: w,
       updated_at: now(),
       sync_version: todo.sync_version + 1,
-    }
-    await db.todos.update(todo.id, patch)
+    })
     onClose()
   }
 
   async function remove(): Promise<void> {
-    if (!window.confirm(`删除「${todo.title}」？`)) return
-    await db.todos.update(todo.id, { deleted_at: now(), updated_at: now(), status: 'cancelled' })
-    // 软删除 todo 时同时软删除它的 tagBindings —— 否则 tagUsageCount 虚高，
-    // 过滤行显示「#tag (3)」但实际只有 1 个活跃 todo
-    const bindings = await db.tagBindings
-      .where('target_type').equals('todo')
-      .and((b) => b.target_id === todo.id && b.deleted_at === null)
-      .toArray()
-    const deletedAt = now()
-    await db.transaction('rw', db.tagBindings, async () => {
+    const ids = [...subtreeIds(todo.id, ctx.all)]
+    const extra = ids.length - 1
+    if (!window.confirm(`删除「${todo.title}」${extra > 0 ? `及其下 ${extra} 项` : ''}？`)) return
+    const ts = now()
+    await db.transaction('rw', db.todos, db.tagBindings, async () => {
+      for (const id of ids) {
+        await db.todos.update(id, { deleted_at: ts, updated_at: ts, status: 'cancelled' })
+      }
+      // 同步软删除 tagBindings —— 否则 tag 计数虚高
+      const bindings = await db.tagBindings
+        .where('target_type').equals('todo')
+        .and((b) => ids.includes(b.target_id) && b.deleted_at === null)
+        .toArray()
       for (const b of bindings) {
-        await db.tagBindings.update(b.id, { deleted_at: deletedAt, updated_at: deletedAt })
+        await db.tagBindings.update(b.id, { deleted_at: ts, updated_at: ts })
       }
     })
     onClose()
   }
 
-  // 可选的父节点：仅允许合法层级链。
-  const parentOptions = useMemo(() => {
-    if (todo.kind === 'objective') return [] // 顶层
-    if (todo.kind === 'kr') return allTodos.filter((t) => t.kind === 'objective' && t.id !== todo.id && t.deleted_at === null)
-    // task: 可挂到任何 kr，或保持 null（自由任务）
-    return allTodos.filter((t) => t.kind === 'kr' && t.deleted_at === null)
-  }, [todo, allTodos])
-
   return (
-    <div className="ml-5 mb-3 mt-1 border border-line rounded-lg bg-bg-overlay p-3 space-y-3 text-sm">
+    <div className="ml-6 mb-3 mt-1 rounded-xl border border-line bg-bg-overlay p-3 space-y-3 text-sm">
       <div className="flex flex-col gap-1">
-        <label className="label">标题</label>
-        <input
-          className="input h-8"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          autoFocus
-        />
+        <label className="label">标题 · {levelLabel(level)}</label>
+        <input className="input h-8" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <label className="label">截止日期</label>
-          <input
-            type="date"
-            className="input h-8"
-            value={due}
-            onChange={(e) => setDue(e.target.value)}
-          />
+          <input type="date" className="input h-8" value={due} onChange={(e) => setDue(e.target.value)} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="label">负责人</label>
-          <input
-            className="input h-8"
-            placeholder="@姓名"
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
-          />
+          <input className="input h-8" placeholder="@姓名" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
         </div>
+        {todo.scope === 'quarterly' && todo.kind !== 'task' && (
+          <div className="flex flex-col gap-1">
+            <label className="label">季度</label>
+            <input className="input h-8" placeholder="2026-Q4" value={period} onChange={(e) => setPeriod(e.target.value)} />
+          </div>
+        )}
+        {parentWeighted && (
+          <div className="flex flex-col gap-1">
+            <label className="label">汇总权重（0–1，默认 1）</label>
+            <input className="input h-8" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </div>
+        )}
       </div>
 
-      {parentOptions.length > 0 && (
+      {(parentOptions.length > 0 || !rootOk) && (
         <div className="flex flex-col gap-1">
           <label className="label">父节点</label>
-          <select
-            className="input h-8"
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-          >
-            <option value="">（无 · 自由{todo.kind === 'kr' ? 'KR（不推荐）' : 'Task'}）</option>
+          <select className="input h-8" value={parentId} onChange={(e) => setParentId(e.target.value)}>
+            {rootOk && <option value="">{todo.kind === 'task' ? 'Inbox（不挂 KR）' : '（根）'}</option>}
+            {!rootOk && !parentId && <option value="">（请选择）</option>}
             {parentOptions.map((o) => (
-              <option key={o.id} value={o.id}>{o.title}</option>
+              <option key={o.id} value={o.id}>{levelLabel(o)} · {o.title}{o.period ? ` (${o.period})` : ''}</option>
             ))}
           </select>
         </div>
@@ -579,6 +755,7 @@ function EditPopover({ todo, allTodos, onClose }: { todo: Todo; allTodos: Todo[]
         <TagPicker targetType="todo" targetId={todo.id} />
       </div>
 
+      {err && <div className="text-[11px] text-danger">{err}</div>}
       <div className="flex items-center gap-2 pt-1">
         <button onClick={() => void save()} className="btn-primary text-xs h-8 px-3">保存</button>
         <button onClick={onClose} className="btn-ghost text-xs h-8 px-3">取消</button>
