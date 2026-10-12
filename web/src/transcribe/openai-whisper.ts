@@ -1,4 +1,6 @@
 import type { TranscriptSegment } from '../types'
+import { resolveASRConfig } from '../types'
+import { joinUrl } from '../llm/url'
 import type { AsrProvider } from './types'
 
 /**
@@ -17,24 +19,30 @@ import type { AsrProvider } from './types'
 export const openaiWhisperProvider: AsrProvider = {
   id: 'openai-whisper',
   transcribe: async ({ blob, settings, language }) => {
-    if (!settings.asr_api_key) {
-      throw new Error('Whisper API key is empty — set it in Settings.')
-    }
-    if (!settings.asr_base_url) {
+    // Phase-3: 用 resolveASRConfig 拿到 effective 配置——asr_mode='local' 时
+    // 走 local_asr_*（空 api_key 也 OK，whisper.cpp 默认无鉴权），cloud 时
+    // 走原 asr_*。统一不发送空 Authorization（部分自建网关会拒 "Bearer "）。
+    const cfg = resolveASRConfig(settings)
+    if (!cfg.base_url) {
       throw new Error('Whisper base URL is empty — set it in Settings.')
     }
-    const url = joinUrl(settings.asr_base_url, '/audio/transcriptions')
+    const url = joinUrl(cfg.base_url, '/audio/transcriptions')
 
     const form = new FormData()
     form.append('file', blob, fileNameFor(blob))
-    form.append('model', settings.asr_model || 'whisper-large-v3-turbo')
+    form.append('model', cfg.model || 'whisper-large-v3-turbo')
     form.append('response_format', 'verbose_json')
     form.append('timestamp_granularities[]', 'segment')
     if (language) form.append('language', language)
 
+    const headers: Record<string, string> = {}
+    if (cfg.api_key && cfg.api_key.trim()) {
+      headers.Authorization = `Bearer ${cfg.api_key}`
+    }
+
     const res = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${settings.asr_api_key}` },
+      headers,
       body: form,
     })
     const text = await res.text()
@@ -101,12 +109,6 @@ function normaliseSegments(raw: WhisperVerboseResponse): TranscriptSegment[] {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-function joinUrl(base: string, path: string): string {
-  const b = base.replace(/\/+$/, '')
-  const p = path.startsWith('/') ? path : `/${path}`
-  return `${b}${p}`
-}
 
 function truncate(s: string, max = 400): string {
   const t = s.trim()

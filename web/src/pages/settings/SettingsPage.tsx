@@ -78,9 +78,15 @@ export default function SettingsPage(): JSX.Element {
 
         <Section title="AI Provider · LLM" desc="总结 / 待办提取都走它。切换 Cloud / Local 不会清空另一侧的字段。">
           <FieldRow label="模式">
-            <AIModeSegmented
+            <ModeSegmented
               value={settings.ai_mode}
               onChange={(v) => patch({ ai_mode: v })}
+              labels={{
+                cloud: 'Cloud BYOK',
+                cloudSub: 'MiniMax / Anthropic / OpenAI 兼容网关',
+                local: 'Local',
+                localSub: 'Ollama / LM Studio / MLX / 自建',
+              }}
             />
           </FieldRow>
 
@@ -126,39 +132,65 @@ export default function SettingsPage(): JSX.Element {
           <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />
         </Section>
 
-        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。">
-          <FieldRow label="Provider">
-            <select
-              className="input"
-              value={settings.asr_provider}
-              onChange={(e) => patch({ asr_provider: e.target.value as AppSettings['asr_provider'] })}
-            >
-              <option value="minimax">MiniMax</option>
-              <option value="openai-whisper">OpenAI Whisper 兼容</option>
-              <option value="deepgram">Deepgram</option>
-            </select>
-          </FieldRow>
-          <FieldRow label="Base URL">
-            <input
-              className="input"
-              value={settings.asr_base_url}
-              onChange={(e) => patch({ asr_base_url: e.target.value })}
+        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。Local 模式强制走 OpenAI Whisper 兼容端点（whisper.cpp / MLX / faster-whisper）。">
+          <FieldRow label="模式">
+            <ModeSegmented
+              value={settings.asr_mode}
+              onChange={(v) => patch({ asr_mode: v })}
+              labels={{
+                cloud: 'Cloud BYOK',
+                cloudSub: 'MiniMax / Deepgram / OpenAI Whisper 兼容网关',
+                local: 'Local',
+                localSub: 'whisper.cpp server / MLX STT / faster-whisper',
+              }}
             />
           </FieldRow>
-          <FieldRow label="API Key">
-            <PasswordInput
-              value={settings.asr_api_key}
-              onChange={(v) => patch({ asr_api_key: v })}
-            />
-          </FieldRow>
-          <FieldRow label="Model">
-            <input
-              className="input"
-              value={settings.asr_model}
-              onChange={(e) => patch({ asr_model: e.target.value })}
-              placeholder="asr-1.0"
-            />
-          </FieldRow>
+
+          {settings.asr_mode === 'cloud' ? (
+            <>
+              <FieldRow label="Provider">
+                <select
+                  className="input"
+                  value={settings.asr_provider}
+                  onChange={(e) => patch({ asr_provider: e.target.value as AppSettings['asr_provider'] })}
+                >
+                  <option value="minimax">MiniMax</option>
+                  <option value="openai-whisper">OpenAI Whisper 兼容</option>
+                  <option value="deepgram">Deepgram</option>
+                </select>
+              </FieldRow>
+              <FieldRow label="Base URL">
+                <input
+                  className="input"
+                  value={settings.asr_base_url}
+                  onChange={(e) => patch({ asr_base_url: e.target.value })}
+                />
+              </FieldRow>
+              <FieldRow label="API Key">
+                <PasswordInput
+                  value={settings.asr_api_key}
+                  onChange={(v) => patch({ asr_api_key: v })}
+                />
+              </FieldRow>
+              <FieldRow label="Model">
+                <input
+                  className="input"
+                  value={settings.asr_model}
+                  onChange={(e) => patch({ asr_model: e.target.value })}
+                  placeholder="asr-1.0"
+                />
+              </FieldRow>
+            </>
+          ) : (
+            <LocalASRFields settings={settings} patch={patch} />
+          )}
+          {settings.asr_mode === 'local' && (
+            <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+              Local 模式实际走 <code className="font-mono">POST &#123;base&#125;/audio/transcriptions</code>，
+              与 <code className="font-mono">openai-whisper</code> 字段一致；
+              Cloud 那一侧（MiniMax / Deepgram）的字段已保留，切换回 Cloud 即可使用。
+            </div>
+          )}
           <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />
         </Section>
 
@@ -244,17 +276,21 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
 /**
  * Cloud BYOK | Local 双选控件（与 toggle 视觉一致：底部高亮横条）。
  * 切换时保留另一侧的 settings 字段（已通过 KV 整体 patch 实现，UI 不动）。
+ *
+ * Phase-3: 同时给 LLM 和 ASR 用；通过 `labels` 传话术。两条目均为 'cloud' | 'local'。
  */
-function AIModeSegmented({
+function ModeSegmented({
   value,
   onChange,
+  labels,
 }: {
   value: 'cloud' | 'local'
   onChange: (v: 'cloud' | 'local') => void
+  labels: { cloud: string; cloudSub: string; local: string; localSub: string }
 }): JSX.Element {
   const opts: { v: 'cloud' | 'local'; label: string; sub: string }[] = [
-    { v: 'cloud', label: 'Cloud BYOK', sub: 'MiniMax / Anthropic / OpenAI 兼容网关' },
-    { v: 'local', label: 'Local', sub: 'Ollama / LM Studio / MLX / 自建' },
+    { v: 'cloud', label: labels.cloud, sub: labels.cloudSub },
+    { v: 'local', label: labels.local, sub: labels.localSub },
   ]
   return (
     <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
@@ -275,6 +311,78 @@ function AIModeSegmented({
         )
       })}
     </div>
+  )
+}
+
+/**
+ * Local ASR 配置：whisper.cpp / MLX / faster-whisper OpenAI 兼容端点。
+ * whisper.cpp server 默认 `http://127.0.0.1:8080/v1`；Custom 给 MLX STT /
+ * 自建 OpenAI 兼容服务。API Key 留空即可（whisper.cpp 默认无鉴权）。
+ */
+function LocalASRFields({
+  settings,
+  patch,
+}: {
+  settings: AppSettings
+  patch: (p: Partial<AppSettings>) => void
+}): JSX.Element {
+  const isWhisperPreset = settings.local_asr_base_url === 'http://127.0.0.1:8080/v1'
+  function pickPreset(p: 'whisper' | 'custom'): void {
+    if (p === 'whisper') {
+      patch({ local_asr_base_url: 'http://127.0.0.1:8080/v1' })
+    } else {
+      if (isWhisperPreset) patch({ local_asr_base_url: '' })
+    }
+  }
+  return (
+    <>
+      <FieldRow label="预设">
+        <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
+          <button
+            type="button"
+            onClick={() => pickPreset('whisper')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              isWhisperPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >whisper.cpp</button>
+          <button
+            type="button"
+            onClick={() => pickPreset('custom')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              !isWhisperPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >Custom</button>
+        </div>
+      </FieldRow>
+      <FieldRow label="Base URL" hint="OpenAI 兼容端点（/v1/audio/transcriptions）">
+        <input
+          className="input font-mono"
+          value={settings.local_asr_base_url}
+          onChange={(e) => patch({ local_asr_base_url: e.target.value })}
+          placeholder="http://127.0.0.1:8080/v1"
+        />
+      </FieldRow>
+      <FieldRow label="API Key" hint="留空即可（whisper.cpp 默认无鉴权）">
+        <PasswordInput
+          value={settings.local_asr_api_key}
+          onChange={(v) => patch({ local_asr_api_key: v })}
+          placeholder="（可选）"
+        />
+      </FieldRow>
+      <FieldRow label="Model" hint="如 whisper-1 / large-v3-turbo，或服务端的 model 名称">
+        <input
+          className="input font-mono"
+          value={settings.local_asr_model}
+          onChange={(e) => patch({ local_asr_model: e.target.value })}
+          placeholder="whisper-1"
+        />
+      </FieldRow>
+      <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+        whisper.cpp：<code className="font-mono">whisper-server -m models/ggml-large-v3.bin --port 8080</code>
+        （或 <code className="font-mono">./server -m ...</code>）；MLX STT /
+        faster-whisper openai-compatible server 也走同一 Base URL。
+      </div>
+    </>
   )
 }
 

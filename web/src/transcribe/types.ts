@@ -1,4 +1,5 @@
 import type { AppSettings, TranscriptSegment } from '../types'
+import { resolveASRConfig } from '../types'
 import { minimaxProvider } from './minimax'
 import { openaiWhisperProvider } from './openai-whisper'
 import { deepgramProvider } from './deepgram'
@@ -23,13 +24,13 @@ export interface AsrProvider {
 }
 
 /**
- * Lookup registry. Returns the adapter matching `settings.asr_provider`,
- * or undefined if the provider is unknown.
+ * Lookup registry (Phase-3). Resolves the adapter through `resolveASRConfig`,
+ * so `asr_mode === 'local'` is honoured: local forces OpenAI Whisper-compatible
+ * regardless of `settings.asr_provider` (minimax/deepgram are cloud-only).
  */
-export function getAsrProvider(
-  id: AppSettings['asr_provider'],
-): AsrProvider | undefined {
-  switch (id) {
+export function getAsrProvider(settings: AppSettings): AsrProvider | undefined {
+  const cfg = resolveASRConfig(settings)
+  switch (cfg.provider) {
     case 'minimax':
       return minimaxProvider
     case 'openai-whisper':

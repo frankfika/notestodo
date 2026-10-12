@@ -227,6 +227,7 @@ export interface AppSettings {
   llm_base_url: string
   llm_api_key: string
   llm_model: string
+  asr_mode: 'cloud' | 'local'   // Phase-3: Local ASR mirror (whisper.cpp / MLX openai-compatible)
   asr_provider: 'minimax' | 'openai-whisper' | 'deepgram'
   asr_base_url: string
   asr_api_key: string
@@ -235,6 +236,10 @@ export interface AppSettings {
   local_llm_base_url: string
   local_llm_api_key: string
   local_llm_model: string
+  // Local ASR（asr_mode='local' 时生效；provider 强制为 openai-whisper 兼容）
+  local_asr_base_url: string
+  local_asr_api_key: string
+  local_asr_model: string
   // 隐私
   delete_remote_audio: boolean   // 转录完成后删除云端音频
   // 外观
@@ -251,6 +256,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llm_base_url: 'https://api.minimax.io/anthropic',
   llm_api_key: '',
   llm_model: 'MiniMax-M2.7',
+  asr_mode: 'cloud',
   asr_provider: 'minimax',
   asr_base_url: 'https://api.minimaxi.com',
   asr_api_key: '',
@@ -258,6 +264,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   local_llm_base_url: 'http://127.0.0.1:11434/v1',
   local_llm_api_key: '',
   local_llm_model: 'llama3.2',
+  local_asr_base_url: 'http://127.0.0.1:8080/v1',
+  local_asr_api_key: '',
+  local_asr_model: 'whisper-1',
   delete_remote_audio: true,
   theme: 'light',
   calendar_ics_urls: [],
@@ -287,6 +296,38 @@ export function resolveLLMConfig(s: AppSettings): {
     base_url: s.llm_base_url,
     api_key: s.llm_api_key,
     model: s.llm_model,
+    is_local: false,
+  }
+}
+
+/**
+ * Phase-3: ASR mirror。Local 模式强制走 openai-whisper 兼容端点
+ * （whisper.cpp `--inference-path`/MLX STT/faster-whisper openai-compat
+ * 都暴露 POST {base}/audio/transcriptions）；api_key 允许空（whisper.cpp
+ * 默认无鉴权）。切换 Cloud ↔ Local 不丢另一侧的字段。
+ */
+export function resolveASRConfig(s: AppSettings): {
+  /** 实际调用的 provider（local 强制 openai-whisper） */
+  provider: 'minimax' | 'openai-whisper' | 'deepgram'
+  base_url: string
+  api_key: string
+  model: string
+  is_local: boolean
+} {
+  if (s.asr_mode === 'local') {
+    return {
+      provider: 'openai-whisper',
+      base_url: s.local_asr_base_url || DEFAULT_SETTINGS.local_asr_base_url,
+      api_key: s.local_asr_api_key, // 允许空（whisper.cpp 默认无鉴权）
+      model: s.local_asr_model || 'whisper-1',
+      is_local: true,
+    }
+  }
+  return {
+    provider: s.asr_provider,
+    base_url: s.asr_base_url,
+    api_key: s.asr_api_key,
+    model: s.asr_model,
     is_local: false,
   }
 }

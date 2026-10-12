@@ -17,7 +17,7 @@
  */
 
 import type { AppSettings } from '../types'
-import { resolveLLMConfig } from '../types'
+import { resolveASRConfig, resolveLLMConfig } from '../types'
 import { joinUrl } from './url'
 
 export interface TestResult {
@@ -82,32 +82,43 @@ export async function testLLMConnection(settings: AppSettings): Promise<TestResu
 }
 
 export async function testASRConnection(settings: AppSettings): Promise<TestResult> {
-  if (!settings.asr_api_key) return { ok: false, message: '未填写 API Key' }
+  // Phase-3: 用 resolveASRConfig 把 asr_mode 翻成 effective 端点
+  // —— Local 模式（whisper.cpp / MLX STT / faster-whisper 兼容）允许空 key。
+  // Local 模式强制 provider=openai-whisper；minimax/deepgram 仍走云端。
+  const cfg = resolveASRConfig(settings)
+  if (!cfg.is_local && !cfg.api_key) return { ok: false, message: '未填写 API Key' }
+  if (!cfg.base_url) return { ok: false, message: '未填写 Base URL' }
+  if (!cfg.model) return { ok: false, message: '未填写 Model' }
   try {
     let res: Response
-    if (settings.asr_provider === 'deepgram') {
-      const base = (settings.asr_base_url || 'https://api.deepgram.com').replace(/\/+$/, '')
+    if (cfg.provider === 'deepgram') {
+      const base = cfg.base_url.replace(/\/+$/, '')
       res = await fetchWithTimeout(`${base}/v1/projects`, {
-        headers: { Authorization: `Token ${settings.asr_api_key}` },
+        headers: { Authorization: `Token ${cfg.api_key}` },
       })
       if (res.ok) return { ok: true, message: '连接成功（项目列表可读）' }
       const body = await res.json().catch(() => null) as { category?: string } | null
       if (body?.category === 'UNAUTHORIZED') return { ok: false, message: '鉴权失败：API Key 无效' }
       return { ok: false, message: `HTTP ${res.status}` }
     }
-    if (settings.asr_provider === 'openai-whisper') {
-      res = await fetchWithTimeout(joinUrl(settings.asr_base_url, '/models'), {
-        headers: { Authorization: `Bearer ${settings.asr_api_key}` },
-      })
+    if (cfg.provider === 'openai-whisper') {
+      // 本地端点（whisper.cpp / MLX）允许空 key：省略 Authorization
+      const headers: Record<string, string> = {}
+      if (cfg.api_key && cfg.api_key.trim()) {
+        headers.Authorization = `Bearer ${cfg.api_key}`
+      }
+      res = await fetchWithTimeout(joinUrl(cfg.base_url, '/models'), { headers })
       if (res.ok) return { ok: true, message: `连接成功（HTTP ${res.status}）` }
+      // 部分 whisper.cpp 服务器没有 /models；fallback 到 audio/transcriptions
+      // GET（部分实现可用，部分 405；视为「不在此端点」-不清零成功的判定）
       return { ok: false, message: `HTTP ${res.status}：${(await res.text()).slice(0, 140)}` }
     }
     // minimax：空 body POST — 401+1004 鉴权错=无效 key；其他 4xx=已过鉴权、参数校验中
-    const base = (settings.asr_base_url || 'https://api.minimaxi.com').replace(/\/+$/, '')
+    const base = cfg.base_url.replace(/\/+$/, '')
     res = await fetchWithTimeout(joinUrl(base, '/v1/speech_to_text'), {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${settings.asr_api_key}`,
+        Authorization: `Bearer ${cfg.api_key}`,
         'Content-Type': 'application/json',
       },
       body: '{}',
