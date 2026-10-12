@@ -4,6 +4,8 @@
 
 产品名 **NotesToGO**（仓库名 notestodo，「拾贝 Shibei」为旧名/别名）。一个 AI-native 的会议速记 + 嵌套 OKR 应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
+**当前状态（2026-10-12）**：Phase-1～3 已合入 `main`（嵌套 OKR、Scribble→Polish、暖浅色主题、本地 LLM/ASR、知识库+Assist、macOS ScreenCaptureKit 系统音频采集）。桌面包名 **拾贝**；PCM 混录进 MediaRecorder 见 Phase-4。
+
 ## 核心特性
 
 - **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟；电平条可见麦在响。
@@ -15,7 +17,7 @@
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
-- **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`tauri-plugin-fs` 0.2 直 FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
+- **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
 - **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
 - **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 
@@ -62,11 +64,11 @@ pnpm tauri dev     # 原生窗口开发模式（自动起 vite）
 pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 ```
 
-**Tauri 端 macOS 授权**（Phase-2 system-audio 路径）：
+**Tauri 端 macOS 授权**（Phase-3 系统音频已实装）：
 - `NSMicrophoneUsageDescription`（录音）— 首次启动弹框
 - `NSScreenCaptureUsageDescription`（系统音频 loopback）— 首次启用 system-audio 时弹框
-- 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后 NotesToGO 自动降级到 mic-only + 同一 honest banner
-- 当前 MVP：Rust 端命令表面齐全，SCStream 实际接线见 `src-tauri/src/lib.rs` 的 `TODO(system-audio)` 标记
+- 桌面 App 显示名是 **拾贝**（`cc.secondplanet.shibei`）；「屏幕录制」列表里找「拾贝」，不是 NotesToGO
+- 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后自动降级到 mic-only + honest banner
 
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
 
@@ -108,12 +110,12 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
   4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。前端本期只 banner（`captureMode='mic+system'`），把 PCM 拼进 MediaRecorder 留 Phase-4。
 - **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未授权屏录 / 非 macOS），不会让用户误以为系统声音已录上。
 
-#### 首次授权步骤（Fang 必须手动批准）
+#### 首次授权步骤（必须手动批准）
 
-1. 启动桌面版，录音一次 → macOS 自动弹「NotesToGO 想录制屏幕吗？」
+1. 启动桌面版（`/Applications/拾贝.app` 或 `pnpm tauri dev`），录音一次 → macOS 自动弹屏录授权
 2. 若点了「不允许」或在 System Settings 里撤销：
-   - 「系统设置 → 隐私与安全性 → 屏幕录制」中打开 NotesToGO 开关
-   - 杀掉并重启 NotesToGO（macOS TCC 不会即时刷新已运行的进程）
+   - 「系统设置 → 隐私与安全性 → 屏幕录制」中打开 **拾贝** 开关（列表里是「拾贝」，不是 NotesToGO）
+   - 杀掉并重启 App（macOS TCC 不会即时刷新已运行的进程）
 3. 重启后再录音 → banner 自动翻「麦克风 + 系统声音」
 
 
@@ -141,7 +143,7 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
   - 向量存储：先 `sqlite-vss`，后续换 `lancedb` 持久化
   - 检索融合：保留 keyword 兜底（title 命中 + 罕见专有名词仍需）
 
-## Phase-3 增量（feat/foresight-okr）
+## Phase-3 增量（已合入）
 
 | Gap | 内容 | 关键文件 |
 | --- | --- | --- |
@@ -170,7 +172,7 @@ Web 版（无 Tauri）依然可粘贴 HTTP(S) 直链 .md / .txt（GitHub raw 之
 
 ### 关键 commit
 
-`git log --oneline feat/foresight-okr -10` 看全部 Phase-3 提交。Phase-3 完整 brief 在 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md)。
+Phase-3 完整 brief 见 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md)。下一步（Phase-4）：把 `system_audio:chunk` PCM 混进 MediaRecorder，让系统声音真正写入录音文件。
 
 ## 状态机
 
