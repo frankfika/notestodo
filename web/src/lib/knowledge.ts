@@ -6,14 +6,21 @@
  *   - 中文/英文/混合都能用（bigram + token 拆分 + 标题完全匹配加权）
  *   - 够给 Live Assist 推 5-10 张卡片做"上下文出现时立刻有用"
  *
+ * Phase-3: 在 Tauri desktop 端，真正读本地文件夹（递归走 .md / .txt）—— 用
+ * tauri-plugin-fs 的 plugin command；web 仍只接受 HTTP(S) URL（浏览器无法
+ * 任意读本地盘）。folders 混合（Tauri 本地路径 + http URL）按各自路径走。
+ *
  * 升级路径（README 文档化）：
  *   - 加 EmbeddingGemma / fastembed-wasm：on-device，~50MB 下载
  *   - 加 chunked 索引（按段落 / 滑动窗口）+ 向量库（SQLite-vss / lancedb）
+ *   - 加 PDF 文本提取（pdfjs-dist / unpdf / Tauri Rust crate 三选一）
  *   - 保持 `retrieveKnowledge(query, limit)` 的 API 不变 → 调用方零改动
  */
 
 import { db } from '../db/db'
 import { now, uid } from './id'
+import { isTauri } from './tauri'
+import { invoke } from './tauriInvoke'
 import type { KnowledgeEntry, PinnedAssistCard } from '../types'
 
 // ── 常量 / 限制 ────────────────────────────────────────────────────────────
@@ -26,20 +33,26 @@ const FULLTEXT_CAP = 8_000
 const RETRIEVE_LIMIT_DEFAULT = 8
 /** title 完全命中加权（bigram 相似性之上额外加的常量） */
 const TITLE_BOOST = 0.4
+/** Tauri read_dir 一次性最大返回（够用；防止超宽目录炸内存） */
+const MAX_LOCAL_FILES = 2_000
 
 // ── Indexer（reindex） ──────────────────────────────────────────────────────
+
+interface ListedFile {
+  /** 相对路径（如 `notes/idea.md`），与 folder 拼接出绝对路径 / URL */
+  path: string
+  mtime: number
+  size_bytes: number
+}
 
 /**
  * 重新扫描 settings.knowledge_folders 下的所有 .md / .txt，写入 knowledgeEntries。
  *
- * MVP 实现：纯浏览器 web 路径——Tauri 端**没有**文件读取能力（除非后续加
- * tauri-plugin-fs-extra / Rust 侧 read_dir）。当前走 `fetch(path)`，因此：
- *   - 文件路径需要走浏览器能解析的协议（http(s):、file: 在 web 里被拒）
- *   - **事实上 MVP 仅在用户粘贴了 HTTP 路径或自建的小服务时可用**；
- *     真实落盘文件夹需等 Tauri fs 插件 + 后端（见 README 升级路径）
- *   - 路径不解析得到 → 静默跳过（不抛错，让用户可以先添加、看到"无文件"提示）
+ * Path 分发（按纯函数判定，避免 Tauri / web 二选一时回退）：
+ *   - Tauri && 非 http(s)://   → 走 tauri-plugin-fs，递归 walk 本地目录
+ *   - web / http(s)://         → 沿用旧 fetch 路径
  *
- * 不会破坏：失败不抛、reindex 全程不阻塞 UI、已有条目按 mtime 跳过。
+ * 不会破坏：失败不抛、reindex 全程不阻塞 UI、已有条目按 (folder, path) 跳过清理。
  */
 export async function reindexKnowledge(folders: string[]): Promise<{
   scanned: number
@@ -53,23 +66,30 @@ export async function reindexKnowledge(folders: string[]): Promise<{
   const seenPaths = new Set<string>()
 
   for (const folder of folders) {
-    // 解析目录下文件列表：MVP 仅支持「folder 本身就是 .md/.txt 文本文件」
-    // 这种简化让 web 端 `fetch(folder)` 也能跑（用户可粘贴 GitHub raw URL）
-    const files = await listFilesInFolder(folder).catch((e) => {
+    const useLocal = isTauri() && !/^https?:\/\//i.test(folder)
+    let files: ListedFile[]
+    try {
+      files = useLocal
+        ? await listLocalFiles(folder)
+        : await listRemoteFiles(folder)
+    } catch (e) {
       errors.push(`${folder}: ${describeError(e)}`)
-      return []
-    })
+      continue
+    }
+    if (files.length > MAX_LOCAL_FILES) {
+      files = files.slice(0, MAX_LOCAL_FILES)
+      errors.push(`${folder}: 文件超过 ${MAX_LOCAL_FILES} 个上限，已截断（避免阻塞 UI）`)
+    }
+
     for (const file of files) {
       scanned++
       const key = `${folder}::${file.path}`
       seenPaths.add(key)
       try {
-        const entry = await readAndIndexFile(folder, file)
+        const entry = await readAndIndexFile(folder, file, useLocal)
         if (entry) {
           await db.knowledgeEntries.put(entry)
           indexed++
-        } else {
-          // skipped
         }
       } catch (e) {
         errors.push(`${file.path}: ${describeError(e)}`)
@@ -89,40 +109,84 @@ export async function reindexKnowledge(folders: string[]): Promise<{
   return { scanned, indexed, skipped: scanned - indexed, errors }
 }
 
-interface ListedFile {
-  path: string
-  mtime: number
-  size_bytes: number
+// ── Listers ────────────────────────────────────────────────────────────────
+
+/**
+ * Tauri 本地目录递归走 .md / .txt（Phase-3 新增）。
+ *
+ * 用 plugin:fs|read_dir 的 `recursive: true` 拿扁平的 FileInfo 列表 —— 比
+ * 自己维护队列省一次 IPC、也避免权限链扩大的栈风险。过滤文件名后缀。
+ *
+ * 对单文件路径（folder 本身是 .md/.txt 文件），直接返回该文件。
+ */
+async function listLocalFiles(folder: string): Promise<ListedFile[]> {
+  const isDirectFile = /\.(md|markdown|txt)$/i.test(folder)
+  if (isDirectFile) {
+    // folder 本身是一个本地 .md/.txt 文件 —— tauri-plugin-fs 无法 list
+    // 其父目录（除非作用域未授权），索性当作单一文件处理。
+    return [{ path: basename(folder), mtime: Date.now(), size_bytes: 0 }]
+  }
+  type FileInfo = {
+    path: string  // 完整路径
+    name?: string
+    isDirectory: boolean
+    isFile: boolean
+    isSymlink: boolean
+  }
+  let entries: FileInfo[]
+  try {
+    entries = await invoke<FileInfo[]>('plugin:fs|read_dir', {
+      path: folder,
+      options: { recursive: true },
+    })
+  } catch (e) {
+    // 极少见：folder 不存在 / 权限拒 / 没注册 fs 插件
+    throw new Error(`读取目录失败：${describeError(e)}`)
+  }
+  const out: ListedFile[] = []
+  for (const entry of entries) {
+    if (!entry.isFile || entry.isSymlink) continue
+    const lower = entry.path.toLowerCase()
+    if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.txt')) {
+      // 相对路径：folder 是根，取相对部分供 UI 展示
+      const rel = relPath(entry.path, folder)
+      out.push({ path: rel, mtime: Date.now(), size_bytes: 0 })
+    }
+  }
+  return out
 }
 
 /**
- * 列出 folder 下的 .md / .txt 文件。MVP：folder 本身就是一个 .md/.txt URL。
- * 真正的"目录遍历"在 web 不可用；Tauri 端后续用 tauri-plugin-fs 替换。
+ * Web / HTTP(S) URL 兼容路径（Phase-2 旧行为 + 直链 .md/.txt）。
+ * 浏览器里 fetch 文件夹不可行；folder 本身若就是一个 .md/.txt URL 才有效。
  */
-async function listFilesInFolder(folder: string): Promise<ListedFile[]> {
+async function listRemoteFiles(folder: string): Promise<ListedFile[]> {
   if (/\.(md|markdown|txt)$/i.test(folder)) {
     return [{ path: basename(folder), mtime: Date.now(), size_bytes: 0 }]
   }
-  // 其它：当作目录占位返回空（让 UI 显式提示"目前仅支持 .md/.txt 文件路径"）
   return []
 }
 
-function basename(p: string): string {
-  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
-  return i >= 0 ? p.slice(i + 1) : p
-}
+// ── Reader ─────────────────────────────────────────────────────────────────
 
 async function readAndIndexFile(
   folder: string,
   file: ListedFile,
+  useLocal: boolean,
 ): Promise<KnowledgeEntry | null> {
-  const url = joinUrlLike(folder, file.path)
-  if (!url) return null
   let text: string
   try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    text = await res.text()
+    if (useLocal) {
+      // plugin:fs|read_text_file — 以 folder 为基准拼绝对路径
+      const abs = joinPath(folder, file.path)
+      text = await invoke<string>('plugin:fs|read_text_file', { path: abs })
+    } else {
+      const url = joinUrlLike(folder, file.path)
+      if (!url) return null
+      const res = await fetch(url)
+      if (!res.ok) return null
+      text = await res.text()
+    }
   } catch {
     return null
   }
@@ -145,11 +209,31 @@ async function readAndIndexFile(
   }
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function basename(p: string): string {
+  // 支持绝对 POSIX 路径与 URL 末尾路径段
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
+  return i >= 0 ? p.slice(i + 1) : p
+}
+
+function joinPath(folder: string, file: string): string {
+  // 绝对文件直接返回；否则 folder + '/' + file，并清理多余斜杠
+  if (file.startsWith('/')) return file
+  return folder.replace(/\/+$/, '') + '/' + file.replace(/^\/+/, '')
+}
+
+function relPath(abs: string, root: string): string {
+  // 入参 abs 不一定真有 root 前缀（macOS 也可能 /private/var/... 与 /var/...）
+  // —— 简单做法：去掉 root 前缀（若有）
+  let a = abs
+  if (a.startsWith(root)) a = a.slice(root.length)
+  return a.replace(/^\/+/, '') || basename(abs)
+}
+
 function joinUrlLike(folder: string, file: string): string | null {
   if (/^https?:\/\//.test(folder)) {
-    // 视作目录：folder 本身已经指向 .md/.txt；这里直接用 folder
     if (file === basename(folder)) return folder
-    // 视作目录前缀
     return folder.replace(/\/+$/, '') + '/' + file
   }
   if (/^https?:\/\//.test(file)) return file
@@ -266,10 +350,8 @@ function bigrams(s: string): Set<string> {
 /** token 化：中英文混排；CJK 字符 2-gram 拆分，英文按 \w+ 切 */
 function tokens(s: string): string[] {
   const out: string[] = []
-  // 英文 / 数字 / _
   const en = s.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? []
   for (const t of en) if (t.length >= 2) out.push(t)
-  // CJK：2-gram
   const cjk = s.replace(/[^一-鿿]/g, '')
   for (let i = 0; i < cjk.length - 1; i++) out.push(cjk.slice(i, i + 2))
   return out

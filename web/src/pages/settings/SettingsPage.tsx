@@ -9,6 +9,7 @@ import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib
 import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
 import { isTauri } from '../../lib/tauri'
+import { invoke } from '../../lib/tauriInvoke'
 import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
 import { reindexKnowledge } from '../../lib/knowledge'
 
@@ -780,10 +781,9 @@ function CaptureStatusRow(): JSX.Element {
 /**
  * 知识库文件夹列表 + 重新索引按钮。
  *
- * MVP 限制（web build 没法直接读本地盘）：
- *   - 每个 folder 本身可以是 HTTP(S) URL 指向 .md/.txt 文件（fetch 读）
- *   - Tauri 端后续用 tauri-plugin-fs 替换 fetch 路径（见 README 升级路径）
- *   - 当前不报错：路径不可达 → reindex 报 0 / 不崩，UI 显式提示
+ * Phase-3: Tauri 端用 `tauri-plugin-dialog` 弹出系统文件夹选择器，自动获得
+ * 用户授权的本地路径；本地路径走 `tauri-plugin-fs` 递归 walk（见
+ * `lib/knowledge.ts → listLocalFiles`）。Web build 仍允许粘贴路径或 HTTP(S) URL。
  */
 function KnowledgeFolderEditor({
   folders, onChange, onFlash,
@@ -814,6 +814,28 @@ function KnowledgeFolderEditor({
     }
   }
 
+  /**
+   * 在 Tauri 端调用 `plugin:dialog|open` 拿系统级目录选择器；返回 string|null。
+   * 多选会拿到 string[]，这里仅单选。
+   */
+  async function pickTauriFolder(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    try {
+      const picked = await invoke<string | null>('plugin:dialog|open', {
+        options: { directory: true, multiple: false, title: '选择知识库文件夹' },
+      })
+      if (!picked) return
+      const list = Array.isArray(picked) ? picked : [picked]
+      const next = folders.concat(list.filter((p) => p && !folders.includes(p)))
+      onChange(next)
+    } catch (e: unknown) {
+      onFlash('文件夹选择失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-3">
       {folders.map((p, i) => (
@@ -828,10 +850,12 @@ function KnowledgeFolderEditor({
           >✕</button>
         </div>
       ))}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <input
-          className="input font-mono text-xs"
-          placeholder="https://example.com/notes.md  或本地路径（Tauri 端后续支持）"
+          className="input font-mono text-xs flex-1 min-w-[200px]"
+          placeholder={isTauri()
+            ? '可粘贴本地路径；或点右侧按钮打开系统文件夹选择器'
+            : 'https://example.com/notes.md  或本地路径（仅 Tauri 桌面版有效）'}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
@@ -845,6 +869,15 @@ function KnowledgeFolderEditor({
           }}
           className="btn-outline text-sm h-9"
         >+ 添加</button>
+        {isTauri() && (
+          <button
+            type="button"
+            onClick={() => void pickTauriFolder()}
+            disabled={busy}
+            className="btn-outline text-sm h-9"
+            title="打开系统文件夹选择器"
+          >📁 选文件夹</button>
+        )}
         <button
           type="button"
           onClick={() => void reindex()}
@@ -862,6 +895,9 @@ function KnowledgeFolderEditor({
         MVP 用 keyword + 标题匹配（bigram Jaccard + CJK 2-gram），无需联网；
         升级路径：on-device embedding（EmbeddingGemma-class）+ chunked 索引，
         <code className="font-mono">retrieveKnowledge()</code> API 保持不变 → 调用方零改动。
+        {isTauri()
+          ? '桌面版递归 walk .md / .txt；浏览器里只能读 HTTP(S) URL。'
+          : '桌面版可用 tauri-plugin-fs 递归 walk 本地文件夹。'}
       </div>
     </div>
   )
