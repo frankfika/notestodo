@@ -172,6 +172,46 @@ export interface QueueJob extends EntityMeta {
   last_error?: string
 }
 
+// ── 知识库 / Assist（Phase-2 item 5）────────────────────────────────────────
+
+/** 知识库索引条目：每个 .md / .txt 一条；keyword / title 检索（见 lib/knowledge）。 */
+export interface KnowledgeEntry {
+  id: ID
+  /** 文件夹路径（来自 settings.knowledge_folders），便于 reindex 时清理 */
+  folder: string
+  /** 相对路径（含文件名），UI 展示 + 后续可作"打开源文件" */
+  path: string
+  /** 文件名（无目录）— title 匹配的快捷源 */
+  title: string
+  /** 文本前 N 字符（snippet），用作卡片摘要 */
+  snippet: string
+  /** 完整文本（受 cap 限制），用于 keyword 检索打分 */
+  fullText: string
+  /** 文件 mtime（ms），reindex 时跳过未变文件 */
+  mtime: number
+  /** bytes，UI 调试 / 概览 */
+  size_bytes: number
+  created_at: ISODateTime
+  updated_at: ISODateTime
+  deleted_at: ISODateTime | null
+  sync_version: number
+}
+
+/** 会议下 pin 住的 Assist 卡片 —— 跨 retrieve 重跑也持续显示 */
+export interface PinnedAssistCard {
+  id: ID
+  meeting_id: ID
+  /** pin 时检索结果对应的源 KnowledgeEntry id；source 删了不级联 —— 卡片保留但标灰 */
+  source_entry_id: ID | null
+  title: string
+  snippet: string
+  path: string
+  created_at: ISODateTime
+  updated_at: ISODateTime
+  deleted_at: ISODateTime | null
+  sync_version: number
+}
+
 // ── 设置（KV）───────────────────────────────────────────────────────────────
 
 export interface AppSettings {

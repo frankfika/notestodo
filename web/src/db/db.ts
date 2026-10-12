@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type {
-  AudioChunk, ChatMessage, Meeting, Note, QueueJob, Summary,
+  AudioChunk, ChatMessage, KnowledgeEntry, Meeting, Note, PinnedAssistCard, QueueJob, Summary,
   SummaryTemplate, Tag, TagBinding, Todo, Transcript,
 } from '../types'
 
@@ -17,6 +17,10 @@ export class ShibeiDB extends Dexie {
   chatMessages!: Table<ChatMessage, string>
   queueJobs!: Table<QueueJob, string>
   kv!: Table<{ key: string; value: unknown }, string>
+  // Phase-2 item 5: 知识库索引（关键词/标题检索，MVP）
+  knowledgeEntries!: Table<KnowledgeEntry, string>
+  // Phase-2 item 5: 会议下 pinned assist 卡片（meeting-scoped）
+  pinnedAssistCards!: Table<PinnedAssistCard, string>
 
   constructor() {
     super('shibei')
@@ -48,6 +52,11 @@ export class ShibeiDB extends Dexie {
         t.scope = t.kind === 'task' && t.parent_id === null ? null : 'strategic'
       }),
     )
+    // v4: Phase-2 知识库 + 会议 pinned assist
+    this.version(4).stores({
+      knowledgeEntries: 'id, folder, mtime',
+      pinnedAssistCards: 'id, meeting_id, [meeting_id+created_at]',
+    })
   }
 }
 

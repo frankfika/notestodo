@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
@@ -15,8 +15,15 @@ import { chunksInOrder } from '../../audio/merge'
 import { buildPolishMessages, stripFence } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { useRecorder } from '../../state/recorder'
+import {
+  listPinnedCards,
+  pinAssistCard,
+  retrieveKnowledge,
+  unpinAssistCard,
+} from '../../lib/knowledge'
+import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 
-type Tab = 'scribble' | 'notes' | 'summary' | 'todos' | 'transcript' | 'audio'
+type Tab = 'scribble' | 'notes' | 'summary' | 'todos' | 'transcript' | 'audio' | 'assist'
 
 function statusLabel(s: MeetingStatus): string {
   switch (s) {
@@ -280,6 +287,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           )}
           <TabBtn active={tab === 'transcript'} onClick={() => setTab('transcript')}>转录</TabBtn>
           <TabBtn active={tab === 'audio'} onClick={() => setTab('audio')}>录音</TabBtn>
+          <TabBtn active={tab === 'assist'} onClick={() => setTab('assist')}>助手</TabBtn>
         </div>
 
         {/* 内容 */}
@@ -334,6 +342,13 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             meetingId={meeting.id}
             seekRequest={seekRequest}
             onPlayheadUpdate={setPlayheadMs}
+          />
+        )}
+        {tab === 'assist' && (
+          <AssistPane
+            meeting={meeting}
+            scribbleMd={meeting.scribble_md}
+            transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
           />
         )}
         </div>
@@ -770,6 +785,203 @@ function AudioTab({
       ) : (
         <div className="text-xs text-text-3">{err ?? '生成 blob URL 失败'}</div>
       )}
+    </div>
+  )
+}
+
+// ── Live Assist（Phase-2 item 5）──────────────────────────────────────────
+// 录制中（或刚结束）：从速记 + 最近转录片段拼成 query → keyword 检索
+// KnowledgeEntries；Pinned 卡片持久化在会议下，跨 retrieve 持续显示。
+function AssistPane({
+  meeting, scribbleMd, transcriptText,
+}: {
+  meeting: Meeting
+  scribbleMd: string | undefined
+  transcriptText: string | undefined
+}): JSX.Element {
+  const entries = useLiveQuery(() => db.knowledgeEntries.toArray(), []) ?? []
+  const settings = useLiveQuery(async () => {
+    const row = await db.kv.get('settings')
+    return ((row?.value as { knowledge_folders?: string[] } | undefined)?.knowledge_folders) ?? []
+  }, []) ?? []
+
+  const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<KnowledgeEntry[]>([])
+  const [pinned, setPinned] = useState<PinnedAssistCard[]>([])
+
+  // 计算 query：用户输入 > 速记 > 转录尾部 200 字
+  const effectiveQuery = useMemo(() => {
+    if (query.trim()) return query.trim()
+    if (scribbleMd && scribbleMd.trim()) return scribbleMd.trim().slice(0, 400)
+    if (transcriptText) {
+      const tail = transcriptText.slice(-200)
+      return tail
+    }
+    return ''
+  }, [query, scribbleMd, transcriptText])
+
+  // debounce 200ms 自动重新检索
+  useEffect(() => {
+    if (!effectiveQuery) {
+      setHits([])
+      return
+    }
+    const t = setTimeout(() => {
+      setHits(retrieveKnowledge(effectiveQuery, entries, 8))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [effectiveQuery, entries])
+
+  // 加载 pinned
+  const refreshPinned = useCallback(async (): Promise<void> => {
+    setPinned(await listPinnedCards(meeting.id))
+  }, [meeting.id])
+  useEffect(() => {
+    void refreshPinned()
+  }, [refreshPinned])
+
+  async function togglePin(entry: KnowledgeEntry): Promise<void> {
+    const existing = pinned.find((p) => p.source_entry_id === entry.id)
+    if (existing) {
+      await unpinAssistCard(existing.id)
+    } else {
+      await pinAssistCard(meeting.id, entry)
+    }
+    await refreshPinned()
+  }
+
+  if (settings.length === 0) {
+    return (
+      <EmptyState
+        icon="◇"
+        title="还没有知识库文件夹"
+        hint="在「设置 → 知识库」里添加 .md / .txt 路径，重新索引后这里会按速记 / 转录推荐相关卡片。"
+        action={
+          <button
+            onClick={() => useUI.getState().goSettings()}
+            className="btn-outline text-xs h-8 px-3"
+          >→ 设置</button>
+        }
+      />
+    )
+  }
+
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        icon="◇"
+        title="还没有索引过的内容"
+        hint={`已配置 ${settings.length} 个文件夹，但还没有可检索的条目。先在「设置 → 知识库」点「重新索引」。`}
+        action={
+          <button
+            onClick={() => useUI.getState().goSettings()}
+            className="btn-outline text-xs h-8 px-3"
+          >→ 去索引</button>
+        }
+      />
+    )
+  }
+
+  return (
+    <div>
+      <div className="card p-4 mb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="section-title">检索</span>
+          <span className="text-[11px] text-text-3">
+            来自速记 / 转录 / 手动输入 — 关键词 + 标题匹配
+          </span>
+        </div>
+        <input
+          className="input"
+          placeholder="想找什么？或留空用速记自动检索"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {!query.trim() && effectiveQuery && (
+          <div className="mt-2 text-[11px] text-text-3 truncate" title={effectiveQuery}>
+            自动 query：{effectiveQuery.slice(0, 80)}{effectiveQuery.length > 80 ? '…' : ''}
+          </div>
+        )}
+      </div>
+
+      {pinned.length > 0 && (
+        <div className="mb-4">
+          <div className="section-title mb-2">已固定 · {pinned.length}</div>
+          <div className="space-y-2">
+            {pinned.map((p) => (
+              <PinnedCardRow key={p.id} card={p} onUnpin={() => void togglePin({
+                id: p.source_entry_id ?? p.id,
+                folder: '', path: p.path, title: p.title, snippet: p.snippet,
+                fullText: '', mtime: 0, size_bytes: 0,
+                created_at: p.created_at, updated_at: p.updated_at, deleted_at: null, sync_version: 0,
+              })} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="section-title mb-2">相关 · {hits.length}</div>
+      {hits.length === 0 ? (
+        <div className="text-[12px] text-text-3 py-6 text-center">
+          没有匹配 — 换个关键词或去「设置」添加更多文件夹。
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {hits.map((e) => {
+            const isPinned = pinned.some((p) => p.source_entry_id === e.id)
+            return (
+              <div key={e.id} className="card p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-text-1 truncate">{e.title}</div>
+                    <div className="text-[11px] text-text-3 font-mono truncate mt-0.5" title={e.path}>
+                      {e.folder} / {e.path}
+                    </div>
+                    <div className="text-[12px] text-text-2 mt-1.5 line-clamp-3 leading-relaxed">
+                      {e.snippet}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void togglePin(e)}
+                    className={isPinned ? 'btn-primary text-[11px] h-7 px-2.5' : 'btn-outline text-[11px] h-7 px-2.5'}
+                    title={isPinned ? '取消固定' : '固定到这场会议'}
+                  >
+                    {isPinned ? '✓ 已固定' : '固定'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PinnedCardRow({
+  card, onUnpin,
+}: {
+  card: PinnedAssistCard
+  onUnpin: () => void | Promise<void>
+}): JSX.Element {
+  return (
+    <div className="card p-3 border-accent/30 bg-accent/5">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-text-1 truncate">{card.title}</div>
+          <div className="text-[11px] text-text-3 font-mono truncate mt-0.5">{card.path}</div>
+          <div className="text-[12px] text-text-2 mt-1.5 line-clamp-3 leading-relaxed">
+            {card.snippet}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onUnpin()}
+          className="btn-outline text-[11px] h-7 px-2.5"
+          title="取消固定"
+        >✕ 取消</button>
+      </div>
     </div>
   )
 }

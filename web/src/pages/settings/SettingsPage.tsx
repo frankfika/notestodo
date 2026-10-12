@@ -10,6 +10,7 @@ import { testLLMConnection, testASRConnection, type TestResult } from '../../llm
 import FieldRow from '../../components/FieldRow'
 import { isTauri } from '../../lib/tauri'
 import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
+import { reindexKnowledge } from '../../lib/knowledge'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -183,6 +184,17 @@ export default function SettingsPage(): JSX.Element {
 
         <Section title="录音采集 · Capture" desc="决定录音能拿到什么声音。">
           <CaptureStatusRow />
+        </Section>
+
+        <Section
+          title="知识库 · Knowledge"
+          desc="把本地笔记 / markdown 文本喂给 Live Assist，会议中按速记 / 转录自动推荐相关卡片。当前 MVP 用 keyword + 标题匹配；embedding 升级见 README。"
+        >
+          <KnowledgeFolderEditor
+            folders={settings.knowledge_folders}
+            onChange={(folders) => patch({ knowledge_folders: folders })}
+            onFlash={flash}
+          />
         </Section>
 
         <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书「导出链接」都行），仅本地拉取。">
@@ -652,6 +664,96 @@ function CaptureStatusRow(): JSX.Element {
         {inTauri
           ? 'NotesToGO 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；如被拒请到「系统设置 → 隐私与安全性 → 屏幕录制」中手动允许。'
           : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 NotesToGO macOS 桌面版。'}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 知识库文件夹列表 + 重新索引按钮。
+ *
+ * MVP 限制（web build 没法直接读本地盘）：
+ *   - 每个 folder 本身可以是 HTTP(S) URL 指向 .md/.txt 文件（fetch 读）
+ *   - Tauri 端后续用 tauri-plugin-fs 替换 fetch 路径（见 README 升级路径）
+ *   - 当前不报错：路径不可达 → reindex 报 0 / 不崩，UI 显式提示
+ */
+function KnowledgeFolderEditor({
+  folders, onChange, onFlash,
+}: {
+  folders: string[]
+  onChange: (f: string[]) => void
+  onFlash: (msg: string) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [lastReindex, setLastReindex] = useState<{ scanned: number; indexed: number; errors: string[] } | null>(null)
+
+  async function reindex(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await reindexKnowledge(folders)
+      setLastReindex({ scanned: r.scanned, indexed: r.indexed, errors: r.errors })
+      if (r.errors.length > 0) {
+        onFlash(`索引完成：${r.indexed} 条 / ${r.scanned} 个文件（${r.errors.length} 个错误）`)
+      } else {
+        onFlash(`索引完成：${r.indexed} 条 / ${r.scanned} 个文件`)
+      }
+    } catch (e: unknown) {
+      onFlash('索引失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {folders.map((p, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input className="input font-mono text-xs" value={p} readOnly />
+          <button
+            type="button"
+            onClick={() => onChange(folders.filter((_, idx) => idx !== i))}
+            className="icon-btn"
+            aria-label="移除"
+            title="删除"
+          >✕</button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <input
+          className="input font-mono text-xs"
+          placeholder="https://example.com/notes.md  或本地路径（Tauri 端后续支持）"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            if (draft.trim()) {
+              onChange([...folders, draft.trim()])
+              setDraft('')
+            }
+          }}
+          className="btn-outline text-sm h-9"
+        >+ 添加</button>
+        <button
+          type="button"
+          onClick={() => void reindex()}
+          disabled={busy || folders.length === 0}
+          className="btn-outline text-sm h-9"
+        >{busy ? '索引中…' : '↻ 重新索引'}</button>
+      </div>
+      {lastReindex && (
+        <div className="text-[11px] text-text-3">
+          上次索引：{lastReindex.indexed} 条 / {lastReindex.scanned} 文件
+          {lastReindex.errors.length > 0 && ` · ${lastReindex.errors.length} 错误`}
+        </div>
+      )}
+      <div className="text-[11px] text-text-3 leading-relaxed">
+        MVP 用 keyword + 标题匹配（bigram Jaccard + CJK 2-gram），无需联网；
+        升级路径：on-device embedding（EmbeddingGemma-class）+ chunked 索引，
+        <code className="font-mono">retrieveKnowledge()</code> API 保持不变 → 调用方零改动。
       </div>
     </div>
   )
