@@ -6,7 +6,7 @@
  * 修改 document.documentElement classList。
  *
  * 验证：
- *   1. 默认 dark 主题 → <html> 有 'dark' class
+ *   1. 默认 light 主题（即使 OS 是深色）→ <html> 无 'dark' class
  *   2. 切到 light → 立即生效（不需保存）+ classList 移除 'dark'
  *   3. 切回 dark → 'dark' class 恢复
  *   4. 选「system」→ 按 matchMedia 自动选择
@@ -28,9 +28,9 @@ test('Settings 主题切换：patch 时立即生效 + document class 同步', as
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goSettings: () => void } } }).__uiStore?.getState().goSettings())
   await page.waitForTimeout(500)
 
-  // 1) 默认 dark → html.dark
+  // 1) 默认 light → 无 html.dark
   const initiallyDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
-  expect(initiallyDark).toBe(true)
+  expect(initiallyDark).toBe(false)
 
   // 找主题下拉框（label="主题" 旁边）
   const themeSelect = page.locator('select').filter({ has: page.locator('option[value="light"]') }).first()

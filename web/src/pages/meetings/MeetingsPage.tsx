@@ -152,7 +152,7 @@ function MeetingPreview({ meeting, onOpen }: { meeting: Meeting; onOpen: () => v
       </div>
       <h2 className="text-2xl font-semibold text-text-1 mb-1">{meeting.title}</h2>
       <div className="flex items-center gap-3 text-xs text-text-3 mb-6">
-        <span>⏱ {fmtClock(meeting.audio.duration_ms)}</span>
+        <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>
         <span>·</span>
         <span>音频 {meeting.audio.format} · {meeting.audio.chunk_count} 片</span>
         {meeting.audio.size_bytes > 0 && (

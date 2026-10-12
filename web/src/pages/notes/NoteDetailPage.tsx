@@ -6,6 +6,7 @@ import { fmtDateTime, now } from '../../lib/id'
 import type { Todo } from '../../types'
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
+import OverflowMenu from '../../components/OverflowMenu'
 
 /**
  * 单条笔记：左侧 Markdown 编辑器（纯 textarea，MVP），右侧渲染。
@@ -130,9 +131,7 @@ export default function NoteDetailPage(): JSX.Element {
           <button onClick={() => void insertTodo()} className="btn-primary text-xs h-8" title="从当前笔记新建一条 Task">
             + 插入待办
           </button>
-          <button onClick={() => void deleteNote()} className="btn-danger text-xs h-8" title="删除">
-            删除
-          </button>
+          <OverflowMenu items={[{ label: '删除笔记', danger: true, onClick: () => void deleteNote() }]} />
         </div>
 
         {/* 分割编辑 */}

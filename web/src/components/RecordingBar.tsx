@@ -27,8 +27,8 @@ export default function RecordingBar() {
   const accentClass = isError
     ? 'bg-danger/15 border-danger/40'
     : interrupted
-      ? 'bg-amber-500/15 border-amber-500/40' // 麦克风被中断/恢复中 — 警示而非危险
-      : 'bg-danger/8 border-danger/30'
+      ? 'bg-warning/10 border-warning/30' // 麦克风被中断/恢复中 — 警示而非危险
+      : 'bg-danger/5 border-danger/20'
 
   return (
     <div className={`flex items-center gap-3 px-5 h-12 border-b ${accentClass} text-sm`}>
@@ -43,7 +43,7 @@ export default function RecordingBar() {
         </>
       ) : (
         <>
-          <span className={`rec-dot text-lg leading-none ${interrupted ? 'text-amber-500' : 'text-danger'}`}>●</span>
+          <span className={`rec-dot h-2 w-2 rounded-full ${interrupted ? 'bg-warning' : 'bg-danger'}`} />
           <span className="font-medium text-text-1">
             {interrupted ? '麦克风被中断，正在恢复…' : '正在录音'}
           </span>
@@ -58,6 +58,9 @@ export default function RecordingBar() {
                 · {meeting.title}
               </button>
             )}
+          {meeting && (
+            <button onClick={() => goMeeting(meeting.id)} className="btn-outline text-xs h-7 px-2.5">速记</button>
+          )}
           <span className="text-text-3 text-xs">
             已保存 {chunkCount} 片{interrupted && ' · 有空白段'}
           </span>

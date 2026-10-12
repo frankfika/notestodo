@@ -7,6 +7,7 @@ import type { ChatMessage, Meeting, MeetingStatus, SummaryTemplate, Todo } from 
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import TodoRow from '../../components/TodoRow'
+import OverflowMenu from '../../components/OverflowMenu'
 import { runSummarizePipeline } from '../../pipeline/summarize'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
@@ -248,18 +249,22 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
         {/* 操作行 */}
         <div className="flex items-center gap-2 mt-3 mb-4">
-          <button
-            onClick={() => void polish()}
-            disabled={polishing || isRecording}
-            className="btn-primary text-xs h-8 px-3"
-            title={isRecording ? '停止录音、转录完成后可整理' : '用转录把速记扩写成完整笔记'}
-          >{polishing ? '整理中…' : '整理笔记'}</button>
+          {!isRecording && (
+            <button
+              onClick={() => void polish()}
+              disabled={polishing}
+              className="btn-primary text-xs h-8 px-3"
+              title="用转录把速记扩写成完整笔记"
+            >{polishing ? '整理中…' : '整理笔记'}</button>
+          )}
           {!isRecording && <RerunDropdown templates={templates} onPick={rerunWith} />}
           <button
             onClick={() => setChatOpen((v) => !v)}
             className={`btn-ghost text-xs h-8 px-3 ${chatOpen ? 'text-accent' : ''}`}
           >对话</button>
-          <OverflowMenu onDelete={() => void deleteMeeting()} />
+          <div className="ml-auto">
+            <OverflowMenu items={[{ label: '删除会议', danger: true, onClick: () => void deleteMeeting() }]} />
+          </div>
         </div>
         {polishErr && <div className="text-xs text-danger mb-3">整理失败：{polishErr}</div>}
 
@@ -394,28 +399,6 @@ function LiveClock({ meetingId }: { meetingId: string }): JSX.Element {
       <span className="rec-dot h-1.5 w-1.5 rounded-full bg-danger" />
       REC <span className="tabular-nums">{active ? fmtClock(elapsed) : ''}</span>
     </span>
-  )
-}
-
-function OverflowMenu({ onDelete }: { onDelete: () => void }): JSX.Element {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="relative ml-auto">
-      <button onClick={() => setOpen((v) => !v)} className="icon-btn" aria-label="更多" title="更多">⋯</button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <ul className="absolute right-0 z-40 mt-1 min-w-[160px] card p-1 text-sm shadow-lg">
-            <li>
-              <button
-                onClick={() => { setOpen(false); onDelete() }}
-                className="w-full text-left px-3 py-1.5 rounded-md text-danger hover:bg-danger/8"
-              >删除会议</button>
-            </li>
-          </ul>
-        </>
-      )}
-    </div>
   )
 }
 

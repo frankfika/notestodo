@@ -111,7 +111,7 @@ export default function TodayPage(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[720px] mx-auto px-6 py-8 space-y-4">
+      <div className="max-w-[720px] mx-auto px-6 py-8 space-y-3">
         {/* 页头 */}
         <div className="flex items-end justify-between mb-2">
           <div>
@@ -125,7 +125,7 @@ export default function TodayPage(): JSX.Element {
 
         {/* 1. 正在录音 */}
         {phase === 'recording' && (
-          <section className="card p-5 border-danger/30 bg-danger/8">
+          <section className="card p-4 border-danger/25 bg-danger/5">
             <div className="flex items-center gap-3">
               <span className="rec-dot text-2xl text-danger">●</span>
               <div className="flex-1 min-w-0">
@@ -165,7 +165,7 @@ export default function TodayPage(): JSX.Element {
             <EmptyState
               title="今天没有要处理的事"
               hint={`按 ${mod()}⇧R 开一场会议，会中速记、会后一键整理。`}
-              action={<button onClick={() => void start()} className="btn-primary h-8 text-xs px-3">开始录音</button>}
+              action={<button onClick={() => void start()} className="btn-primary h-8 text-xs px-3">● 开始录音</button>}
             />
           ) : (
             <ul className="divide-y divide-line">
@@ -176,7 +176,7 @@ export default function TodayPage(): JSX.Element {
         </section>
 
         {/* 3. 接下来的会议 */}
-        <section className="card p-5">
+        <section className="card p-4">
           <div className="flex items-center mb-3">
             <h2 className="section-title">接下来的会议</h2>
             <button

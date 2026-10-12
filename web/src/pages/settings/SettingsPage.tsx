@@ -323,7 +323,7 @@ function IcsListEditor({
         asr_api_key: '',
         asr_model: '',
         delete_remote_audio: true,
-        theme: 'dark',
+        theme: 'light',
       })
       if (r.error) {
         onFlash(`部分失败：${r.error.slice(0, 60)}`)
