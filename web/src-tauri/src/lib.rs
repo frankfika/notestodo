@@ -1,73 +1,76 @@
-use serde::Serialize;
-
 // ── NotesToGO · Tauri 2 commands ───────────────────────────────────────
 //
-// Phase-2（详见 docs/FORESIGHT_OKR_REDESIGN.md §4.2 路线图）实装：
-//   - `system_audio_status` / `system_audio_start` / `system_audio_stop`
-//     macOS 上借 ScreenCaptureKit 拿系统音频 loopback（会议播放声）。
+// Phase-3（详见 docs/CODEX_TASK_PHASE3.md Gap 1）实装：
+//   - system_audio_status / system_audio_start / system_audio_stop
+//     macOS 上**真正**接入 ScreenCaptureKit：TCC 权限探测 + SCStream 启停 +
+//     把 audio CMSampleBuffer 转 f32 PCM + 通过 Tauri event 推回前端。
 //
-// 现状：MVP 占位实现。完整的 screencapturekit 集成（SCStream 配置 +
-// CMSampleBuffer → PCM 推回前端 / 落盘）需要引入 `screencapturekit` crate，
-// 在 PR 中单独 ship。当前返回的 `supported: false` 是诚实的；前端据此
-// 走 mic-only + banner，**绝不**在 UI 假装「系统声音已开」。
-//
-// 接入计划（后续 PR）：
-//   1. Cargo.toml: screencapturekit = "<latest>"   (macos-only, target_os = "macos")
-//   2. NSWindow / CGWindowID 通过 tauri::WebviewWindow 取到主窗 handle
-//   3. SCStream 流：SCContentFilter + SCStreamConfiguration(capturesAudio = true)
-//   4. CMSampleBuffer → f32 PCM → tauri::Emitter 把 chunks 推给前端
-//   5. 前端 audio/engine.ts 收到事件后用 AudioContext.decodeAudioData 拼到
-//      MediaRecorder stream，详见 src/lib/tauriSystemAudio.ts 顶注。
-//
-// 权限：macOS 屏幕录制需用户手动在「系统设置 → 隐私与安全性 → 屏幕录制」
-// 允许 NotesToGO；第一次 SCStream.start() 会触发 TCC 弹窗（也可能直接
-// 拒，需要手动授权）。代码侧如未获批 → permission_granted = false。
+// 实现细节都在 `system_audio` 模块（同样 cfg-gate 到 macOS）；本文件只做
+// 命令注册 + state 注册 + plugin 初始化。客户端 UI（audio/engine.ts →
+// probeSystemAudio + captureModeNote）按返回 JSON 自动渲染 banner，
+// **永不**让 captureMode='mic+system' 在 start 实际成功之前出现。
+
+use serde::Serialize;
+
+mod system_audio;
+
+// ── Status 命令 ─────────────────────────────────────────────────────
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "snake_case")]
 pub struct SystemAudioStatus {
+  /// 平台是否真的提供 system-audio 路径：macOS 为 true；其余平台 false
+  /// （前端据此降级到 mic-only，UI 不假装）。
   pub supported: bool,
-  /// TCC 屏录权限是否已获批（macOS；其它平台恒为 true）
+  /// TCC 屏录权限是否已获批。macOS 上是 `CGPreflight*` 的实时值；
+  /// 其它平台恒为 true（前端永远不会调到这里）。
   pub permission_granted: bool,
-  /// 失败/不支持的原因；前端直接展示给用户
+  /// 给用户的短句：未获批时是去系统设置的提示；其余空。
   pub note: String,
 }
 
 #[tauri::command]
 fn system_audio_status() -> SystemAudioStatus {
-  // TODO(system-audio): 当 screencapturekit crate 接入后，把 `supported`
-  // 翻成 `cfg!(target_os = "macos")` 的真值，并在 SCShareableContent /
-  // CGRequestScreenCaptureAccess 失败时返回 supported=false + 真实原因。
-  SystemAudioStatus {
-    supported: false,
-    permission_granted: true, // 浏览器/未实现路径下"无需权限"——前端不会开新窗口
-    note: concat!(
-      "Tauri 端 system-audio 暂未实装（screencapturekit 集成见 TODO）。",
-      "当前构建仅可录制麦克风；",
-      "系统声音需 macOS 原生壳 + 在「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO。",
-    )
-    .to_string(),
+  #[cfg(target_os = "macos")]
+  {
+    let granted = system_audio::tcc_granted();
+    let note = if granted {
+      "屏录权限已获批；SCStream 已在 start/stop 时实装。".to_string()
+    } else {
+      "未授权屏幕录制权限；请到「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO，授权后再次录音即生效。".to_string()
+    };
+    SystemAudioStatus {
+      supported: true,
+      permission_granted: granted,
+      note,
+    }
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    SystemAudioStatus {
+      supported: false,
+      permission_granted: true, // 非 mac 不需要，逻辑流程不会触达 start
+      note: "系统音频采集仅 NotesToGO 桌面版（macOS）支持".to_string(),
+    }
   }
 }
 
 #[tauri::command]
-fn system_audio_start() -> serde_json::Value {
-  // TODO(system-audio): 启动 SCStream；把 started 翻 true；失败 reason 填具体错。
-  serde_json::json!({
-    "started": false,
-    "reason": "not_implemented",
-  })
+fn system_audio_start(app: tauri::AppHandle) -> serde_json::Value {
+  system_audio::start(&app)
 }
 
 #[tauri::command]
-fn system_audio_stop() -> serde_json::Value {
-  // TODO(system-audio): 停止 SCStream + 清理 CMSampleBuffer 队列
-  serde_json::json!({ "stopped": true })
+fn system_audio_stop(app: tauri::AppHandle) -> serde_json::Value {
+  system_audio::stop(&app)
 }
+
+// ── 入口 ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .manage(system_audio::Sessions::default())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
