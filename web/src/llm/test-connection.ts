@@ -17,6 +17,7 @@
  */
 
 import type { AppSettings } from '../types'
+import { resolveLLMConfig } from '../types'
 import { joinUrl } from './url'
 
 export interface TestResult {
@@ -38,27 +39,35 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
 }
 
 export async function testLLMConnection(settings: AppSettings): Promise<TestResult> {
-  if (!settings.llm_api_key) return { ok: false, message: '未填写 API Key' }
-  if (!settings.llm_base_url) return { ok: false, message: '未填写 Base URL' }
+  // Phase-2: 用 resolveLLMConfig 解析；本地端点允许空 api_key
+  const cfg = resolveLLMConfig(settings)
+  if (!cfg.is_local && !cfg.api_key) {
+    return { ok: false, message: '未填写 API Key' }
+  }
+  if (!cfg.base_url) return { ok: false, message: '未填写 Base URL' }
   try {
     let res: Response
-    if (settings.llm_provider === 'openai-compatible') {
-      res = await fetchWithTimeout(joinUrl(settings.llm_base_url, '/models'), {
-        headers: { Authorization: `Bearer ${settings.llm_api_key}` },
-      })
+    if (cfg.provider === 'openai-compatible') {
+      // 本地端点也用 /models 探活；Ollama 实现 /v1/models 返回已下载模型列表
+      const headers: Record<string, string> = {}
+      if (cfg.api_key && cfg.api_key.trim()) {
+        headers.Authorization = `Bearer ${cfg.api_key}`
+      }
+      res = await fetchWithTimeout(joinUrl(cfg.base_url, '/models'), { headers })
     } else {
       // anthropic-compatible：最小 messages 调用（max_tokens=1）。
       // 关键：只用 safelist 头（Authorization + text/plain）→ 简单请求不触发 CORS
       // 预检。带 anthropic-version 的预检 POST 在部分代理环境会 ERR_FAILED（实测），
       // 而网关鉴权层不依赖该头 — 401/200 的鉴权语义完全保留，且与主调用一致用 Bearer。
-      res = await fetchWithTimeout(joinUrl(settings.llm_base_url, '/v1/messages'), {
+      const headers: Record<string, string> = { 'Content-Type': 'text/plain' }
+      if (cfg.api_key && cfg.api_key.trim()) {
+        headers.Authorization = `Bearer ${cfg.api_key}`
+      }
+      res = await fetchWithTimeout(joinUrl(cfg.base_url, '/v1/messages'), {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${settings.llm_api_key}`,
-          'Content-Type': 'text/plain',
-        },
+        headers,
         body: JSON.stringify({
-          model: settings.llm_model,
+          model: cfg.model,
           max_tokens: 1,
           messages: [{ role: 'user', content: 'ping' }],
         }),

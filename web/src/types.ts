@@ -176,6 +176,13 @@ export interface QueueJob extends EntityMeta {
 
 export interface AppSettings {
   // AI Provider（BYOK，仅存本地）
+  /**
+   * Phase-2: 'cloud' = 用下面的 llm_*（MiniMax / Anthropic / OpenAI 兼容网关）
+   *         'local' = 用下面的 local_llm_*（Ollama / LM Studio / MLX / 自建 OpenAI 兼容）
+   * 切换不会清空另一侧的字段（共存于 settings KV）。
+   */
+  ai_mode: 'cloud' | 'local'
+  // Cloud BYOK（ai_mode='cloud' 时生效；保留所有 Phase-1 字段不动）
   llm_provider: 'openai-compatible' | 'anthropic-compatible'
   llm_base_url: string
   llm_api_key: string
@@ -184,15 +191,22 @@ export interface AppSettings {
   asr_base_url: string
   asr_api_key: string
   asr_model: string
+  // Local LLM（ai_mode='local' 时生效；api_key 允许空——Ollama 默认无鉴权）
+  local_llm_base_url: string
+  local_llm_api_key: string
+  local_llm_model: string
   // 隐私
   delete_remote_audio: boolean   // 转录完成后删除云端音频
   // 外观
   theme: 'dark' | 'light' | 'system'
   // 日历
   calendar_ics_urls: string[]
+  // 知识库（Phase-2 item 5）— 字符串路径列表，AI 索引用的本地文件夹
+  knowledge_folders: string[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  ai_mode: 'cloud',
   llm_provider: 'anthropic-compatible',
   llm_base_url: 'https://api.minimax.io/anthropic',
   llm_api_key: '',
@@ -201,7 +215,38 @@ export const DEFAULT_SETTINGS: AppSettings = {
   asr_base_url: 'https://api.minimaxi.com',
   asr_api_key: '',
   asr_model: 'asr-1.0',
+  local_llm_base_url: 'http://127.0.0.1:11434/v1',
+  local_llm_api_key: '',
+  local_llm_model: 'llama3.2',
   delete_remote_audio: true,
   theme: 'light',
   calendar_ics_urls: [],
+  knowledge_folders: [],
+}
+
+/** Phase-2: 解析当前模式下的有效 LLM 配置。 */
+export function resolveLLMConfig(s: AppSettings): {
+  provider: 'openai-compatible' | 'anthropic-compatible'
+  base_url: string
+  api_key: string
+  model: string
+  /** true 表示是本地端点（Ollama / LM Studio / 自建）— key 可空 */
+  is_local: boolean
+} {
+  if (s.ai_mode === 'local') {
+    return {
+      provider: 'openai-compatible', // 本地端点统一走 openai 兼容协议
+      base_url: s.local_llm_base_url || DEFAULT_SETTINGS.local_llm_base_url,
+      api_key: s.local_llm_api_key, // 允许空（Ollama）
+      model: s.local_llm_model || 'llama3.2',
+      is_local: true,
+    }
+  }
+  return {
+    provider: s.llm_provider,
+    base_url: s.llm_base_url,
+    api_key: s.llm_api_key,
+    model: s.llm_model,
+    is_local: false,
+  }
 }

@@ -75,40 +75,53 @@ export default function SettingsPage(): JSX.Element {
           >保存修改</button>
         </div>
 
-        <Section title="AI Provider · LLM" desc="总结 / 待办提取都走它。">
-          <FieldRow label="Provider">
-            <select
-              className="input"
-              value={settings.llm_provider}
-              onChange={(e) => patch({ llm_provider: e.target.value as AppSettings['llm_provider'] })}
-            >
-              <option value="anthropic-compatible">Anthropic 兼容</option>
-              <option value="openai-compatible">OpenAI 兼容</option>
-            </select>
-          </FieldRow>
-          <FieldRow label="Base URL">
-            <input
-              className="input"
-              value={settings.llm_base_url}
-              onChange={(e) => patch({ llm_base_url: e.target.value })}
-              placeholder="https://api.example.com"
+        <Section title="AI Provider · LLM" desc="总结 / 待办提取都走它。切换 Cloud / Local 不会清空另一侧的字段。">
+          <FieldRow label="模式">
+            <AIModeSegmented
+              value={settings.ai_mode}
+              onChange={(v) => patch({ ai_mode: v })}
             />
           </FieldRow>
-          <FieldRow label="API Key">
-            <PasswordInput
-              value={settings.llm_api_key}
-              onChange={(v) => patch({ llm_api_key: v })}
-              placeholder="sk-..."
-            />
-          </FieldRow>
-          <FieldRow label="Model">
-            <input
-              className="input"
-              value={settings.llm_model}
-              onChange={(e) => patch({ llm_model: e.target.value })}
-              placeholder="claude-3-5-sonnet-..."
-            />
-          </FieldRow>
+
+          {settings.ai_mode === 'cloud' ? (
+            <>
+              <FieldRow label="Provider">
+                <select
+                  className="input"
+                  value={settings.llm_provider}
+                  onChange={(e) => patch({ llm_provider: e.target.value as AppSettings['llm_provider'] })}
+                >
+                  <option value="anthropic-compatible">Anthropic 兼容</option>
+                  <option value="openai-compatible">OpenAI 兼容</option>
+                </select>
+              </FieldRow>
+              <FieldRow label="Base URL">
+                <input
+                  className="input"
+                  value={settings.llm_base_url}
+                  onChange={(e) => patch({ llm_base_url: e.target.value })}
+                  placeholder="https://api.example.com"
+                />
+              </FieldRow>
+              <FieldRow label="API Key">
+                <PasswordInput
+                  value={settings.llm_api_key}
+                  onChange={(v) => patch({ llm_api_key: v })}
+                  placeholder="sk-..."
+                />
+              </FieldRow>
+              <FieldRow label="Model">
+                <input
+                  className="input"
+                  value={settings.llm_model}
+                  onChange={(e) => patch({ llm_model: e.target.value })}
+                  placeholder="claude-3-5-sonnet-..."
+                />
+              </FieldRow>
+            </>
+          ) : (
+            <LocalLLMFields settings={settings} patch={patch} />
+          )}
           <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />
         </Section>
 
@@ -217,6 +230,115 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
 }
 
 /**
+ * Cloud BYOK | Local 双选控件（与 toggle 视觉一致：底部高亮横条）。
+ * 切换时保留另一侧的 settings 字段（已通过 KV 整体 patch 实现，UI 不动）。
+ */
+function AIModeSegmented({
+  value,
+  onChange,
+}: {
+  value: 'cloud' | 'local'
+  onChange: (v: 'cloud' | 'local') => void
+}): JSX.Element {
+  const opts: { v: 'cloud' | 'local'; label: string; sub: string }[] = [
+    { v: 'cloud', label: 'Cloud BYOK', sub: 'MiniMax / Anthropic / OpenAI 兼容网关' },
+    { v: 'local', label: 'Local', sub: 'Ollama / LM Studio / MLX / 自建' },
+  ]
+  return (
+    <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
+      {opts.map((o) => {
+        const active = o.v === value
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            className={`px-3 py-1.5 rounded-[8px] text-sm transition-colors ${
+              active ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+            title={o.sub}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Local LLM 配置：Base URL（带 Ollama 预设）+ 可选 API Key + Model。
+ * Ollama 默认 `ollama serve` 后用 http://127.0.0.1:11434/v1 即可；Custom 给 LM Studio / MLX 等。
+ */
+function LocalLLMFields({
+  settings,
+  patch,
+}: {
+  settings: AppSettings
+  patch: (p: Partial<AppSettings>) => void
+}): JSX.Element {
+  const isOllamaPreset = settings.local_llm_base_url === 'http://127.0.0.1:11434/v1'
+  function pickPreset(p: 'ollama' | 'custom'): void {
+    if (p === 'ollama') {
+      patch({ local_llm_base_url: 'http://127.0.0.1:11434/v1' })
+    } else {
+      // 不重置，让用户继续编辑；但若当前是 ollama 默认值则清空让用户输入
+      if (isOllamaPreset) patch({ local_llm_base_url: '' })
+    }
+  }
+  return (
+    <>
+      <FieldRow label="预设">
+        <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
+          <button
+            type="button"
+            onClick={() => pickPreset('ollama')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              isOllamaPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >Ollama</button>
+          <button
+            type="button"
+            onClick={() => pickPreset('custom')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              !isOllamaPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >Custom</button>
+        </div>
+      </FieldRow>
+      <FieldRow label="Base URL" hint="OpenAI 兼容端点（/v1/chat/completions）">
+        <input
+          className="input font-mono"
+          value={settings.local_llm_base_url}
+          onChange={(e) => patch({ local_llm_base_url: e.target.value })}
+          placeholder="http://127.0.0.1:11434/v1"
+        />
+      </FieldRow>
+      <FieldRow label="API Key" hint="留空即可（Ollama 默认无鉴权）">
+        <PasswordInput
+          value={settings.local_llm_api_key}
+          onChange={(v) => patch({ local_llm_api_key: v })}
+          placeholder="（可选）"
+        />
+      </FieldRow>
+      <FieldRow label="Model" hint="如 llama3.2 / qwen2.5 / mistral 等">
+        <input
+          className="input font-mono"
+          value={settings.local_llm_model}
+          onChange={(e) => patch({ local_llm_model: e.target.value })}
+          placeholder="llama3.2"
+        />
+      </FieldRow>
+      <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+        Ollama: 先 <code className="font-mono">ollama serve</code>；若模型放在外置盘（如 UGREEN），
+        在启动前 <code className="font-mono">export OLLAMA_MODELS=/Volumes/UGREEN/ollama</code>。
+        Custom: LM Studio / MLX / 自建 OpenAI 兼容服务都可填 Base URL。
+      </div>
+    </>
+  )
+}
+
+/**
  * 连接测试：BYOK 的信任闭环 — 填完 key 立刻验证，而不是等第一场会议失败。
  * dirty 时置灰（当前未保存的草稿不代表将保存的配置）。
  */
@@ -317,19 +439,11 @@ function IcsListEditor({
     setSyncing(true)
     try {
       await clearCalendarCache()
+      // Phase-2: fetchCalendar 不依赖 ai_mode / local_llm_*，只取 calendar_ics_urls；
+      // 用 DEFAULT_SETTINGS 兜底其它字段（避免 spread 漏掉新增字段）。
       const r = await fetchCalendar({
         ...DEFAULT_SETTINGS,
         calendar_ics_urls: urls,
-        llm_provider: 'anthropic-compatible',
-        llm_base_url: '',
-        llm_api_key: '',
-        llm_model: '',
-        asr_provider: 'minimax',
-        asr_base_url: '',
-        asr_api_key: '',
-        asr_model: '',
-        delete_remote_audio: true,
-        theme: 'light',
       })
       if (r.error) {
         onFlash(`部分失败：${r.error.slice(0, 60)}`)

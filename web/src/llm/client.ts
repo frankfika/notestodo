@@ -1,4 +1,5 @@
 import type { AppSettings } from '../types'
+import { resolveLLMConfig } from '../types'
 import { joinUrl } from './url'
 
 export interface ChatMessage {
@@ -29,32 +30,36 @@ export async function callLLM(
   const maxTokens = opts.maxTokens ?? 2048
   const temperature = opts.temperature ?? 0.2
 
-  if (!settings.llm_api_key) {
+  // Phase-2: 用 resolveLLMConfig 把 ai_mode 解析成一份「有效配置」。
+  //   - 本地端点（Ollama / LM Studio / MLX）允许空 api_key —— 走 openai 兼容
+  //   - 云端沿用 Phase-1 字段；空 key 报错
+  const cfg = resolveLLMConfig(settings)
+  if (!cfg.is_local && !cfg.api_key) {
     throw new Error('LLM API key is empty — set it in Settings.')
   }
-  if (!settings.llm_base_url) {
+  if (!cfg.base_url) {
     throw new Error('LLM base URL is empty — set it in Settings.')
   }
-  if (!settings.llm_model) {
+  if (!cfg.model) {
     throw new Error('LLM model is empty — set it in Settings.')
   }
 
-  switch (settings.llm_provider) {
+  switch (cfg.provider) {
     case 'openai-compatible':
-      return callOpenAICompatible(settings, messages, {
+      return callOpenAICompatible(cfg, messages, {
         jsonMode,
         maxTokens,
         temperature,
       })
     case 'anthropic-compatible':
-      return callAnthropicCompatible(settings, messages, {
+      return callAnthropicCompatible(cfg, messages, {
         jsonMode,
         maxTokens,
         temperature,
       })
     default:
       throw new Error(
-        `Unsupported LLM provider: ${String(settings.llm_provider)}`,
+        `Unsupported LLM provider: ${String(cfg.provider)}`,
       )
   }
 }
@@ -77,14 +82,22 @@ interface OpenAIResponse {
   error?: { message?: string; type?: string }
 }
 
+interface ResolvedLLMConfig {
+  provider: 'openai-compatible' | 'anthropic-compatible'
+  base_url: string
+  api_key: string
+  model: string
+  is_local: boolean
+}
+
 async function callOpenAICompatible(
-  settings: AppSettings,
+  cfg: ResolvedLLMConfig,
   messages: ChatMessage[],
   opts: { jsonMode: boolean; maxTokens: number; temperature: number },
 ): Promise<string> {
-  const url = joinUrl(settings.llm_base_url, '/chat/completions')
+  const url = joinUrl(cfg.base_url, '/chat/completions')
   const body: OpenAIRequestBody = {
-    model: settings.llm_model,
+    model: cfg.model,
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
     max_tokens: opts.maxTokens,
     temperature: opts.temperature,
@@ -93,12 +106,18 @@ async function callOpenAICompatible(
     body.response_format = { type: 'json_object' }
   }
 
+  // Phase-2: 本地端点（如 Ollama）经常无鉴权；空 key 时不发送 Authorization
+  // —— 避免「Bearer 」被部分代理拒。
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (cfg.api_key && cfg.api_key.trim()) {
+    headers.Authorization = `Bearer ${cfg.api_key}`
+  }
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.llm_api_key}`,
-    },
+    headers,
     body: JSON.stringify(body),
   })
 
@@ -136,11 +155,11 @@ interface AnthropicResponse {
 }
 
 async function callAnthropicCompatible(
-  settings: AppSettings,
+  cfg: ResolvedLLMConfig,
   messages: ChatMessage[],
   opts: { jsonMode: boolean; maxTokens: number; temperature: number },
 ): Promise<string> {
-  const url = joinUrl(settings.llm_base_url, '/v1/messages')
+  const url = joinUrl(cfg.base_url, '/v1/messages')
 
   // Anthropic expects system content as a top-level `system` field,
   // not in the messages array. Extract any leading system messages
@@ -155,7 +174,7 @@ async function callAnthropicCompatible(
   }
 
   const body: Record<string, unknown> = {
-    model: settings.llm_model,
+    model: cfg.model,
     messages: restMessages.map((m) => ({ role: m.role, content: m.content })),
     max_tokens: opts.maxTokens,
     temperature: opts.temperature,
@@ -164,13 +183,21 @@ async function callAnthropicCompatible(
     body.system = systemText
   }
 
+  // 本地端点：anthropic-version 头对自建网关意义不大，但保持一致不会出错
+  // —— 本期 mode='local' 强制走 openai-compatible，所以这里只在 cloud 触发。
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (cfg.api_key && cfg.api_key.trim()) {
+    headers.Authorization = `Bearer ${cfg.api_key}`
+  }
+  if (!cfg.is_local) {
+    headers['anthropic-version'] = '2023-06-01'
+  }
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.llm_api_key}`,
-      'anthropic-version': '2023-06-01',
-    },
+    headers,
     body: JSON.stringify(body),
   })
 
