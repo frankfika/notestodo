@@ -3,6 +3,8 @@ import { now, uid } from '../lib/id'
 import { setRecorderPartial, useRecorder } from '../state/recorder'
 import { runTranscribePipeline } from '../pipeline/transcribe'
 import { chunksInOrder } from './merge'
+import { isTauri } from '../lib/tauri'
+import { systemAudioStatus, startSystemAudio, stopSystemAudio } from '../lib/tauriSystemAudio'
 import type {
   AudioChunk,
   Meeting,
@@ -101,6 +103,16 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     interrupted: false,
     elapsedMs: 0,
     chunkCount: 0,
+    captureMode: 'mic-only',
+    captureModeNote: null,
+  })
+
+  // Phase-2: 探测系统音频支持。MVP 永远 mic-only（Rust 端 screencapturekit
+  // 集成见 TODO），但保持探测代码 ready — 实装后这里会自动升级。
+  // 不在主路径上 await：探测失败 / 慢也只影响 banner，不阻塞录音启动。
+  void probeSystemAudio().catch((e) => {
+    console.warn('systemAudioStatus 探测失败', e)
+    setRecorderPartial({ captureMode: 'mic-only', captureModeNote: null })
   })
 
   let stream: MediaStream
@@ -221,6 +233,9 @@ export async function stopRecorder(): Promise<string | null> {
   if (!active) return null
   const meetingId = active.meetingId
   setRecorderPartial({ phase: 'stopping' })
+
+  // 顺手停系统音频（若 startSystemAudio 启了 SCStream；best-effort）
+  void stopSystemAudio()
 
   // 关键：recorder.stop() 会触发最后一次 ondataavailable（tail chunk）。
   // 必须保持 active 直到它落库，否则 allocateSeq 返回 null → tail chunk
@@ -643,6 +658,43 @@ function defaultTitle(): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   return `会议 · ${stamp}`
+}
+
+// ── Phase-2: 系统音频探测 ────────────────────────────────────────────────────
+
+/**
+ * 探测 Tauri 端系统音频采集能力，并把结果写到 store 让 UI 展示。
+ *
+ * 行为（按优先级降级）：
+ *   1. Rust 端 supported + 已获批屏录权限 → captureMode='mic+system'（注：
+ *      当前 MVP Rust 端永远返回 supported=false，所以本分支不触发）
+ *   2. Rust 端 supported 但未授权 → captureMode='unsupported' + 提示去设置授权
+ *   3. 不在 Tauri / 无命令 / 抛错 → captureMode='mic-only'，note=null（不打扰）
+ *
+ * 注：探测不影响主录音路径（mic 永远先 getUserMedia）。失败/不支持时 UI
+ * 显示 banner，但录音照常进行 — mic 本来就够 Zoom/Meet 听对方说话。
+ */
+async function probeSystemAudio(): Promise<void> {
+  if (!isTauri()) {
+    setRecorderPartial({ captureMode: 'mic-only', captureModeNote: null })
+    return
+  }
+  const status = await systemAudioStatus()
+  if (!status.supported) {
+    setRecorderPartial({ captureMode: 'unsupported', captureModeNote: status.reason })
+    return
+  }
+  if (status.supported && !status.permission_granted) {
+    setRecorderPartial({ captureMode: 'unsupported', captureModeNote: status.note })
+    return
+  }
+  // 走到这：Rust 真支持且已授权。试着启动 SCStream；当前 MVP 一定 false。
+  const start = await startSystemAudio()
+  if (start.ok) {
+    setRecorderPartial({ captureMode: 'mic+system', captureModeNote: null })
+  } else {
+    setRecorderPartial({ captureMode: 'unsupported', captureModeNote: start.reason })
+  }
 }
 
 // 开发模式调试入口：暴露 active stream 让 e2e 能模拟麦克风中断（track ended）。

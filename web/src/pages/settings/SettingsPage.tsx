@@ -8,6 +8,8 @@ import { exportData, importData } from '../../data/io'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
 import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
+import { isTauri } from '../../lib/tauri'
+import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -164,6 +166,10 @@ export default function SettingsPage(): JSX.Element {
               <option value="system">跟随系统</option>
             </select>
           </FieldRow>
+        </Section>
+
+        <Section title="录音采集 · Capture" desc="决定录音能拿到什么声音。">
+          <CaptureStatusRow />
         </Section>
 
         <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书「导出链接」都行），仅本地拉取。">
@@ -474,6 +480,65 @@ function StorageStatusRow(): JSX.Element {
           <span className="text-text-3"> — 建议导出 .zip 备份，浏览器可能在磁盘压力下清理数据</span>
         )}
       </span>
+    </div>
+  )
+}
+
+/**
+ * 当前录音采集模式 + 系统音频支持状态。
+ *
+ * 永远显示真值（不假装）：
+ *   - 浏览器：仅麦克风
+ *   - Tauri + screencapturekit 已实装：麦克风 + 系统声音（屏录权限需在
+ *     「系统设置 → 隐私与安全性 → 屏幕录制」允许 NotesToGO）
+ *   - Tauri 但未实装：仅麦克风 + 灰一行"未实装"
+ */
+function CaptureStatusRow(): JSX.Element {
+  const [status, setStatus] = useState<SystemAudioStatus | null>(null)
+  const [probing, setProbing] = useState(false)
+
+  async function probe(): Promise<void> {
+    if (probing) return
+    setProbing(true)
+    try {
+      setStatus(await systemAudioStatus())
+    } finally {
+      setProbing(false)
+    }
+  }
+  useEffect(() => {
+    void probe()
+  }, [])
+
+  const inTauri = isTauri()
+  const dot = status && 'supported' in status && status.supported && status.permission_granted
+    ? 'text-accent'
+    : 'text-warning'
+  const label = inTauri
+    ? status && 'supported' in status && status.supported
+      ? status.permission_granted
+        ? '麦克风 + 系统声音（Tauri · 屏录已授权）'
+        : '麦克风 + 系统声音（需在 macOS 「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO）'
+      : '仅麦克风（Tauri desktop · system-audio 未实装）'
+    : '仅麦克风（浏览器）'
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm text-text-1">
+        <span className={dot}>●</span>
+        <span>{label}</span>
+        <button
+          type="button"
+          onClick={() => void probe()}
+          disabled={probing}
+          className="btn-outline text-xs h-7 ml-auto"
+        >{probing ? '探测中…' : '重新探测'}</button>
+      </div>
+      <div className="text-[11px] text-text-3 leading-relaxed">
+        {inTauri
+          ? 'NotesToGO 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；如被拒请到「系统设置 → 隐私与安全性 → 屏幕录制」中手动允许。'
+          : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 NotesToGO macOS 桌面版。'}
+      </div>
     </div>
   )
 }

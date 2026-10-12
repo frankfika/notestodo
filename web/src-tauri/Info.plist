@@ -8,5 +8,13 @@
     <!-- 摄像头暂不使用，但预留以备未来的视频会议记录功能 -->
     <key>NSCameraUsageDescription</key>
     <string>拾贝暂未使用摄像头；若未来支持视频会议记录时会再次询问。</string>
+    <!--
+      Phase-2: macOS 屏录（系统音频 loopback）。用户首次启动会议录音、且希望
+      同时录到 Zoom/Meet 等会议播放声时，macOS TCC 会弹窗要求屏录授权。
+      用户也可在「系统设置 → 隐私与安全性 → 屏幕录制」中手动批准/撤销。
+      不批 → 仍可继续，仅 mic-only（前端会 banner 提示）。
+    -->
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>NotesToGO 桌面版需要屏幕录制权限以采集会议播放声（系统音频 loopback），用于生成会议转录与纪要。音频仅保存在您的设备本地。</string>
 </dict>
 </plist>
