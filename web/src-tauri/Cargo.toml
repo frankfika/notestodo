@@ -23,3 +23,9 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.12.1", features = [] }
 tauri-plugin-log = "2"
+# Phase-3: knowledge folder reindex — local .md/.txt walk + folder picker.
+# Plugins are no-op on non-mac targets; capability scope is narrowed to
+# $HOME + standard note dirs (no "**"). Dialog-picked paths gain access via
+# the OS security-scoped resource tracker, not via static scope widening.
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"

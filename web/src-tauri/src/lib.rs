@@ -76,6 +76,12 @@ pub fn run() {
             .build(),
         )?;
       }
+      // Phase-3: knowledge folder reindex. FS plugin gives read_text_file /
+      // read_dir; dialog plugin gives an Open dialog (folder/file picker)
+      // from the frontend. Both are no-op unless the desktop capability scope
+      // grants them — see capabilities/default.json for "fs:scope" / "fs:default".
+      app.handle().plugin(tauri_plugin_fs::init())?;
+      app.handle().plugin(tauri_plugin_dialog::init())?;
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
