@@ -35,6 +35,10 @@ const RETRIEVE_LIMIT_DEFAULT = 8
 const TITLE_BOOST = 0.4
 /** Tauri read_dir 一次性最大返回（够用；防止超宽目录炸内存） */
 const MAX_LOCAL_FILES = 2_000
+/** Reindex 时支持的文件后缀（keyword 检索：纯文本；Phase-3 新增 PDF） */
+const TEXT_EXTS = ['.md', '.markdown', '.txt']
+const PDF_EXTS = ['.pdf']
+const ALL_EXTS = [...TEXT_EXTS, ...PDF_EXTS]
 
 // ── Indexer（reindex） ──────────────────────────────────────────────────────
 
@@ -43,6 +47,8 @@ interface ListedFile {
   path: string
   mtime: number
   size_bytes: number
+  /** 'md' | 'pdf' — Phase-3: PDF takes a different read path (binary + extract). */
+  kind: 'md' | 'pdf'
 }
 
 /**
@@ -112,19 +118,19 @@ export async function reindexKnowledge(folders: string[]): Promise<{
 // ── Listers ────────────────────────────────────────────────────────────────
 
 /**
- * Tauri 本地目录递归走 .md / .txt（Phase-3 新增）。
+ * Tauri 本地目录递归走 .md / .txt / .pdf（Phase-3 新增）。
  *
  * 用 plugin:fs|read_dir 的 `recursive: true` 拿扁平的 FileInfo 列表 —— 比
  * 自己维护队列省一次 IPC、也避免权限链扩大的栈风险。过滤文件名后缀。
  *
- * 对单文件路径（folder 本身是 .md/.txt 文件），直接返回该文件。
+ * 对单文件路径（folder 本身是 .md/.txt/.pdf 文件），直接返回该文件。
  */
 async function listLocalFiles(folder: string): Promise<ListedFile[]> {
-  const isDirectFile = /\.(md|markdown|txt)$/i.test(folder)
-  if (isDirectFile) {
-    // folder 本身是一个本地 .md/.txt 文件 —— tauri-plugin-fs 无法 list
+  const directKind = kindOfFile(folder)
+  if (directKind) {
+    // folder 本身是一个本地文件 —— tauri-plugin-fs 无法 list
     // 其父目录（除非作用域未授权），索性当作单一文件处理。
-    return [{ path: basename(folder), mtime: Date.now(), size_bytes: 0 }]
+    return [{ path: basename(folder), mtime: Date.now(), size_bytes: 0, kind: directKind }]
   }
   type FileInfo = {
     path: string  // 完整路径
@@ -147,22 +153,23 @@ async function listLocalFiles(folder: string): Promise<ListedFile[]> {
   for (const entry of entries) {
     if (!entry.isFile || entry.isSymlink) continue
     const lower = entry.path.toLowerCase()
-    if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.txt')) {
-      // 相对路径：folder 是根，取相对部分供 UI 展示
-      const rel = relPath(entry.path, folder)
-      out.push({ path: rel, mtime: Date.now(), size_bytes: 0 })
-    }
+    const kind = kindOfFile(lower)
+    if (!kind) continue
+    // 相对路径：folder 是根，取相对部分供 UI 展示
+    const rel = relPath(entry.path, folder)
+    out.push({ path: rel, mtime: Date.now(), size_bytes: 0, kind })
   }
   return out
 }
 
 /**
- * Web / HTTP(S) URL 兼容路径（Phase-2 旧行为 + 直链 .md/.txt）。
- * 浏览器里 fetch 文件夹不可行；folder 本身若就是一个 .md/.txt URL 才有效。
+ * Web / HTTP(S) URL 兼容路径（Phase-2 旧行为 + 直链 .md/.txt/.pdf）。
+ * 浏览器里 fetch 文件夹不可行；folder 本身若就是一个可索引文件 URL 才有效。
  */
 async function listRemoteFiles(folder: string): Promise<ListedFile[]> {
-  if (/\.(md|markdown|txt)$/i.test(folder)) {
-    return [{ path: basename(folder), mtime: Date.now(), size_bytes: 0 }]
+  const kind = kindOfFile(folder)
+  if (kind) {
+    return [{ path: basename(folder), mtime: Date.now(), size_bytes: 0, kind }]
   }
   return []
 }
@@ -176,7 +183,9 @@ async function readAndIndexFile(
 ): Promise<KnowledgeEntry | null> {
   let text: string
   try {
-    if (useLocal) {
+    if (file.kind === 'pdf') {
+      text = await readPdfBody(folder, file, useLocal)
+    } else if (useLocal) {
       // plugin:fs|read_text_file — 以 folder 为基准拼绝对路径
       const abs = joinPath(folder, file.path)
       text = await invoke<string>('plugin:fs|read_text_file', { path: abs })
@@ -197,7 +206,7 @@ async function readAndIndexFile(
     id,
     folder,
     path: file.path,
-    title: file.path.replace(/\.(md|markdown|txt)$/i, ''),
+    title: file.path.replace(/\.(md|markdown|txt|pdf)$/i, ''),
     snippet: text.slice(0, SNIPPET_CHARS).replace(/\s+/g, ' ').trim(),
     fullText: text.length > FULLTEXT_CAP ? text.slice(0, FULLTEXT_CAP) : text,
     mtime: file.mtime,
@@ -209,12 +218,70 @@ async function readAndIndexFile(
   }
 }
 
+/**
+ * PDF 路径：拿原始字节，调 pdfjs-dist 抽文字。
+ * 抽不出来的（损坏 / 扫描件 / 加密）→ 返回空字符串，让 caller 走 "skip"。
+ */
+async function readPdfBody(
+  folder: string,
+  file: ListedFile,
+  useLocal: boolean,
+): Promise<string> {
+  let bytes: Uint8Array | null = null
+  try {
+    if (useLocal) {
+      const abs = joinPath(folder, file.path)
+      // plugin:fs|read_file 返回 Uint8Array（base64 iframe 在 Rust 端解）
+      const raw = await invoke<number[] | Uint8Array | string>('plugin:fs|read_file', { path: abs })
+      bytes = normaliseBytes(raw)
+    } else {
+      const url = joinUrlLike(folder, file.path)
+      if (!url) return ''
+      const res = await fetch(url)
+      if (!res.ok) return ''
+      const buf = await res.arrayBuffer()
+      bytes = new Uint8Array(buf)
+    }
+  } catch {
+    return ''
+  }
+  if (!bytes) return ''
+  try {
+    const { extractPdfText } = await import('./pdf')
+    return await extractPdfText(bytes)
+  } catch {
+    return ''
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function basename(p: string): string {
   // 支持绝对 POSIX 路径与 URL 末尾路径段
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
   return i >= 0 ? p.slice(i + 1) : p
+}
+
+/** 文件后缀 → kind；非可索引文件返回 null。 */
+function kindOfFile(name: string): 'md' | 'pdf' | null {
+  const lower = name.toLowerCase()
+  for (const ext of TEXT_EXTS) if (lower.endsWith(ext)) return 'md'
+  for (const ext of PDF_EXTS) if (lower.endsWith(ext)) return 'pdf'
+  return null
+}
+
+/** tauri-plugin-fs 的 read_file 历史版本返回值 shape 不一：number[] / Uint8Array / base64 string 都见过。统一成 Uint8Array。 */
+function normaliseBytes(raw: number[] | Uint8Array | string): Uint8Array {
+  if (raw instanceof Uint8Array) return raw
+  if (typeof raw === 'string') {
+    // base64 兜底（极少见，留一手）
+    const bin = atob(raw)
+    const out = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+    return out
+  }
+  // number[]
+  return new Uint8Array(raw)
 }
 
 function joinPath(folder: string, file: string): string {
