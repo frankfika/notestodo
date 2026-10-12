@@ -321,17 +321,31 @@ fn extract_f32_samples(
     if buffers.is_empty() {
         return None;
     }
-    let mut out: Vec<f32> = Vec::new();
-    for buf in buffers {
-        let bytes = buf.data;
-        if bytes.len() % 4 != 0 {
-            continue;
+    // SCK 默认给 non-interleaved（planar）：一个 buffer 一个声道。
+    // 前端按 interleaved 解码，所以多 buffer 时在这里逐帧交错；
+    // 单 buffer 视为已 interleaved，原样输出。
+    let planes: Vec<Vec<f32>> = buffers
+        .iter()
+        .filter(|b| b.data.len() % 4 == 0)
+        .map(|b| {
+            b.data
+                .chunks_exact(4)
+                .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                .collect()
+        })
+        .collect();
+    let out: Vec<f32> = if planes.len() == 1 {
+        planes.into_iter().next().unwrap_or_default()
+    } else {
+        let frames = planes.iter().map(Vec::len).min().unwrap_or(0);
+        let mut v = Vec::with_capacity(frames * planes.len());
+        for i in 0..frames {
+            for p in &planes {
+                v.push(p[i]);
+            }
         }
-        for chunk in bytes.chunks_exact(4) {
-            let arr: [u8; 4] = chunk.try_into().ok()?;
-            out.push(f32::from_le_bytes(arr));
-        }
-    }
+        v
+    };
     if out.is_empty() {
         None
     } else {

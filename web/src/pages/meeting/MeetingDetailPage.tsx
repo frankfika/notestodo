@@ -419,7 +419,6 @@ function LiveClock({ meetingId }: { meetingId: string }): JSX.Element {
 
 // ── 速记 Scribble ─────────────────────────────────────────────────
 // 会中只记 2–3 字的 bullet；本地防抖保存到 meeting.scribble_md。
-// TODO(tauri): ScreenCaptureKit 系统音频采集（Phase-1 web 仅麦克风）。
 function ScribblePane({
   meeting, live, canPolish, onPolish,
 }: {

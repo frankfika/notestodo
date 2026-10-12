@@ -1,9 +1,9 @@
 /**
  * Tauri Rust 端 system-audio 命令薄封装。
  *
- * 仅探测/调用；不做实际混音。实际 SCStream → f32 PCM → Tauri event →
- * audio/engine.ts 的混音在 Rust 端 + 后续 PR 完成（见
- * src-tauri/src/system_audio.rs + README Phase-3）。
+ * 仅探测/调用；混音在 audio/systemMix.ts（PCM → AudioContext →
+ * MediaStreamDestination，由 audio/engine.ts 接线）。SCStream 采集见
+ * src-tauri/src/system_audio.rs。
  *
  * 前端按 `isTauri() && supported` 决定是否走 system-audio 路径；
  * 不支持一律 mic-only + banner（绝不在 UI 假装成功）。
@@ -83,10 +83,8 @@ export async function stopSystemAudio(): Promise<void> {
 
 // ── system_audio:chunk 事件订阅（Phase-3 Gap 1）────────────────────────
 //
-// Rust 端 SCStream 把 f32 PCM 按 30ms 一批通过这个事件推过来。本期只
-// 探测通道是否真在流（用于诊断），并把累积样本数露给 dev console。
-// 后续 PR（Phase-4）会用 AudioContext 建 MediaStreamAudioSourceNode 把
-// 这些 PCM 拼到 MediaRecorder 的 mic track → 真正的 mic+system 录音。
+// Rust 端 SCStream 把 interleaved f32 PCM 按 ~30ms 一批推过来，
+// audio/systemMix.ts 订阅后排进 AudioContext 与麦克风混录。
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 

@@ -4,7 +4,7 @@
 
 产品名 **NotesToGO**（仓库名 notestodo，「拾贝 Shibei」为旧名/别名）。一个 AI-native 的会议速记 + 嵌套 OKR 应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
-**当前状态（2026-10-12）**：Phase-1～3 已合入 `main`（嵌套 OKR、Scribble→Polish、暖浅色主题、本地 LLM/ASR、知识库+Assist、macOS ScreenCaptureKit 系统音频采集）。桌面包名 **拾贝**；PCM 混录进 MediaRecorder 见 Phase-4。
+**当前状态（2026-10-12）**：Phase-1～3 已合入 `main`（嵌套 OKR、Scribble→Polish、暖浅色主题、本地 LLM/ASR、知识库+Assist、macOS ScreenCaptureKit 系统音频采集）。桌面包名 **拾贝**；Phase-4 已把系统声音 PCM 混进录音文件。
 
 ## 核心特性
 
@@ -17,7 +17,7 @@
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
-- **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
+- **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端并混入录音，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
 - **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
 - **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 
@@ -107,7 +107,7 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
   1. 启动 NotesToGO 桌面版（`pnpm tauri dev` / 已打包 .app）
   2. 首次录音时 macOS 弹「屏幕录制」授权；批准后 NotesToGO 可同时录到 Zoom/Meet 播放声
   3. 若用户在「系统设置 → 隐私与安全性 → 屏幕录制」中撤销 → 仍可继续，但仅 mic-only（同一 honest banner）
-  4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。前端本期只 banner（`captureMode='mic+system'`），把 PCM 拼进 MediaRecorder 留 Phase-4。
+  4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。Phase-4：前端 `audio/systemMix.ts` 把 PCM 排进 AudioContext，与麦克风一起混入 MediaStreamDestination，MediaRecorder 录混合流，系统声音真正写入录音文件。
 - **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未授权屏录 / 非 macOS），不会让用户误以为系统声音已录上。
 
 #### 首次授权步骤（必须手动批准）
@@ -172,7 +172,7 @@ Web 版（无 Tauri）依然可粘贴 HTTP(S) 直链 .md / .txt（GitHub raw 之
 
 ### 关键 commit
 
-Phase-3 完整 brief 见 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md)。下一步（Phase-4）：把 `system_audio:chunk` PCM 混进 MediaRecorder，让系统声音真正写入录音文件。
+Phase-3 完整 brief 见 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md)。Phase-4（已完成）：`system_audio:chunk` PCM 经 `audio/systemMix.ts` 混进 MediaRecorder；Rust 端对 planar 多声道 buffer 做交错。macOS 真机验证需 Fang 授权屏录后手动录一场确认。
 
 ## 状态机
 

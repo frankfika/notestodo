@@ -5,6 +5,7 @@ import { runTranscribePipeline } from '../pipeline/transcribe'
 import { chunksInOrder } from './merge'
 import { isTauri } from '../lib/tauri'
 import { systemAudioStatus, startSystemAudio, stopSystemAudio } from '../lib/tauriSystemAudio'
+import { startSystemMix, type SystemMix } from './systemMix'
 import type {
   AudioChunk,
   Meeting,
@@ -51,6 +52,11 @@ interface ActiveEngine {
   /** AudioContext + AnalyserNode for live level metering */
   audioCtx: AudioContext | null
   analyser: AnalyserNode | null
+  /** mic+system 模式：混音目的地（MediaRecorder 录它而非裸 mic stream） */
+  mixDest: MediaStreamAudioDestinationNode | null
+  /** 当前 mic 的 MediaStreamSource（恢复时需断开重建） */
+  micSource: MediaStreamAudioSourceNode | null
+  sysMix: SystemMix | null
   /** pending resume after a visibility/track-ended interruption */
   resuming: boolean
 }
@@ -107,14 +113,6 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     captureModeNote: null,
   })
 
-  // Phase-2: 探测系统音频支持。MVP 永远 mic-only（Rust 端 screencapturekit
-  // 集成见 TODO），但保持探测代码 ready — 实装后这里会自动升级。
-  // 不在主路径上 await：探测失败 / 慢也只影响 banner，不阻塞录音启动。
-  void probeSystemAudio().catch((e) => {
-    console.warn('systemAudioStatus 探测失败', e)
-    setRecorderPartial({ captureMode: 'mic-only', captureModeNote: null })
-  })
-
   let stream: MediaStream
   try {
     stream = await acquireStream()
@@ -124,33 +122,74 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     throw e instanceof Error ? e : new Error(msg)
   }
 
-  const mimeType = pickMimeType()
-  const meetingId = await createMeetingWithFirstChunk(
-    opts?.title ?? defaultTitle(),
-    mimeType,
-  )
-
-  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-  const startedAtMs = Date.now()
-
-  // 实时电平表：AudioContext + AnalyserNode，从同一 stream 拉取但不录音流本身。
-  // analyser 的目的是"让用户看见麦在响"——录音仍走 MediaRecorder。
+  // 音频图：mic → analyser（电平）；Tauri 且系统音频可用时再加
+  // mic + system → MediaStreamDestination，MediaRecorder 录混合流。
+  // Web / 未授权 / 失败 → 直接录裸 mic stream（行为不变）。
   let audioCtx: AudioContext | null = null
   let analyser: AnalyserNode | null = null
+  let micSource: MediaStreamAudioSourceNode | null = null
+  let mixDest: MediaStreamAudioDestinationNode | null = null
+  let sysMix: SystemMix | null = null
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     if (AC) {
       audioCtx = new AC()
-      const source = audioCtx.createMediaStreamSource(stream)
+      micSource = audioCtx.createMediaStreamSource(stream)
       analyser = audioCtx.createAnalyser()
       analyser.fftSize = 256
       analyser.smoothingTimeConstant = 0.6
-      source.connect(analyser)
+      micSource.connect(analyser)
     }
   } catch (e: unknown) {
     // 不影响录音主路径
     console.warn('AudioContext analyser 初始化失败', e)
   }
+
+  if (audioCtx && micSource && isTauri()) {
+    try {
+      const sys = await startSystemCapture(audioCtx)
+      if (sys) {
+        sysMix = sys
+        mixDest = audioCtx.createMediaStreamDestination()
+        micSource.connect(mixDest)
+        sys.output.connect(mixDest)
+        if (analyser) sys.output.connect(analyser)
+      }
+    } catch (e) {
+      console.warn('系统音频混音初始化失败，降级仅麦克风', e)
+      void stopSystemAudio()
+      sysMix?.stop()
+      sysMix = null
+      mixDest = null
+      setRecorderPartial({ captureMode: 'unsupported', captureModeNote: msgOf(e) })
+    }
+  } else {
+    setRecorderPartial({ captureMode: 'mic-only', captureModeNote: null })
+  }
+
+  const mimeType = pickMimeType()
+  let meetingId: string
+  let recorder: MediaRecorder
+  try {
+    meetingId = await createMeetingWithFirstChunk(
+      opts?.title ?? defaultTitle(),
+      mimeType,
+    )
+    recorder = new MediaRecorder(
+      mixDest ? mixDest.stream : stream,
+      mimeType ? { mimeType } : undefined,
+    )
+  } catch (e) {
+    // 不泄漏麦克风 / AudioContext / SCStream
+    for (const t of stream.getTracks()) t.stop()
+    sysMix?.stop()
+    if (sysMix) void stopSystemAudio()
+    void audioCtx?.close().catch(() => undefined)
+    const msg = describeError(e)
+    setRecorderPartial({ phase: 'error', error: msg, captureMode: 'mic-only' })
+    throw e instanceof Error ? e : new Error(msg)
+  }
+  const startedAtMs = Date.now()
 
   active = {
     meetingId,
@@ -164,6 +203,9 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     levelTimer: null,
     audioCtx,
     analyser,
+    mixDest,
+    micSource,
+    sysMix,
     resuming: false,
   }
 
@@ -234,16 +276,13 @@ export async function stopRecorder(): Promise<string | null> {
   const meetingId = active.meetingId
   setRecorderPartial({ phase: 'stopping' })
 
-  // 顺手停系统音频（若 startSystemAudio 启了 SCStream；best-effort）
-  void stopSystemAudio()
-
   // 关键：recorder.stop() 会触发最后一次 ondataavailable（tail chunk）。
   // 必须保持 active 直到它落库，否则 allocateSeq 返回 null → tail chunk
   // 被写成 seq=-1，merge/finalise 按 seq 排序时最后一段音频会排到最前
   //（长录音转录错序的根因）。先记下引用再等待。
   const recorder = active.recorder
   const stream = active.stream
-  const timer = active.timer
+  const engine = active
   const finalFlush = new Promise<void>((resolve) => {
     const prevOnData = recorder.ondataavailable
     recorder.ondataavailable = (ev) => {
@@ -274,9 +313,8 @@ export async function stopRecorder(): Promise<string | null> {
     }
   }
 
-  if (timer !== null) {
-    clearInterval(timer)
-  }
+  // 录音器已 flush，才能关 AudioContext / 混音（否则尾块会丢）
+  releaseAudio(engine)
   active = null
 
   // Update meeting.ended_at and persist final audio stats. We do this
@@ -518,6 +556,24 @@ async function handleTrackEnded(meetingId: string): Promise<void> {
     const stream = await acquireStream()
     // Replace the stream on the active recorder.
     active.stream = stream
+    // 把新 mic 重新接进音频图（电平表在恢复后也要继续动）
+    if (active.audioCtx) {
+      try { active.micSource?.disconnect() } catch { /* ignore */ }
+      const src = active.audioCtx.createMediaStreamSource(stream)
+      if (active.analyser) src.connect(active.analyser)
+      if (active.mixDest) src.connect(active.mixDest)
+      active.micSource = src
+    }
+    if (active.mixDest) {
+      // 混音模式：MediaRecorder 录的是 mixDest.stream，不会因 mic 断开而死，
+      // 系统声音全程不断，无需重建 recorder。
+      for (const track of stream.getAudioTracks()) {
+        track.addEventListener('ended', () => handleTrackEnded(meetingId))
+      }
+      active.resuming = false
+      setRecorderPartial({ interrupted: false, error: null })
+      return
+    }
     const recorder = new MediaRecorder(
       stream,
       active.mimeType ? { mimeType: active.mimeType } : undefined,
@@ -592,16 +648,7 @@ function teardown(): void {
       // ignore
     }
   }
-  if (active.timer !== null) clearInterval(active.timer)
-  if (active.levelTimer !== null) clearInterval(active.levelTimer)
-  if (active.audioCtx) {
-    try {
-      void active.audioCtx.close()
-    } catch {
-      // ignore
-    }
-  }
-  setRecorderPartial({ audioLevel: 0 })
+  releaseAudio(active)
   active = null
 }
 
@@ -660,41 +707,53 @@ function defaultTitle(): string {
   return `会议 · ${stamp}`
 }
 
-// ── Phase-2: 系统音频探测 ────────────────────────────────────────────────────
+// ── 系统音频（Phase-3 采集 + Phase-4 混音）──────────────────────────────────
+
+function msgOf(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
 
 /**
- * 探测 Tauri 端系统音频采集能力，并把结果写到 store 让 UI 展示。
- *
- * 行为（按优先级降级）：
- *   1. Rust 端 supported + 已获批屏录权限 → captureMode='mic+system'（注：
- *      当前 MVP Rust 端永远返回 supported=false，所以本分支不触发）
- *   2. Rust 端 supported 但未授权 → captureMode='unsupported' + 提示去设置授权
- *   3. 不在 Tauri / 无命令 / 抛错 → captureMode='mic-only'，note=null（不打扰）
- *
- * 注：探测不影响主录音路径（mic 永远先 getUserMedia）。失败/不支持时 UI
- * 显示 banner，但录音照常进行 — mic 本来就够 Zoom/Meet 听对方说话。
+ * Tauri 端：探测 → 启动 SCStream → 接入混音。成功返回 SystemMix 并把
+ * captureMode 翻 'mic+system'；不支持 / 未授权 / 启动失败 → 返回 null 且
+ * captureMode='unsupported' + 原因（honest banner），录音照常只录麦克风。
  */
-async function probeSystemAudio(): Promise<void> {
-  if (!isTauri()) {
-    setRecorderPartial({ captureMode: 'mic-only', captureModeNote: null })
-    return
-  }
+async function startSystemCapture(ctx: AudioContext): Promise<SystemMix | null> {
   const status = await systemAudioStatus()
   if (!status.supported) {
     setRecorderPartial({ captureMode: 'unsupported', captureModeNote: status.reason })
-    return
+    return null
   }
-  if (status.supported && !status.permission_granted) {
+  if (!status.permission_granted) {
     setRecorderPartial({ captureMode: 'unsupported', captureModeNote: status.note })
-    return
+    return null
   }
-  // 走到这：Rust 真支持且已授权。试着启动 SCStream；当前 MVP 一定 false。
+  // 先订阅再启动，避免丢首批 chunk
+  const mix = await startSystemMix(ctx)
   const start = await startSystemAudio()
-  if (start.ok) {
-    setRecorderPartial({ captureMode: 'mic+system', captureModeNote: null })
-  } else {
+  if (!start.ok) {
+    mix.stop()
     setRecorderPartial({ captureMode: 'unsupported', captureModeNote: start.reason })
+    return null
   }
+  setRecorderPartial({ captureMode: 'mic+system', captureModeNote: null })
+  return mix
+}
+
+/** 释放计时器 / 混音 / SCStream / AudioContext（stop 与 teardown 共用）。 */
+function releaseAudio(e: ActiveEngine): void {
+  if (e.timer !== null) clearInterval(e.timer)
+  if (e.levelTimer !== null) clearInterval(e.levelTimer)
+  e.timer = null
+  e.levelTimer = null
+  if (e.sysMix) {
+    e.sysMix.stop()
+    void stopSystemAudio()
+  }
+  if (e.audioCtx) {
+    void e.audioCtx.close().catch(() => undefined)
+  }
+  setRecorderPartial({ audioLevel: 0 })
 }
 
 // 开发模式调试入口：暴露 active stream 让 e2e 能模拟麦克风中断（track ended）。
