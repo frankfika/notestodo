@@ -109,7 +109,8 @@ test('Meeting 删除：级联清理 chatMessages（以及 audioChunks/transcript
   await page.waitForTimeout(800)
 
   // 找到「删除」按钮（btn-danger）+ 点击（dialog 自动 accept）
-  const deleteBtn = page.getByRole('button', { name: '删除' }).first()
+  await page.getByRole('button', { name: '更多' }).click()
+  const deleteBtn = page.getByRole('button', { name: '删除会议' }).first()
   await deleteBtn.click({ timeout: 5_000 })
   await page.waitForTimeout(2000) // 等级联删除完成 + 导航
 
