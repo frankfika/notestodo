@@ -15,6 +15,9 @@
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
+- **Phase-2 系统音频**（macOS 桌面版）：通过 Tauri 2 + ScreenCaptureKit 录制会议播放声；**当前 MVP 命令表面齐全、screencapturekit 集成见 TODO**。浏览器 / 未授权时仅录制麦克风，UI 显示 honest banner，绝不假装成功。
+- **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
+- **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 
 ## 仓库结构
 
@@ -59,6 +62,12 @@ pnpm tauri dev     # 原生窗口开发模式（自动起 vite）
 pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 ```
 
+**Tauri 端 macOS 授权**（Phase-2 system-audio 路径）：
+- `NSMicrophoneUsageDescription`（录音）— 首次启动弹框
+- `NSScreenCaptureUsageDescription`（系统音频 loopback）— 首次启用 system-audio 时弹框
+- 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后 NotesToGO 自动降级到 mic-only + 同一 honest banner
+- 当前 MVP：Rust 端命令表面齐全，SCStream 实际接线见 `src-tauri/src/lib.rs` 的 `TODO(system-audio)` 标记
+
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
 
 ## 设计语言
@@ -74,13 +83,54 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 | 维度 | 选择 | 理由 |
 |------|------|------|
-| 平台 | Web（MVP） | 一份代码覆盖 mac/iPad/iPhone；后续 Tauri 包装 |
+| 平台 | Web（MVP） + Tauri 2 macOS desktop | 一份代码覆盖 mac/iPad/iPhone；桌面版承担系统音频 / 屏录授权 |
 | 存储 | Local-first（Dexie / IndexedDB） | 录音是敏感数据；断网可录；同步问题从 Day 1 降级 |
 | 转录 | MiniMax / Deepgram / Whisper 多 provider | BYOK；用户按价格/语言/说话人分离能力选择 |
 | 总结 | Anthropic-兼容 LLM（MiniMax M3 / Claude） | 中文质量 + 结构化输出 + 长上下文 |
+| 本地 LLM | Ollama（首选 preset）/ LM Studio / MLX / 自建 OpenAI 兼容 | Ollama 一行 `ollama serve` 就能跑；Ollama 跑不动再换 MLX |
+| 系统音频 | Tauri + ScreenCaptureKit (macOS) | 平台原生 loopback，无需 meeting bot；屏录权限用户在「系统设置」批准 |
+| 知识库 | MVP: keyword + 标题匹配（lib/knowledge.ts）| 零外部依赖，中英文混排都可用；升级到 on-device embedding 留接口 |
 | 日历 | .ics 订阅（ical.js） | 零 OAuth/审批，覆盖 Apple/Google/QQ/Outlook |
 | 导出 | .zip 含音频（fflate） | 数据所有权；14 KB minified |
 | 同步 | MVP 不做（M3 用 LWW） | 验证 PMF 前不投入 |
+
+## Phase-2 能力（Foresight 路线图）
+
+> 详细设计见 [`docs/FORESIGHT_OKR_REDESIGN.md`](docs/FORESIGHT_OKR_REDESIGN.md)。本节是给「现在就要跑起来」的用户看的。
+
+### 1. 系统音频（macOS 桌面版）
+
+- **Web 路径**（默认）：浏览器仅能拿到麦克风（DRM / 平台限制）。UI 在录音条下方显示 banner：「浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。」
+- **Tauri 桌面版路径**：
+  1. 启动 NotesToGO 桌面版（`pnpm tauri dev` / 已打包 .app）
+  2. 首次录音时 macOS 弹「屏幕录制」授权；批准后 NotesToGO 可同时录到 Zoom/Meet 播放声
+  3. 若用户在「系统设置 → 隐私与安全性 → 屏幕录制」中撤销 → 仍可继续，但仅 mic-only（同一 honest banner）
+  4. **当前 MVP 状态**：Rust 端命令 `system_audio_status` / `system_audio_start` / `system_audio_stop` 已注册到 `invoke_handler!`；实际 SCStream 接线（screencapturekit crate 集成）见 `src-tauri/src/lib.rs` 的 `TODO(system-audio)` 标记。本期前置工作就绪，PR 接入 screencapturekit 即可启用。
+- **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未实装），不会让用户误以为系统声音已录上。
+
+### 2. 本地 LLM
+
+- **Cloud BYOK**（默认）：填 MiniMax / Anthropic / OpenAI 兼容网关的 key；原有功能不变。
+- **Local**：填 Ollama / LM Studio / MLX / 自建 OpenAI 兼容端点；API Key 留空即可（Ollama 默认无鉴权），Model 填已下载的模型名。
+  - 切到 Local 模式不会清空 Cloud 那一侧的字段；反之亦然。
+  - **Ollama 启动**：`ollama serve`（默认 `http://127.0.0.1:11434/v1`）。若模型放在外置盘（如 UGREEN），启动前 `export OLLAMA_MODELS=/Volumes/UGREEN/ollama`。
+  - **LM Studio**：开启 Local Server，端口 1234 → Base URL `http://127.0.0.1:1234/v1`。
+- **测试连接** 在 Local 模式下会请求 `/v1/models`（Ollama 实现），拉到已下载模型列表即视为通。
+- **降级**：若端点不通，UI 给出明确错误（如「HTTP 502: connection refused」），不会让用户以为 LLM 在跑。
+
+### 3. 知识库 + Live Assist
+
+- **添加文件夹**（Settings → 知识库）：粘贴 .md / .txt 路径（HTTP URL 也可；web 路径用 `fetch` 读）。点「重新索引」建索引。
+- **Live Assist Tab**（会议详情 → 助手）：
+  - 速记非空时自动用速记作 query；录音中持续重检索
+  - 找到的相关卡片可「固定」到会议，pinned 卡片持久化在 `pinnedAssistCards` 表
+  - 「没有匹配」是空态，不报错
+- **MVP 限制**：当前仅 keyword + 标题匹配（bigram Jaccard + CJK 2-gram）；不支持语义检索。
+- **升级路径**（接口不变）：替换 `lib/knowledge.ts` 的 `retrieveKnowledge()` 实现，调用方零改动。推荐方向：
+  - On-device embedding：EmbeddingGemma 2（Google，~50MB，300M 参数）or `fastembed-wasm`
+  - Chunked 索引（按段落 / 滑动窗口 256 token）
+  - 向量存储：先 `sqlite-vss`，后续换 `lancedb` 持久化
+  - 检索融合：保留 keyword 兜底（title 命中 + 罕见专有名词仍需）
 
 ## 状态机
 
