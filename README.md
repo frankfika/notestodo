@@ -15,7 +15,7 @@
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
-- **Phase-2 系统音频**（macOS 桌面版）：通过 Tauri 2 + ScreenCaptureKit 录制会议播放声；**当前 MVP 命令表面齐全、screencapturekit 集成见 TODO**。浏览器 / 未授权时仅录制麦克风，UI 显示 honest banner，绝不假装成功。
+- **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`tauri-plugin-fs` 0.2 直 FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
 - **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
 - **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 
@@ -98,15 +98,24 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 > 详细设计见 [`docs/FORESIGHT_OKR_REDESIGN.md`](docs/FORESIGHT_OKR_REDESIGN.md)。本节是给「现在就要跑起来」的用户看的。
 
-### 1. 系统音频（macOS 桌面版）
+### 1. 系统音频（macOS 桌面版 · Phase-3 已实装）
 
 - **Web 路径**（默认）：浏览器仅能拿到麦克风（DRM / 平台限制）。UI 在录音条下方显示 banner：「浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。」
-- **Tauri 桌面版路径**：
+- **Tauri 桌面版路径**（macOS，Phase-3 已实装）：
   1. 启动 NotesToGO 桌面版（`pnpm tauri dev` / 已打包 .app）
   2. 首次录音时 macOS 弹「屏幕录制」授权；批准后 NotesToGO 可同时录到 Zoom/Meet 播放声
   3. 若用户在「系统设置 → 隐私与安全性 → 屏幕录制」中撤销 → 仍可继续，但仅 mic-only（同一 honest banner）
-  4. **当前 MVP 状态**：Rust 端命令 `system_audio_status` / `system_audio_start` / `system_audio_stop` 已注册到 `invoke_handler!`；实际 SCStream 接线（screencapturekit crate 集成）见 `src-tauri/src/lib.rs` 的 `TODO(system-audio)` 标记。本期前置工作就绪，PR 接入 screencapturekit 即可启用。
-- **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未实装），不会让用户误以为系统声音已录上。
+  4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。前端本期只 banner（`captureMode='mic+system'`），把 PCM 拼进 MediaRecorder 留 Phase-4。
+- **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未授权屏录 / 非 macOS），不会让用户误以为系统声音已录上。
+
+#### 首次授权步骤（Fang 必须手动批准）
+
+1. 启动桌面版，录音一次 → macOS 自动弹「NotesToGO 想录制屏幕吗？」
+2. 若点了「不允许」或在 System Settings 里撤销：
+   - 「系统设置 → 隐私与安全性 → 屏幕录制」中打开 NotesToGO 开关
+   - 杀掉并重启 NotesToGO（macOS TCC 不会即时刷新已运行的进程）
+3. 重启后再录音 → banner 自动翻「麦克风 + 系统声音」
+
 
 ### 2. 本地 LLM
 
@@ -131,6 +140,37 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
   - Chunked 索引（按段落 / 滑动窗口 256 token）
   - 向量存储：先 `sqlite-vss`，后续换 `lancedb` 持久化
   - 检索融合：保留 keyword 兜底（title 命中 + 罕见专有名词仍需）
+
+## Phase-3 增量（feat/foresight-okr）
+
+| Gap | 内容 | 关键文件 |
+| --- | --- | --- |
+| 5 | `@tauri-apps/api` 装好 + `tauriInvoke.ts` 不再走 `new Function('import')` hack | `web/src/lib/tauriInvoke.ts`、`web/package.json` |
+| 4 | Local ASR 路径：Settings 加 Cloud \| Local ASR 切换 + Whisper / MLX / faster-whisper openai-compatible 客户端；`asr_mode` / `local_asr_*` 字段 + `resolveASRConfig` 镜像 Local LLM 模式 | `web/src/types.ts`、`web/src/transcribe/openai-whisper.ts`、`web/src/llm/test-connection.ts`、`web/src/pages/settings/SettingsPage.tsx` |
+| 2 | Tauri 端 `tauri-plugin-fs` + `tauri-plugin-dialog` 实装；桌面端递归 walk .md/.txt → knowledgeEntries；web 端 fallback 到 HTTP(S)。scope 缩窄到 `$HOME`/`$DOCUMENT`/`$DESKTOP`/`$DOWNLOAD`，**不**放 `"**"`。 | `web/src-tauri/Cargo.toml`、`web/src-tauri/capabilities/default.json`、`web/src-tauri/src/lib.rs`、`web/src/lib/knowledge.ts`、`web/src/pages/settings/SettingsPage.tsx` |
+| 3 | PDF 索引（`pdfjs-dist` lazy chunk + worker）：Vite 自动 code-split，用户不碰 PDF 时主 bundle 不增负担。扫描件 / 损坏 → 静默 skip。 | `web/src/lib/pdf.ts`、`web/src/lib/knowledge.ts` |
+| 1 | ScreenCaptureKit 系统音频采集（macOS）：`screencapturekit-sys` 0.2 直 ObjC FFI（避开 screencapturekit 11 的 swift-bridge 需要完整 Xcode 的问题）；48kHz/2ch Float32 PCM → Tauri event `system_audio:chunk` → 前端 banner。Phase-4 PR 会把 PCM 拼进 MediaRecorder。 | `web/src-tauri/src/system_audio.rs`、`web/src-tauri/src/lib.rs`、`web/src/lib/tauriSystemAudio.ts` |
+
+### Local ASR 起手（whisper.cpp / MLX STT / faster-whisper 兼容）
+
+```bash
+# whisper.cpp（OpenAI-compatible 默认端口 8080）
+whisper-server --inference-path  # 或 ./server --model ~/models/ggml-base.en.bin
+
+# MLX STT、faster-whisper 也都暴露 POST {base}/v1/audio/transcriptions，
+# Settings → Local ASR → Base URL 填对应端点，API Key 留空（whisper.cpp
+# 默认无鉴权）→ 测试连接 → 切 Cloud → Local 用……自动切到本地 STT
+```
+
+### Knowledge folder 起手
+
+桌面版 → 「📁 选文件夹」按钮弹系统文件夹选择器 → 选中目录 → 「重新索引」→ 助手 Tab 即可检索。
+
+Web 版（无 Tauri）依然可粘贴 HTTP(S) 直链 .md / .txt（GitHub raw 之类）；本地路径在 web 里会被静默跳过。
+
+### 关键 commit
+
+`git log --oneline feat/foresight-okr -10` 看全部 Phase-3 提交。Phase-3 完整 brief 在 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md)。
 
 ## 状态机
 
