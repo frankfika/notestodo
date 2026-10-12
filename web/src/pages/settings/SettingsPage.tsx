@@ -8,6 +8,7 @@ import { exportData, importData } from '../../data/io'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
 import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
+import { useUI } from '../../state/ui'
 import { isTauri } from '../../lib/tauri'
 import { invoke } from '../../lib/tauriInvoke'
 import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
@@ -753,8 +754,8 @@ function CaptureStatusRow(): JSX.Element {
     ? status && 'supported' in status && status.supported
       ? status.permission_granted
         ? '麦克风 + 系统声音（Tauri · 屏录已授权）'
-        : '麦克风 + 系统声音（需在 macOS 「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO）'
-      : '仅麦克风（Tauri desktop · system-audio 未实装）'
+        : '麦克风 + 系统声音（需在 macOS 「系统设置 → 隐私与安全性 → 屏幕录制」中允许「拾贝」，点右侧「授权向导」一键完成）'
+      : '仅麦克风（当前平台不支持系统音频采集）'
     : '仅麦克风（浏览器）'
 
   return (
@@ -768,10 +769,17 @@ function CaptureStatusRow(): JSX.Element {
           disabled={probing}
           className="btn-outline text-xs h-7 ml-auto"
         >{probing ? '探测中…' : '重新探测'}</button>
+        {inTauri && (
+          <button
+            type="button"
+            onClick={() => useUI.getState().setPermGuideOpen(true)}
+            className="btn-primary text-xs h-7"
+          >授权向导</button>
+        )}
       </div>
       <div className="text-[11px] text-text-3 leading-relaxed">
         {inTauri
-          ? 'NotesToGO 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；如被拒请到「系统设置 → 隐私与安全性 → 屏幕录制」中手动允许。'
+          ? 'NotesToGO 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；未授权时点「授权向导」即可一键授权、直达设置页并重启生效。'
           : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 NotesToGO macOS 桌面版。'}
       </div>
     </div>

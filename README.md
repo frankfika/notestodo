@@ -110,7 +110,11 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
   4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。Phase-4：前端 `audio/systemMix.ts` 把 PCM 排进 AudioContext，与麦克风一起混入 MediaStreamDestination，MediaRecorder 录混合流，系统声音真正写入录音文件。
 - **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未授权屏录 / 非 macOS），不会让用户误以为系统声音已录上。
 
-#### 首次授权步骤（必须手动批准）
+#### 首次授权：应用内向导（推荐）
+
+桌面版首次启动若未授权屏幕录制，会自动弹出「开启系统声音录制」向导：**一键授权**（触发系统弹窗，并把「拾贝」自动加进屏幕录制列表）→ **打开系统设置**（直达屏幕录制页，只需拨开关）→ **重启拾贝**（macOS 要求重启才生效）。授权状态实时检测，成功后自动切到完成态。之后可从录音条 banner 的「一键开启」或 设置 → 录音采集 → 「授权向导」再次打开。
+
+#### 手动授权步骤（向导打不开时的备选）
 
 1. 启动桌面版（`/Applications/拾贝.app` 或 `pnpm tauri dev`），录音一次 → macOS 自动弹屏录授权
 2. 若点了「不允许」或在 System Settings 里撤销：

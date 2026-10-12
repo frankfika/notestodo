@@ -31,6 +31,9 @@ interface UIStore extends RouteState {
   cmdkOpen: boolean
   setCmdkOpen: (open: boolean) => void
 
+  permGuideOpen: boolean
+  setPermGuideOpen: (open: boolean) => void
+
   sidebarCollapsed: boolean
   setSidebarCollapsed: (v: boolean) => void
 
@@ -56,6 +59,9 @@ export const useUI = create<UIStore>((set) => ({
 
   cmdkOpen: false,
   setCmdkOpen: (open) => set({ cmdkOpen: open }),
+
+  permGuideOpen: false,
+  setPermGuideOpen: (open) => set({ permGuideOpen: open }),
 
   sidebarCollapsed: false,
   setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),

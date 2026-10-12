@@ -6,6 +6,7 @@ import Sidebar, { BottomTabBar } from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
 import Onboarding from './components/Onboarding'
+import PermissionGuide from './components/PermissionGuide'
 import ErrorBoundary from './components/ErrorBoundary'
 import TodayPage from './pages/today/TodayPage'
 import MeetingsPage from './pages/meetings/MeetingsPage'
@@ -72,6 +73,7 @@ export default function App() {
         <BottomTabBar />
         <CommandPalette />
         <Onboarding />
+        <PermissionGuide />
       </div>
     </ErrorBoundary>
   )

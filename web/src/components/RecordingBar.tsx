@@ -116,6 +116,13 @@ function CaptureBanner({
     <div className="px-5 py-1.5 bg-bg-overlay border-t border-line text-[11.5px] text-text-3 flex items-center gap-2">
       <span className="text-warning" aria-hidden="true">▣</span>
       <span className="truncate" title={text}>{text}</span>
+      {!isWeb && (
+        <button
+          type="button"
+          onClick={() => useUI.getState().setPermGuideOpen(true)}
+          className="ml-auto shrink-0 btn-outline text-xs h-6 px-2"
+        >一键开启</button>
+      )}
     </div>
   )
 }

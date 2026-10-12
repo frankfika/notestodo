@@ -81,6 +81,30 @@ export async function stopSystemAudio(): Promise<void> {
   }
 }
 
+// ── 屏录授权引导（PermissionGuide 使用）─────────────────────────────
+
+/** 触发系统授权弹窗；返回调用当下是否已授权。 */
+export async function requestScreenPermission(): Promise<boolean> {
+  if (!isTauri()) return false
+  try {
+    return Boolean(await invoke<boolean>('system_audio_request_permission'))
+  } catch {
+    return false
+  }
+}
+
+/** 直达「系统设置 → 隐私与安全性 → 屏幕录制」。 */
+export async function openScreenRecordingSettings(): Promise<void> {
+  if (!isTauri()) return
+  await invoke('open_screen_recording_settings')
+}
+
+/** 重启 App 使授权生效。 */
+export async function restartApp(): Promise<void> {
+  if (!isTauri()) return
+  await invoke('restart_app')
+}
+
 // ── system_audio:chunk 事件订阅（Phase-3 Gap 1）────────────────────────
 //
 // Rust 端 SCStream 把 interleaved f32 PCM 按 ~30ms 一批推过来，

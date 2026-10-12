@@ -65,6 +65,48 @@ fn system_audio_stop(app: tauri::AppHandle) -> serde_json::Value {
   system_audio::stop(&app)
 }
 
+// ── 屏录授权引导命令 ────────────────────────────────────────────────
+//
+// 让前端 PermissionGuide 一键完成：弹系统授权框 → 直达「屏幕录制」设置页 →
+// 重启生效（macOS TCC 不会即时刷新已运行进程）。
+
+/// 触发 macOS 屏录授权弹窗（首次调用会把本 App 自动加进「屏幕录制」列表）。
+/// 返回调用当下的授权状态；用户在弹窗里点允许后需重启才会翻 true。
+#[tauri::command]
+fn system_audio_request_permission() -> bool {
+  #[cfg(target_os = "macos")]
+  {
+    system_audio::tcc_request()
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    true
+  }
+}
+
+/// 直接打开「系统设置 → 隐私与安全性 → 屏幕录制」。
+#[tauri::command]
+fn open_screen_recording_settings() -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    std::process::Command::new("open")
+      .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+      .spawn()
+      .map(|_| ())
+      .map_err(|e| e.to_string())
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    Err("仅 macOS 需要屏幕录制授权".to_string())
+  }
+}
+
+/// 重启 App（授权后让 TCC 生效）。
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+  app.restart();
+}
+
 // ── 入口 ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -91,6 +133,9 @@ pub fn run() {
       system_audio_status,
       system_audio_start,
       system_audio_stop,
+      system_audio_request_permission,
+      open_screen_recording_settings,
+      restart_app,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");
