@@ -13,6 +13,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.3",
     "dexie": "^4.0.10",
     "dexie-react-hooks": "^4.4.0",
     "fflate": "^0.8.3",
