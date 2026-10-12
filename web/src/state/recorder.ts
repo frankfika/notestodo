@@ -18,6 +18,9 @@ export interface ActiveMeetingInfo {
   startedAt: string
 }
 
+/** 当前采集模式 — UI 用来展示 banner（Phase-2: mic + system audio 路径） */
+export type CaptureMode = 'mic-only' | 'mic+system' | 'unsupported'
+
 interface RecorderStore {
   phase: RecorderPhase
   meeting: ActiveMeetingInfo | null
@@ -29,6 +32,10 @@ interface RecorderStore {
   interrupted: boolean
   /** 实时麦克风电平 (0..1 RMS)，由 analyser 每 100ms 上报；未录音时为 0 */
   audioLevel: number
+  /** 当前采集模式；RecordingBar 据此展示「仅麦克风」honest banner */
+  captureMode: CaptureMode
+  /** captureMode='unsupported' 时的原因（中文一句话） */
+  captureModeNote: string | null
   error: string | null
 
   // 以下 action 由引擎实现注入（见 audio/engine.ts 的 bindRecorderEngine）
@@ -44,6 +51,8 @@ export const useRecorder = create<RecorderStore>((set) => ({
   chunkCount: 0,
   interrupted: false,
   audioLevel: 0,
+  captureMode: 'mic-only',
+  captureModeNote: null,
   error: null,
 
   // 默认实现会被 engine.ts 覆盖；这里给安全兜底

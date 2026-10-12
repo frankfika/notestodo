@@ -1,0 +1,121 @@
+/**
+ * Tauri Rust 端 system-audio 命令薄封装。
+ *
+ * 仅探测/调用；不做实际混音。实际 SCStream → f32 PCM → Tauri event →
+ * audio/engine.ts 的混音在 Rust 端 + 后续 PR 完成（见
+ * src-tauri/src/system_audio.rs + README Phase-3）。
+ *
+ * 前端按 `isTauri() && supported` 决定是否走 system-audio 路径；
+ * 不支持一律 mic-only + banner（绝不在 UI 假装成功）。
+ */
+
+import { isTauri } from './tauri'
+import { invoke } from './tauriInvoke'
+
+/** 系统音频采集的支持/权限状态。 */
+export type SystemAudioStatus =
+  | { supported: false; reason: string }
+  | { supported: true; permission_required: true; permission_granted: boolean; note: string }
+
+const UNSUPPORTED_NOTE =
+  'Tauri 端 system-audio 已实装 ScreenCaptureKit 接线；当前可能未授权屏幕录制。' +
+  '请到「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO。'
+
+/** 探测 Rust 端 system-audio 能力。失败（不在 Tauri / 无命令 / 抛错）一律降级到 mic-only。 */
+export async function systemAudioStatus(): Promise<SystemAudioStatus> {
+  if (!isTauri()) {
+    return { supported: false, reason: 'web' }
+  }
+  try {
+    const res = await invoke<{
+      supported: boolean
+      permission_required?: boolean
+      permission_granted?: boolean
+      note?: string
+    }>('system_audio_status')
+    if (!res?.supported) {
+      return { supported: false, reason: res?.note ?? UNSUPPORTED_NOTE }
+    }
+    return {
+      supported: true,
+      permission_required: true,
+      permission_granted: Boolean(res.permission_granted),
+      note: res.note ?? UNSUPPORTED_NOTE,
+    }
+  } catch (e) {
+    return { supported: false, reason: `system_audio_status 调用失败：${describe(e)}` }
+  }
+}
+
+/**
+ * 实际启动系统音频采集（SCStream + Tauri event → audio/engine.ts）。
+ *
+ * 成功 → { ok: true, mode: 'mic+system' }（captureMode 翻 'mic+system'）
+ * 失败 → { ok: false, reason: '...' }（captureMode 翻 'unsupported' + banner）
+ *
+ * 重要：start 之前 Rust 一定真的跑到了 SCStream::start_capture()。失败原因
+ * （TCC / shareable content / filter / handler / start_capture）会原样回传。
+ */
+export type SystemAudioStartResult =
+  | { ok: true; mode: 'mic+system' }
+  | { ok: false; reason: string }
+
+export async function startSystemAudio(): Promise<SystemAudioStartResult> {
+  if (!isTauri()) return { ok: false, reason: 'web' }
+  try {
+    const res = await invoke<{ started: boolean; reason?: string }>('system_audio_start')
+    if (res?.started) return { ok: true, mode: 'mic+system' }
+    return { ok: false, reason: res?.reason ?? 'unknown' }
+  } catch (e) {
+    return { ok: false, reason: describe(e) }
+  }
+}
+
+export async function stopSystemAudio(): Promise<void> {
+  if (!isTauri()) return
+  try {
+    await invoke('system_audio_stop')
+  } catch (e) {
+    // ignore — best-effort
+    console.warn('stopSystemAudio 失败', e)
+  }
+}
+
+// ── system_audio:chunk 事件订阅（Phase-3 Gap 1）────────────────────────
+//
+// Rust 端 SCStream 把 f32 PCM 按 30ms 一批通过这个事件推过来。本期只
+// 探测通道是否真在流（用于诊断），并把累积样本数露给 dev console。
+// 后续 PR（Phase-4）会用 AudioContext 建 MediaStreamAudioSourceNode 把
+// 这些 PCM 拼到 MediaRecorder 的 mic track → 真正的 mic+system 录音。
+
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+
+export interface SystemAudioChunk {
+  samples: number[]
+  sample_rate: number
+  channels: number
+  cumulative_samples: number
+}
+
+export type ChunkHandler = (chunk: SystemAudioChunk) => void
+
+/**
+ * 订阅 system_audio:chunk 事件。
+ * 不在 Tauri / 监听失败 → 返回一个 no-op unlisten。
+ */
+export async function onSystemAudioChunk(handler: ChunkHandler): Promise<UnlistenFn> {
+  if (!isTauri()) return () => {}
+  try {
+    const unlisten = await listen<SystemAudioChunk>('system_audio:chunk', (event) => {
+      handler(event.payload)
+    })
+    return unlisten
+  } catch (e) {
+    console.warn('onSystemAudioChunk 失败：', e)
+    return () => {}
+  }
+}
+
+function describe(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}

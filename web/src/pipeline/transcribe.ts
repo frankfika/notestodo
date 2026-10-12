@@ -3,7 +3,7 @@ import { mergeAudioChunks } from '../audio/merge'
 import { getAsrProvider } from '../transcribe/types'
 import { getSettings } from '../db/settings'
 import { now } from '../lib/id'
-import type { Meeting, Transcript, TranscriptSegment } from '../types'
+import { resolveASRConfig, type Meeting, type Transcript, type TranscriptSegment } from '../types'
 import { runSummarizePipeline } from './summarize'
 
 /**
@@ -71,11 +71,12 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
   })
 
   const settings = await getSettings()
-  const provider = getAsrProvider(settings.asr_provider)
+  const cfg = resolveASRConfig(settings)
+  const provider = getAsrProvider(settings)
   if (!provider) {
     await db.meetings.update(meetingId, {
       status: 'failed',
-      error: `未知的 ASR provider：${settings.asr_provider}`,
+      error: `未知的 ASR provider：${cfg.provider}`,
       updated_at: now(),
     })
     return
@@ -103,10 +104,12 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     id: crypto.randomUUID(),
     meeting_id: meetingId,
     language: 'zh',
-    engine: settings.asr_provider,
+    // Phase-3: 记录 actual 调用（local 时为 openai-whisper，对调试有意义）
+    engine: cfg.provider,
     engine_meta: {
-      asr_model: settings.asr_model,
-      asr_base_url: settings.asr_base_url,
+      asr_mode: cfg.is_local ? 'local' : 'cloud',
+      asr_model: cfg.model,
+      asr_base_url: cfg.base_url,
       mime_type: merged.mimeType,
     },
     segments,

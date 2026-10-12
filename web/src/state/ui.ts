@@ -60,7 +60,7 @@ export const useUI = create<UIStore>((set) => ({
   sidebarCollapsed: false,
   setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
 
-  theme: 'dark',
+  theme: 'light',
   setTheme: (t) => {
     set({ theme: t })
     const resolved = t === 'system'

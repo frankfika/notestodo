@@ -8,8 +8,8 @@ const NAV: { view: ViewName; label: string; icon: string }[] = [
   { view: 'today', label: '今天', icon: '◐' },
   { view: 'meetings', label: '会议', icon: '●' },
   { view: 'notes', label: '笔记', icon: '✎' },
-  { view: 'todos', label: '待办', icon: '☑' },
-  { view: 'templates', label: '模板', icon: '▤' },
+  { view: 'todos', label: '待办', icon: '◎' },
+  { view: 'templates', label: '模板', icon: '▢' },
 ]
 
 export default function Sidebar() {
@@ -33,12 +33,13 @@ export default function Sidebar() {
   return (
     <aside className="
       hidden md:flex                          /* 移动端隐藏（由 BottomTabBar 接管） */
-      w-[200px] shrink-0 flex-col border-r border-line bg-bg-raise/50
+      w-[208px] shrink-0 flex-col border-r border-line bg-bg-sidebar
     ">
       {/* 品牌 */}
       <div className="flex items-center gap-2 px-4 h-14">
-        <span className={`text-lg leading-none ${phase === 'recording' ? 'text-danger rec-dot' : 'text-accent'}`}>●</span>
-        <span className="font-semibold tracking-wide">拾贝</span>
+        <span className={`h-2 w-2 rounded-full ${phase === 'recording' ? 'bg-danger rec-dot' : 'bg-accent'}`} />
+        <span className="font-semibold tracking-tight text-text-1">NotesToGO</span>
+        <span className="text-[11px] text-text-3">拾贝</span>
         <span className="ml-auto font-mono text-xs text-text-3 tabular-nums">{clockText}</span>
       </div>
 
@@ -54,8 +55,8 @@ export default function Sidebar() {
               onClick={() =>
                 ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: goTodos, templates: goTemplates } as Record<string, () => void>)[item.view]()
               }
-              className={`w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm transition-colors duration-150 ${
-                active ? 'bg-bg-overlay text-text-1 font-medium' : 'text-text-2 hover:bg-bg-overlay/60 hover:text-text-1'
+              className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
+                active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
               }`}
             >
               <span className={`text-xs w-4 text-center ${item.view === 'meetings' && phase === 'recording' ? 'text-danger rec-dot' : active ? 'text-accent' : 'text-text-3'}`}>
@@ -73,11 +74,11 @@ export default function Sidebar() {
       <div className="mt-auto p-2">
         <button
           onClick={goSettings}
-          className={`w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm transition-colors ${
-            view === 'settings' ? 'bg-bg-overlay text-text-1 font-medium' : 'text-text-3 hover:bg-bg-overlay/60 hover:text-text-1'
+          className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors ${
+            view === 'settings' ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-3 hover:bg-bg-overlay hover:text-text-1'
           }`}
         >
-          <span className="text-xs w-4 text-center">⚙</span>
+          <span className="text-xs w-4 text-center">{'⚙\uFE0E'}</span>
           设置
         </button>
       </div>
@@ -102,8 +103,8 @@ export function BottomTabBar() {
     { view: 'today', label: '今天', icon: '◐', onClick: goToday },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
     { view: 'notes', label: '笔记', icon: '✎', onClick: goNotes },
-    { view: 'todos', label: '待办', icon: '☑', onClick: goTodos, badge: openTodos ?? 0 },
-    { view: 'templates', label: '模板', icon: '▤', onClick: goTemplates },
+    { view: 'todos', label: '待办', icon: '◎', onClick: goTodos, badge: openTodos ?? 0 },
+    { view: 'templates', label: '模板', icon: '▢', onClick: goTemplates },
   ]
 
   const isActive = (v: ViewName): boolean =>
@@ -155,7 +156,7 @@ export function BottomTabBar() {
         }`}
         aria-label="设置"
       >
-        <span className={`text-base leading-none ${view === 'settings' ? 'text-accent' : 'text-text-3'}`}>⚙</span>
+        <span className={`text-base leading-none ${view === 'settings' ? 'text-accent' : 'text-text-3'}`}>{'⚙\uFE0E'}</span>
         设置
       </button>
     </nav>

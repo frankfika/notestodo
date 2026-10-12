@@ -23,3 +23,20 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.12.1", features = [] }
 tauri-plugin-log = "2"
+# Phase-3: knowledge folder reindex — local .md/.txt walk + folder picker.
+# Plugins are no-op on non-mac targets; capability scope is narrowed to
+# $HOME + standard note dirs (no "**"). Dialog-picked paths gain access via
+# the OS security-scoped resource tracker, not via static scope widening.
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+
+# Phase-3 Gap 1: macOS-only ScreenCaptureKit audio capture.
+# screencapturekit-sys pulls in block / dispatch / objc / objc-foundation /
+# objc_id / once_cell — none require Xcode's Swift toolchain. The higher-level
+# `screencapturekit` 11.x crate pulls apple-cf + swift-bridge which need full
+# Xcode; on a CommandLineTools-only machine its build script fails. So we
+# keep the FFI surface narrow via the *-sys crate and a thin wrapper.
+[target.'cfg(target_os = "macos")'.dependencies]
+screencapturekit-sys = "0.2"
+objc = "0.2.7"
+objc_id = "0.1.1"

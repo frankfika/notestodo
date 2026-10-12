@@ -8,6 +8,10 @@ import { exportData, importData } from '../../data/io'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
 import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
+import { isTauri } from '../../lib/tauri'
+import { invoke } from '../../lib/tauriInvoke'
+import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
+import { reindexKnowledge } from '../../lib/knowledge'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -73,76 +77,121 @@ export default function SettingsPage(): JSX.Element {
           >保存修改</button>
         </div>
 
-        <Section title="AI Provider · LLM" desc="总结 / 待办提取都走它。">
-          <FieldRow label="Provider">
-            <select
-              className="input"
-              value={settings.llm_provider}
-              onChange={(e) => patch({ llm_provider: e.target.value as AppSettings['llm_provider'] })}
-            >
-              <option value="anthropic-compatible">Anthropic 兼容</option>
-              <option value="openai-compatible">OpenAI 兼容</option>
-            </select>
-          </FieldRow>
-          <FieldRow label="Base URL">
-            <input
-              className="input"
-              value={settings.llm_base_url}
-              onChange={(e) => patch({ llm_base_url: e.target.value })}
-              placeholder="https://api.example.com"
+        <Section title="AI Provider · LLM" desc="总结 / 待办提取都走它。切换 Cloud / Local 不会清空另一侧的字段。">
+          <FieldRow label="模式">
+            <ModeSegmented
+              value={settings.ai_mode}
+              onChange={(v) => patch({ ai_mode: v })}
+              labels={{
+                cloud: 'Cloud BYOK',
+                cloudSub: 'MiniMax / Anthropic / OpenAI 兼容网关',
+                local: 'Local',
+                localSub: 'Ollama / LM Studio / MLX / 自建',
+              }}
             />
           </FieldRow>
-          <FieldRow label="API Key">
-            <PasswordInput
-              value={settings.llm_api_key}
-              onChange={(v) => patch({ llm_api_key: v })}
-              placeholder="sk-..."
-            />
-          </FieldRow>
-          <FieldRow label="Model">
-            <input
-              className="input"
-              value={settings.llm_model}
-              onChange={(e) => patch({ llm_model: e.target.value })}
-              placeholder="claude-3-5-sonnet-..."
-            />
-          </FieldRow>
+
+          {settings.ai_mode === 'cloud' ? (
+            <>
+              <FieldRow label="Provider">
+                <select
+                  className="input"
+                  value={settings.llm_provider}
+                  onChange={(e) => patch({ llm_provider: e.target.value as AppSettings['llm_provider'] })}
+                >
+                  <option value="anthropic-compatible">Anthropic 兼容</option>
+                  <option value="openai-compatible">OpenAI 兼容</option>
+                </select>
+              </FieldRow>
+              <FieldRow label="Base URL">
+                <input
+                  className="input"
+                  value={settings.llm_base_url}
+                  onChange={(e) => patch({ llm_base_url: e.target.value })}
+                  placeholder="https://api.example.com"
+                />
+              </FieldRow>
+              <FieldRow label="API Key">
+                <PasswordInput
+                  value={settings.llm_api_key}
+                  onChange={(v) => patch({ llm_api_key: v })}
+                  placeholder="sk-..."
+                />
+              </FieldRow>
+              <FieldRow label="Model">
+                <input
+                  className="input"
+                  value={settings.llm_model}
+                  onChange={(e) => patch({ llm_model: e.target.value })}
+                  placeholder="claude-3-5-sonnet-..."
+                />
+              </FieldRow>
+            </>
+          ) : (
+            <LocalLLMFields settings={settings} patch={patch} />
+          )}
           <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />
         </Section>
 
-        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。">
-          <FieldRow label="Provider">
-            <select
-              className="input"
-              value={settings.asr_provider}
-              onChange={(e) => patch({ asr_provider: e.target.value as AppSettings['asr_provider'] })}
-            >
-              <option value="minimax">MiniMax</option>
-              <option value="openai-whisper">OpenAI Whisper 兼容</option>
-              <option value="deepgram">Deepgram</option>
-            </select>
-          </FieldRow>
-          <FieldRow label="Base URL">
-            <input
-              className="input"
-              value={settings.asr_base_url}
-              onChange={(e) => patch({ asr_base_url: e.target.value })}
+        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。Local 模式强制走 OpenAI Whisper 兼容端点（whisper.cpp / MLX / faster-whisper）。">
+          <FieldRow label="模式">
+            <ModeSegmented
+              value={settings.asr_mode}
+              onChange={(v) => patch({ asr_mode: v })}
+              labels={{
+                cloud: 'Cloud BYOK',
+                cloudSub: 'MiniMax / Deepgram / OpenAI Whisper 兼容网关',
+                local: 'Local',
+                localSub: 'whisper.cpp server / MLX STT / faster-whisper',
+              }}
             />
           </FieldRow>
-          <FieldRow label="API Key">
-            <PasswordInput
-              value={settings.asr_api_key}
-              onChange={(v) => patch({ asr_api_key: v })}
-            />
-          </FieldRow>
-          <FieldRow label="Model">
-            <input
-              className="input"
-              value={settings.asr_model}
-              onChange={(e) => patch({ asr_model: e.target.value })}
-              placeholder="asr-1.0"
-            />
-          </FieldRow>
+
+          {settings.asr_mode === 'cloud' ? (
+            <>
+              <FieldRow label="Provider">
+                <select
+                  className="input"
+                  value={settings.asr_provider}
+                  onChange={(e) => patch({ asr_provider: e.target.value as AppSettings['asr_provider'] })}
+                >
+                  <option value="minimax">MiniMax</option>
+                  <option value="openai-whisper">OpenAI Whisper 兼容</option>
+                  <option value="deepgram">Deepgram</option>
+                </select>
+              </FieldRow>
+              <FieldRow label="Base URL">
+                <input
+                  className="input"
+                  value={settings.asr_base_url}
+                  onChange={(e) => patch({ asr_base_url: e.target.value })}
+                />
+              </FieldRow>
+              <FieldRow label="API Key">
+                <PasswordInput
+                  value={settings.asr_api_key}
+                  onChange={(v) => patch({ asr_api_key: v })}
+                />
+              </FieldRow>
+              <FieldRow label="Model">
+                <input
+                  className="input"
+                  value={settings.asr_model}
+                  onChange={(e) => patch({ asr_model: e.target.value })}
+                  placeholder="asr-1.0"
+                />
+              </FieldRow>
+            </>
+          ) : (
+            <LocalASRFields settings={settings} patch={patch} />
+          )}
+          {settings.asr_mode === 'local' && (
+            <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+              Local 模式实际走 <code className="font-mono">POST &#123;base&#125;/audio/transcriptions</code>，
+              与 <code className="font-mono">openai-whisper</code> 字段一致；
+              Cloud 那一侧（MiniMax / Deepgram）的字段已保留，切换回 Cloud 即可使用。
+            </div>
+          )}
           <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />
         </Section>
 
@@ -164,6 +213,21 @@ export default function SettingsPage(): JSX.Element {
               <option value="system">跟随系统</option>
             </select>
           </FieldRow>
+        </Section>
+
+        <Section title="录音采集 · Capture" desc="决定录音能拿到什么声音。">
+          <CaptureStatusRow />
+        </Section>
+
+        <Section
+          title="知识库 · Knowledge"
+          desc="把本地笔记 / markdown 文本喂给 Live Assist，会议中按速记 / 转录自动推荐相关卡片。当前 MVP 用 keyword + 标题匹配；embedding 升级见 README。"
+        >
+          <KnowledgeFolderEditor
+            folders={settings.knowledge_folders}
+            onChange={(folders) => patch({ knowledge_folders: folders })}
+            onFlash={flash}
+          />
         </Section>
 
         <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书「导出链接」都行），仅本地拉取。">
@@ -207,6 +271,191 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
       </div>
       <div className="space-y-3">{children}</div>
     </section>
+  )
+}
+
+/**
+ * Cloud BYOK | Local 双选控件（与 toggle 视觉一致：底部高亮横条）。
+ * 切换时保留另一侧的 settings 字段（已通过 KV 整体 patch 实现，UI 不动）。
+ *
+ * Phase-3: 同时给 LLM 和 ASR 用；通过 `labels` 传话术。两条目均为 'cloud' | 'local'。
+ */
+function ModeSegmented({
+  value,
+  onChange,
+  labels,
+}: {
+  value: 'cloud' | 'local'
+  onChange: (v: 'cloud' | 'local') => void
+  labels: { cloud: string; cloudSub: string; local: string; localSub: string }
+}): JSX.Element {
+  const opts: { v: 'cloud' | 'local'; label: string; sub: string }[] = [
+    { v: 'cloud', label: labels.cloud, sub: labels.cloudSub },
+    { v: 'local', label: labels.local, sub: labels.localSub },
+  ]
+  return (
+    <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
+      {opts.map((o) => {
+        const active = o.v === value
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            className={`px-3 py-1.5 rounded-[8px] text-sm transition-colors ${
+              active ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+            title={o.sub}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Local ASR 配置：whisper.cpp / MLX / faster-whisper OpenAI 兼容端点。
+ * whisper.cpp server 默认 `http://127.0.0.1:8080/v1`；Custom 给 MLX STT /
+ * 自建 OpenAI 兼容服务。API Key 留空即可（whisper.cpp 默认无鉴权）。
+ */
+function LocalASRFields({
+  settings,
+  patch,
+}: {
+  settings: AppSettings
+  patch: (p: Partial<AppSettings>) => void
+}): JSX.Element {
+  const isWhisperPreset = settings.local_asr_base_url === 'http://127.0.0.1:8080/v1'
+  function pickPreset(p: 'whisper' | 'custom'): void {
+    if (p === 'whisper') {
+      patch({ local_asr_base_url: 'http://127.0.0.1:8080/v1' })
+    } else {
+      if (isWhisperPreset) patch({ local_asr_base_url: '' })
+    }
+  }
+  return (
+    <>
+      <FieldRow label="预设">
+        <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
+          <button
+            type="button"
+            onClick={() => pickPreset('whisper')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              isWhisperPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >whisper.cpp</button>
+          <button
+            type="button"
+            onClick={() => pickPreset('custom')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              !isWhisperPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >Custom</button>
+        </div>
+      </FieldRow>
+      <FieldRow label="Base URL" hint="OpenAI 兼容端点（/v1/audio/transcriptions）">
+        <input
+          className="input font-mono"
+          value={settings.local_asr_base_url}
+          onChange={(e) => patch({ local_asr_base_url: e.target.value })}
+          placeholder="http://127.0.0.1:8080/v1"
+        />
+      </FieldRow>
+      <FieldRow label="API Key" hint="留空即可（whisper.cpp 默认无鉴权）">
+        <PasswordInput
+          value={settings.local_asr_api_key}
+          onChange={(v) => patch({ local_asr_api_key: v })}
+          placeholder="（可选）"
+        />
+      </FieldRow>
+      <FieldRow label="Model" hint="如 whisper-1 / large-v3-turbo，或服务端的 model 名称">
+        <input
+          className="input font-mono"
+          value={settings.local_asr_model}
+          onChange={(e) => patch({ local_asr_model: e.target.value })}
+          placeholder="whisper-1"
+        />
+      </FieldRow>
+      <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+        whisper.cpp：<code className="font-mono">whisper-server -m models/ggml-large-v3.bin --port 8080</code>
+        （或 <code className="font-mono">./server -m ...</code>）；MLX STT /
+        faster-whisper openai-compatible server 也走同一 Base URL。
+      </div>
+    </>
+  )
+}
+
+/**
+ * Local LLM 配置：Base URL（带 Ollama 预设）+ 可选 API Key + Model。
+ * Ollama 默认 `ollama serve` 后用 http://127.0.0.1:11434/v1 即可；Custom 给 LM Studio / MLX 等。
+ */
+function LocalLLMFields({
+  settings,
+  patch,
+}: {
+  settings: AppSettings
+  patch: (p: Partial<AppSettings>) => void
+}): JSX.Element {
+  const isOllamaPreset = settings.local_llm_base_url === 'http://127.0.0.1:11434/v1'
+  function pickPreset(p: 'ollama' | 'custom'): void {
+    if (p === 'ollama') {
+      patch({ local_llm_base_url: 'http://127.0.0.1:11434/v1' })
+    } else {
+      // 不重置，让用户继续编辑；但若当前是 ollama 默认值则清空让用户输入
+      if (isOllamaPreset) patch({ local_llm_base_url: '' })
+    }
+  }
+  return (
+    <>
+      <FieldRow label="预设">
+        <div className="inline-flex rounded-[10px] border border-line bg-bg-overlay p-0.5 gap-0.5">
+          <button
+            type="button"
+            onClick={() => pickPreset('ollama')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              isOllamaPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >Ollama</button>
+          <button
+            type="button"
+            onClick={() => pickPreset('custom')}
+            className={`px-3 py-1.5 rounded-[8px] text-sm ${
+              !isOllamaPreset ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
+            }`}
+          >Custom</button>
+        </div>
+      </FieldRow>
+      <FieldRow label="Base URL" hint="OpenAI 兼容端点（/v1/chat/completions）">
+        <input
+          className="input font-mono"
+          value={settings.local_llm_base_url}
+          onChange={(e) => patch({ local_llm_base_url: e.target.value })}
+          placeholder="http://127.0.0.1:11434/v1"
+        />
+      </FieldRow>
+      <FieldRow label="API Key" hint="留空即可（Ollama 默认无鉴权）">
+        <PasswordInput
+          value={settings.local_llm_api_key}
+          onChange={(v) => patch({ local_llm_api_key: v })}
+          placeholder="（可选）"
+        />
+      </FieldRow>
+      <FieldRow label="Model" hint="如 llama3.2 / qwen2.5 / mistral 等">
+        <input
+          className="input font-mono"
+          value={settings.local_llm_model}
+          onChange={(e) => patch({ local_llm_model: e.target.value })}
+          placeholder="llama3.2"
+        />
+      </FieldRow>
+      <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+        Ollama: 先 <code className="font-mono">ollama serve</code>；若模型放在外置盘（如 UGREEN），
+        在启动前 <code className="font-mono">export OLLAMA_MODELS=/Volumes/UGREEN/ollama</code>。
+        Custom: LM Studio / MLX / 自建 OpenAI 兼容服务都可填 Base URL。
+      </div>
+    </>
   )
 }
 
@@ -311,19 +560,11 @@ function IcsListEditor({
     setSyncing(true)
     try {
       await clearCalendarCache()
+      // Phase-2: fetchCalendar 不依赖 ai_mode / local_llm_*，只取 calendar_ics_urls；
+      // 用 DEFAULT_SETTINGS 兜底其它字段（避免 spread 漏掉新增字段）。
       const r = await fetchCalendar({
         ...DEFAULT_SETTINGS,
         calendar_ics_urls: urls,
-        llm_provider: 'anthropic-compatible',
-        llm_base_url: '',
-        llm_api_key: '',
-        llm_model: '',
-        asr_provider: 'minimax',
-        asr_base_url: '',
-        asr_api_key: '',
-        asr_model: '',
-        delete_remote_audio: true,
-        theme: 'dark',
       })
       if (r.error) {
         onFlash(`部分失败：${r.error.slice(0, 60)}`)
@@ -474,6 +715,190 @@ function StorageStatusRow(): JSX.Element {
           <span className="text-text-3"> — 建议导出 .zip 备份，浏览器可能在磁盘压力下清理数据</span>
         )}
       </span>
+    </div>
+  )
+}
+
+/**
+ * 当前录音采集模式 + 系统音频支持状态。
+ *
+ * 永远显示真值（不假装）：
+ *   - 浏览器：仅麦克风
+ *   - Tauri + screencapturekit 已实装：麦克风 + 系统声音（屏录权限需在
+ *     「系统设置 → 隐私与安全性 → 屏幕录制」允许 NotesToGO）
+ *   - Tauri 但未实装：仅麦克风 + 灰一行"未实装"
+ */
+function CaptureStatusRow(): JSX.Element {
+  const [status, setStatus] = useState<SystemAudioStatus | null>(null)
+  const [probing, setProbing] = useState(false)
+
+  async function probe(): Promise<void> {
+    if (probing) return
+    setProbing(true)
+    try {
+      setStatus(await systemAudioStatus())
+    } finally {
+      setProbing(false)
+    }
+  }
+  useEffect(() => {
+    void probe()
+  }, [])
+
+  const inTauri = isTauri()
+  const dot = status && 'supported' in status && status.supported && status.permission_granted
+    ? 'text-accent'
+    : 'text-warning'
+  const label = inTauri
+    ? status && 'supported' in status && status.supported
+      ? status.permission_granted
+        ? '麦克风 + 系统声音（Tauri · 屏录已授权）'
+        : '麦克风 + 系统声音（需在 macOS 「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO）'
+      : '仅麦克风（Tauri desktop · system-audio 未实装）'
+    : '仅麦克风（浏览器）'
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm text-text-1">
+        <span className={dot}>●</span>
+        <span>{label}</span>
+        <button
+          type="button"
+          onClick={() => void probe()}
+          disabled={probing}
+          className="btn-outline text-xs h-7 ml-auto"
+        >{probing ? '探测中…' : '重新探测'}</button>
+      </div>
+      <div className="text-[11px] text-text-3 leading-relaxed">
+        {inTauri
+          ? 'NotesToGO 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；如被拒请到「系统设置 → 隐私与安全性 → 屏幕录制」中手动允许。'
+          : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 NotesToGO macOS 桌面版。'}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 知识库文件夹列表 + 重新索引按钮。
+ *
+ * Phase-3: Tauri 端用 `tauri-plugin-dialog` 弹出系统文件夹选择器，自动获得
+ * 用户授权的本地路径；本地路径走 `tauri-plugin-fs` 递归 walk（见
+ * `lib/knowledge.ts → listLocalFiles`）。Web build 仍允许粘贴路径或 HTTP(S) URL。
+ */
+function KnowledgeFolderEditor({
+  folders, onChange, onFlash,
+}: {
+  folders: string[]
+  onChange: (f: string[]) => void
+  onFlash: (msg: string) => void
+}): JSX.Element {
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [lastReindex, setLastReindex] = useState<{ scanned: number; indexed: number; errors: string[] } | null>(null)
+
+  async function reindex(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await reindexKnowledge(folders)
+      setLastReindex({ scanned: r.scanned, indexed: r.indexed, errors: r.errors })
+      if (r.errors.length > 0) {
+        onFlash(`索引完成：${r.indexed} 条 / ${r.scanned} 个文件（${r.errors.length} 个错误）`)
+      } else {
+        onFlash(`索引完成：${r.indexed} 条 / ${r.scanned} 个文件`)
+      }
+    } catch (e: unknown) {
+      onFlash('索引失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * 在 Tauri 端调用 `plugin:dialog|open` 拿系统级目录选择器；返回 string|null。
+   * 多选会拿到 string[]，这里仅单选。
+   */
+  async function pickTauriFolder(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    try {
+      const picked = await invoke<string | null>('plugin:dialog|open', {
+        options: { directory: true, multiple: false, title: '选择知识库文件夹' },
+      })
+      if (!picked) return
+      const list = Array.isArray(picked) ? picked : [picked]
+      const next = folders.concat(list.filter((p) => p && !folders.includes(p)))
+      onChange(next)
+    } catch (e: unknown) {
+      onFlash('文件夹选择失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {folders.map((p, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input className="input font-mono text-xs" value={p} readOnly />
+          <button
+            type="button"
+            onClick={() => onChange(folders.filter((_, idx) => idx !== i))}
+            className="icon-btn"
+            aria-label="移除"
+            title="删除"
+          >✕</button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2 flex-wrap">
+        <input
+          className="input font-mono text-xs flex-1 min-w-[200px]"
+          placeholder={isTauri()
+            ? '可粘贴本地路径；或点右侧按钮打开系统文件夹选择器'
+            : 'https://example.com/notes.md  或本地路径（仅 Tauri 桌面版有效）'}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            if (draft.trim()) {
+              onChange([...folders, draft.trim()])
+              setDraft('')
+            }
+          }}
+          className="btn-outline text-sm h-9"
+        >+ 添加</button>
+        {isTauri() && (
+          <button
+            type="button"
+            onClick={() => void pickTauriFolder()}
+            disabled={busy}
+            className="btn-outline text-sm h-9"
+            title="打开系统文件夹选择器"
+          >📁 选文件夹</button>
+        )}
+        <button
+          type="button"
+          onClick={() => void reindex()}
+          disabled={busy || folders.length === 0}
+          className="btn-outline text-sm h-9"
+        >{busy ? '索引中…' : '↻ 重新索引'}</button>
+      </div>
+      {lastReindex && (
+        <div className="text-[11px] text-text-3">
+          上次索引：{lastReindex.indexed} 条 / {lastReindex.scanned} 文件
+          {lastReindex.errors.length > 0 && ` · ${lastReindex.errors.length} 错误`}
+        </div>
+      )}
+      <div className="text-[11px] text-text-3 leading-relaxed">
+        MVP 用 keyword + 标题匹配（bigram Jaccard + CJK 2-gram），无需联网；
+        升级路径：on-device embedding（EmbeddingGemma-class）+ chunked 索引，
+        <code className="font-mono">retrieveKnowledge()</code> API 保持不变 → 调用方零改动。
+        {isTauri()
+          ? '桌面版递归 walk .md / .txt；浏览器里只能读 HTTP(S) URL。'
+          : '桌面版可用 tauri-plugin-fs 递归 walk 本地文件夹。'}
+      </div>
     </div>
   )
 }

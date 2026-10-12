@@ -1,47 +1,60 @@
 @import "tailwindcss";
 
-/* ── 拾贝设计令牌（docs/DESIGN.md §5.4）──────────────────────────────
-   中性灰为主轴，单一强调色；层级只靠字重与灰度；4pt 网格。        */
+/* ── NotesToGO 设计令牌 ─────────────────────────────────────────────
+   默认 = 暖纸色浅色；深色为可选的柔和炭灰（不是纯黑）。
+   单一强调色（低饱和青蓝）；层级靠字重与灰度；4pt 网格；≤250ms ease-out。 */
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --accent: oklch(70% 0.12 230);
-  --accent-strong: oklch(78% 0.13 230);
-  --accent-contrast: oklch(20% 0.02 250);
-  --danger: oklch(64% 0.18 25);
-  --warning: oklch(74% 0.13 85);
-  --ring: oklch(70% 0.12 230 / 0.55);
+  --bg: oklch(97.9% 0.009 85);          /* 纸 */
+  --bg-sidebar: oklch(96.2% 0.011 83);
+  --bg-raise: oklch(99.5% 0.004 85);    /* 抬起的白 */
+  --bg-overlay: oklch(95.2% 0.01 83);
+  --line: oklch(90.5% 0.011 80);
+  --line-strong: oklch(84% 0.013 78);
+  --text-1: oklch(25% 0.014 60);        /* 墨 */
+  --text-2: oklch(41% 0.014 60);
+  --text-3: oklch(52% 0.013 65);        /* ≥ 4.5:1 on paper */
+  --text-disabled: oklch(70% 0.01 70);
+  --accent: oklch(51% 0.075 205);
+  --accent-strong: oklch(45% 0.08 205);
+  --accent-contrast: oklch(99% 0.005 85);
+  --danger: oklch(55% 0.145 28);
+  --warning: oklch(60% 0.115 68);
+  --ring: oklch(51% 0.075 205 / 0.35);
+  --scrim: oklch(30% 0.02 60 / 0.28);
+  --shadow-1: 0 1px 2px oklch(35% 0.03 60 / 0.05), 0 1px 1px oklch(35% 0.03 60 / 0.03);
+  --shadow-2: 0 8px 24px -6px oklch(35% 0.03 60 / 0.14), 0 2px 6px oklch(35% 0.03 60 / 0.06);
+  color-scheme: light;
 }
 
 :root.dark {
-  --bg: oklch(16% 0.012 260);
-  --bg-raise: oklch(19.5% 0.013 260);
-  --bg-overlay: oklch(23% 0.014 260);
-  --line: oklch(28% 0.013 260);
-  --line-strong: oklch(34% 0.014 260);
-  --text-1: oklch(93% 0.008 260);
-  --text-2: oklch(76% 0.011 260);
-  --text-3: oklch(58% 0.013 260);
-  --text-disabled: oklch(42% 0.013 260);
-  --scrim: oklch(10% 0.01 260 / 0.72);
-}
-
-:root:not(.dark) {
-  --bg: oklch(98% 0.004 260);
-  --bg-raise: oklch(100% 0 0);
-  --bg-overlay: oklch(96.5% 0.005 260);
-  --line: oklch(90% 0.006 260);
-  --line-strong: oklch(84% 0.008 260);
-  --text-1: oklch(24% 0.02 260);
-  --text-2: oklch(40% 0.018 260);
-  --text-3: oklch(54% 0.017 260);
-  --text-disabled: oklch(68% 0.014 260);
-  --scrim: oklch(30% 0.02 260 / 0.35);
+  --bg: oklch(23% 0.007 70);
+  --bg-sidebar: oklch(21% 0.007 70);
+  --bg-raise: oklch(26.5% 0.008 70);
+  --bg-overlay: oklch(30% 0.009 70);
+  --line: oklch(33.5% 0.008 70);
+  --line-strong: oklch(41% 0.009 70);
+  --text-1: oklch(94% 0.006 80);
+  --text-2: oklch(80% 0.008 80);
+  --text-3: oklch(67% 0.01 80);
+  --text-disabled: oklch(50% 0.01 75);
+  --accent: oklch(75% 0.075 205);
+  --accent-strong: oklch(81% 0.08 205);
+  --accent-contrast: oklch(22% 0.02 210);
+  --danger: oklch(69% 0.13 28);
+  --warning: oklch(77% 0.1 75);
+  --ring: oklch(75% 0.075 205 / 0.45);
+  --scrim: oklch(12% 0.01 70 / 0.6);
+  --shadow-1: none;
+  --shadow-2: 0 12px 32px -8px oklch(5% 0 0 / 0.5);
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-sidebar: var(--bg-sidebar);
   --color-bg-raise: var(--bg-raise);
   --color-bg-overlay: var(--bg-overlay);
   --color-line: var(--line);
@@ -59,6 +72,9 @@
   --font-sans: -apple-system, "SF Pro Text", Inter, "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
   --ease-out-expo: cubic-bezier(0.2, 0, 0, 1);
+  --shadow-sm: var(--shadow-1);
+  --shadow-lg: var(--shadow-2);
+  --shadow-xl: var(--shadow-2);
 }
 
 html, body, #root {
@@ -67,7 +83,8 @@ html, body, #root {
 
 body {
   @apply bg-bg text-text-1 font-sans text-[14px] leading-[1.6] antialiased;
-  font-feature-settings: "tnum";
+  font-feature-settings: "tnum", "cv11";
+  transition: background-color 200ms var(--ease-out-expo);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -86,39 +103,39 @@ body {
 
 @layer components {
   .card {
-    @apply rounded-xl border border-line bg-bg-raise;
+    @apply rounded-xl border border-line bg-bg-raise shadow-sm;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
-           transition-all duration-150 select-none cursor-pointer
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-sm font-medium
+           transition-[background-color,color,border-color,box-shadow,transform] duration-150 ease-out select-none cursor-pointer
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
-           transition-all duration-150 select-none cursor-pointer
-           bg-accent text-accent-contrast hover:bg-accent-strong active:scale-[0.98]
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-sm font-medium
+           transition-[background-color,color,border-color,box-shadow,transform] duration-150 ease-out select-none cursor-pointer
+           bg-accent text-accent-contrast hover:bg-accent-strong active:scale-[0.98] shadow-sm
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
-           transition-all duration-150 select-none cursor-pointer
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-sm font-medium
+           transition-[background-color,color,border-color,box-shadow,transform] duration-150 ease-out select-none cursor-pointer
            text-text-2 hover:bg-bg-overlay hover:text-text-1
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
-           transition-all duration-150 select-none cursor-pointer
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-sm font-medium
+           transition-[background-color,color,border-color,box-shadow,transform] duration-150 ease-out select-none cursor-pointer
            border border-line-strong hover:bg-bg-overlay hover:text-text-1
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium
-           transition-all duration-150 select-none cursor-pointer
-           text-danger hover:bg-danger/10
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-sm font-medium
+           transition-[background-color,color,border-color,box-shadow,transform] duration-150 ease-out select-none cursor-pointer
+           text-danger hover:bg-danger/8
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .input {
-    @apply w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-text-1
+    @apply w-full rounded-[10px] border border-line bg-bg-raise px-3 py-2 text-sm text-text-1
            outline-none transition-shadow duration-150
            placeholder:text-text-3
            focus:border-line-strong;
@@ -128,7 +145,7 @@ body {
            bg-bg-overlay text-text-2 border border-line;
   }
   .icon-btn {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-3
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-text-3
            hover:bg-bg-overlay hover:text-text-1 transition-colors cursor-pointer;
   }
   .kbd {
@@ -142,7 +159,7 @@ body {
     @apply text-xs font-medium text-text-3 mb-1.5 block;
   }
   .section-title {
-    @apply text-[13px] font-semibold text-text-3 tracking-wide;
+    @apply text-[11px] font-semibold uppercase text-text-3 tracking-[0.06em];
   }
 }
 

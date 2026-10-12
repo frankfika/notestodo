@@ -44,6 +44,8 @@ export interface Meeting extends EntityMeta {
     gaps: [number, number][]
   }
   note_id: ID
+  /** 会中速记（Scribble）：短 bullet，Polish 时结合转录扩写进 note */
+  scribble_md?: string
   error?: string
 }
 
@@ -106,14 +108,22 @@ export interface SummaryTemplate extends EntityMeta {
   builtin: boolean
 }
 
-// ── 待办（三级：Objective > KR > Task）───────────────────────────────────────
+// ── 待办（嵌套 OKR：strategic O/KR > quarterly O/KR > project O/KR > Task）──
+// 父子规则见 lib/okr.ts
 
 export type TodoKind = 'objective' | 'kr' | 'task'
+export type OkrScope = 'strategic' | 'quarterly' | 'project'
 export type TodoStatus = 'open' | 'done' | 'cancelled' | 'pending_review'
 
 export interface Todo extends EntityMeta {
   kind: TodoKind
-  parent_id: ID | null       // kr→objective；task→kr 或 null（自由 task）
+  parent_id: ID | null       // 见 lib/okr.ts canParent；task→任意 KR 或 null（Inbox）
+  /** null 仅用于 Inbox 自由任务；挂在 KR 下的 task 继承 KR 的 scope */
+  scope: OkrScope | null
+  /** scope==='quarterly' 时必填，如 '2026-Q4' */
+  period?: string
+  /** KR→O 进度汇总权重 0–1，缺省按 1 */
+  weight?: number
   title: string
   notes_md?: string
   status: TodoStatus
@@ -162,36 +172,162 @@ export interface QueueJob extends EntityMeta {
   last_error?: string
 }
 
+// ── 知识库 / Assist（Phase-2 item 5）────────────────────────────────────────
+
+/** 知识库索引条目：每个 .md / .txt 一条；keyword / title 检索（见 lib/knowledge）。 */
+export interface KnowledgeEntry {
+  id: ID
+  /** 文件夹路径（来自 settings.knowledge_folders），便于 reindex 时清理 */
+  folder: string
+  /** 相对路径（含文件名），UI 展示 + 后续可作"打开源文件" */
+  path: string
+  /** 文件名（无目录）— title 匹配的快捷源 */
+  title: string
+  /** 文本前 N 字符（snippet），用作卡片摘要 */
+  snippet: string
+  /** 完整文本（受 cap 限制），用于 keyword 检索打分 */
+  fullText: string
+  /** 文件 mtime（ms），reindex 时跳过未变文件 */
+  mtime: number
+  /** bytes，UI 调试 / 概览 */
+  size_bytes: number
+  created_at: ISODateTime
+  updated_at: ISODateTime
+  deleted_at: ISODateTime | null
+  sync_version: number
+}
+
+/** 会议下 pin 住的 Assist 卡片 —— 跨 retrieve 重跑也持续显示 */
+export interface PinnedAssistCard {
+  id: ID
+  meeting_id: ID
+  /** pin 时检索结果对应的源 KnowledgeEntry id；source 删了不级联 —— 卡片保留但标灰 */
+  source_entry_id: ID | null
+  title: string
+  snippet: string
+  path: string
+  created_at: ISODateTime
+  updated_at: ISODateTime
+  deleted_at: ISODateTime | null
+  sync_version: number
+}
+
 // ── 设置（KV）───────────────────────────────────────────────────────────────
 
 export interface AppSettings {
   // AI Provider（BYOK，仅存本地）
+  /**
+   * Phase-2: 'cloud' = 用下面的 llm_*（MiniMax / Anthropic / OpenAI 兼容网关）
+   *         'local' = 用下面的 local_llm_*（Ollama / LM Studio / MLX / 自建 OpenAI 兼容）
+   * 切换不会清空另一侧的字段（共存于 settings KV）。
+   */
+  ai_mode: 'cloud' | 'local'
+  // Cloud BYOK（ai_mode='cloud' 时生效；保留所有 Phase-1 字段不动）
   llm_provider: 'openai-compatible' | 'anthropic-compatible'
   llm_base_url: string
   llm_api_key: string
   llm_model: string
+  asr_mode: 'cloud' | 'local'   // Phase-3: Local ASR mirror (whisper.cpp / MLX openai-compatible)
   asr_provider: 'minimax' | 'openai-whisper' | 'deepgram'
   asr_base_url: string
   asr_api_key: string
   asr_model: string
+  // Local LLM（ai_mode='local' 时生效；api_key 允许空——Ollama 默认无鉴权）
+  local_llm_base_url: string
+  local_llm_api_key: string
+  local_llm_model: string
+  // Local ASR（asr_mode='local' 时生效；provider 强制为 openai-whisper 兼容）
+  local_asr_base_url: string
+  local_asr_api_key: string
+  local_asr_model: string
   // 隐私
   delete_remote_audio: boolean   // 转录完成后删除云端音频
   // 外观
   theme: 'dark' | 'light' | 'system'
   // 日历
   calendar_ics_urls: string[]
+  // 知识库（Phase-2 item 5）— 字符串路径列表，AI 索引用的本地文件夹
+  knowledge_folders: string[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  ai_mode: 'cloud',
   llm_provider: 'anthropic-compatible',
   llm_base_url: 'https://api.minimax.io/anthropic',
   llm_api_key: '',
   llm_model: 'MiniMax-M2.7',
+  asr_mode: 'cloud',
   asr_provider: 'minimax',
   asr_base_url: 'https://api.minimaxi.com',
   asr_api_key: '',
   asr_model: 'asr-1.0',
+  local_llm_base_url: 'http://127.0.0.1:11434/v1',
+  local_llm_api_key: '',
+  local_llm_model: 'llama3.2',
+  local_asr_base_url: 'http://127.0.0.1:8080/v1',
+  local_asr_api_key: '',
+  local_asr_model: 'whisper-1',
   delete_remote_audio: true,
-  theme: 'dark',
+  theme: 'light',
   calendar_ics_urls: [],
+  knowledge_folders: [],
+}
+
+/** Phase-2: 解析当前模式下的有效 LLM 配置。 */
+export function resolveLLMConfig(s: AppSettings): {
+  provider: 'openai-compatible' | 'anthropic-compatible'
+  base_url: string
+  api_key: string
+  model: string
+  /** true 表示是本地端点（Ollama / LM Studio / 自建）— key 可空 */
+  is_local: boolean
+} {
+  if (s.ai_mode === 'local') {
+    return {
+      provider: 'openai-compatible', // 本地端点统一走 openai 兼容协议
+      base_url: s.local_llm_base_url || DEFAULT_SETTINGS.local_llm_base_url,
+      api_key: s.local_llm_api_key, // 允许空（Ollama）
+      model: s.local_llm_model || 'llama3.2',
+      is_local: true,
+    }
+  }
+  return {
+    provider: s.llm_provider,
+    base_url: s.llm_base_url,
+    api_key: s.llm_api_key,
+    model: s.llm_model,
+    is_local: false,
+  }
+}
+
+/**
+ * Phase-3: ASR mirror。Local 模式强制走 openai-whisper 兼容端点
+ * （whisper.cpp `--inference-path`/MLX STT/faster-whisper openai-compat
+ * 都暴露 POST {base}/audio/transcriptions）；api_key 允许空（whisper.cpp
+ * 默认无鉴权）。切换 Cloud ↔ Local 不丢另一侧的字段。
+ */
+export function resolveASRConfig(s: AppSettings): {
+  /** 实际调用的 provider（local 强制 openai-whisper） */
+  provider: 'minimax' | 'openai-whisper' | 'deepgram'
+  base_url: string
+  api_key: string
+  model: string
+  is_local: boolean
+} {
+  if (s.asr_mode === 'local') {
+    return {
+      provider: 'openai-whisper',
+      base_url: s.local_asr_base_url || DEFAULT_SETTINGS.local_asr_base_url,
+      api_key: s.local_asr_api_key, // 允许空（whisper.cpp 默认无鉴权）
+      model: s.local_asr_model || 'whisper-1',
+      is_local: true,
+    }
+  }
+  return {
+    provider: s.asr_provider,
+    base_url: s.asr_base_url,
+    api_key: s.asr_api_key,
+    model: s.asr_model,
+    is_local: false,
+  }
 }

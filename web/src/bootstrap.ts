@@ -1,6 +1,6 @@
 import { db } from './db/db'
 import { seedBuiltinTemplates } from './db/seed'
-import { getSettings } from './db/settings'
+import { getSettings, saveSettings } from './db/settings'
 import { applyTheme } from './state/ui'
 import { bindRecorderEngine } from './audio/engine'
 import { resumePendingJobs } from './pipeline/jobs'
@@ -50,12 +50,14 @@ export async function bootstrap(): Promise<void> {
   await db.open()
   await seedBuiltinTemplates()
   bindOnboardingAutoDismiss()
+  // 一次性迁移：旧版默认 dark 被整包写进 settings，升级后统一回到浅色默认（用户可再切回）
+  if ((await db.kv.get('theme_light_default_v1'))?.value !== true) {
+    await saveSettings({ theme: 'light' })
+    await db.kv.put({ key: 'theme_light_default_v1', value: true })
+  }
   const settings = await getSettings()
-  const theme =
-    settings.theme === 'system'
-      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : settings.theme
-  applyTheme(theme)
+  // 直接传 'system' 给 store，OS 切换深浅时才能实时跟随
+  applyTheme(settings.theme)
   bindRecorderEngine()
   void resumePendingJobs().catch((e) => console.error('恢复任务失败', e))
 }

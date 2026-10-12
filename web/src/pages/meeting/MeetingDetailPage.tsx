@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
@@ -7,12 +7,23 @@ import type { ChatMessage, Meeting, MeetingStatus, SummaryTemplate, Todo } from 
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import TodoRow from '../../components/TodoRow'
+import OverflowMenu from '../../components/OverflowMenu'
 import { runSummarizePipeline } from '../../pipeline/summarize'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
 import { chunksInOrder } from '../../audio/merge'
+import { buildPolishMessages, stripFence } from '../../llm/prompts'
+import { levelLabel, suggestKr } from '../../lib/okr'
+import { useRecorder } from '../../state/recorder'
+import {
+  listPinnedCards,
+  pinAssistCard,
+  retrieveKnowledge,
+  unpinAssistCard,
+} from '../../lib/knowledge'
+import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 
-type Tab = 'summary' | 'todos' | 'transcript' | 'audio'
+type Tab = 'scribble' | 'notes' | 'summary' | 'todos' | 'transcript' | 'audio' | 'assist'
 
 function statusLabel(s: MeetingStatus): string {
   switch (s) {
@@ -27,7 +38,7 @@ function statusLabel(s: MeetingStatus): string {
 
 function statusTone(s: MeetingStatus): string {
   switch (s) {
-    case 'recording': return 'border-danger/40 text-danger bg-danger/8'
+    case 'recording': return 'border-danger/30 text-danger bg-danger/8'
     case 'processing':
     case 'transcribed':
     case 'summarizing': return 'border-warning/40 text-warning bg-warning/8'
@@ -37,7 +48,10 @@ function statusTone(s: MeetingStatus): string {
 }
 
 /**
- * 会议详情：标题 + 状态 + Tab(纪要/待办/转录/录音)
+ * 会议详情：标题 + 状态 + Tab(速记/笔记/纪要/待办/转录/录音)
+ * - 录音中：速记（Scribble）是主角，其它 Tab 让路
+ * - 整理（Polish）：速记 + 转录 → 润色笔记，写入会议关联的 Note
+ * - 深度总结：原模板纪要 + 待办提取管线
  * - 待办 Tab 仅在有 pending_review 的 todo 时出现
  * - 录音 Tab 从 audioChunks 拼 blob URL
  */
@@ -81,6 +95,14 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     () => db.todos.where('meeting_id').equals(meeting.id).and((x) => x.status === 'pending_review').toArray(),
     [meeting.id],
   ) ?? []
+  const note = useLiveQuery(
+    async () => meeting.note_id ? await db.notes.get(meeting.note_id) : undefined,
+    [meeting.note_id],
+  )
+  const openKrs = useLiveQuery(
+    () => db.todos.where('kind').equals('kr').and((k) => k.deleted_at === null && k.status === 'open').toArray(),
+    [],
+  ) ?? []
   const templates = useLiveQuery(
     () => db.templates.toArray(),
     [],
@@ -91,7 +113,10 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     [meeting.id],
   ) ?? []
 
-  const [tab, setTab] = useState<Tab>('summary')
+  const isRecording = meeting.status === 'recording'
+  const [tab, setTab] = useState<Tab>(() => isRecording || !meeting.scribble_md ? (isRecording ? 'scribble' : 'summary') : 'notes')
+  const [polishing, setPolishing] = useState(false)
+  const [polishErr, setPolishErr] = useState<string | null>(null)
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [seekRequest, setSeekRequest] = useState<number | null>(null)
@@ -125,9 +150,12 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
   const showTodosTab = reviewTodos.length > 0
 
-  async function confirmTodo(t: Todo): Promise<void> {
+  // 会议待办 → OKR：默认进 Inbox；只有用户点了建议才挂到 KR（不自动深挂）
+  async function confirmTodo(t: Todo, kr?: Todo): Promise<void> {
     await db.todos.update(t.id, {
       status: 'open',
+      parent_id: kr?.id ?? null,
+      scope: kr?.scope ?? null,
       updated_at: now(),
       sync_version: t.sync_version + 1,
     })
@@ -153,6 +181,39 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     await runSummarizePipeline(meeting.id).catch((e) => {
       console.error('重新生成失败', e)
     })
+  }
+
+  async function polish(): Promise<void> {
+    if (polishing) return
+    setPolishErr(null)
+    setPolishing(true)
+    try {
+      const settings = await getSettings()
+      if (!settings.llm_api_key) throw new Error('请先在「设置」页填 LLM API Key')
+      const fresh = await db.meetings.get(meeting.id) // 取最新速记（防抖保存可能刚落库）
+      const md = stripFence(await callLLM(
+        settings,
+        buildPolishMessages(meeting, fresh?.scribble_md ?? '', transcript),
+        { maxTokens: 3072, temperature: 0.3 },
+      ))
+      if (!md) throw new Error('模型返回为空')
+      const ts = now()
+      if (meeting.note_id && await db.notes.get(meeting.note_id)) {
+        await db.notes.update(meeting.note_id, { body_md: md, updated_at: ts })
+      } else {
+        const id = uid()
+        await db.notes.add({
+          id, title: meeting.title, body_md: md, meeting_id: meeting.id, todo_ids: [], pinned: false,
+          created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+        })
+        await db.meetings.update(meeting.id, { note_id: id, updated_at: ts })
+      }
+      setTab('notes')
+    } catch (e: unknown) {
+      setPolishErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPolishing(false)
+    }
   }
 
   async function deleteMeeting(): Promise<void> {
@@ -182,10 +243,10 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           >←</button>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-semibold text-text-1 truncate">{meeting.title}</h1>
-            <div className="flex items-center gap-3 text-xs text-text-3 mt-1">
+            <div className="flex items-center gap-2 text-xs text-text-3 mt-1">
               <span>{fmtDateTime(meeting.started_at)}</span>
               <span>·</span>
-              <span>⏱ {fmtClock(meeting.audio.duration_ms)}</span>
+              {isRecording ? <LiveClock meetingId={meeting.id} /> : <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>}
             </div>
           </div>
           <span className={`text-xs px-2 py-0.5 rounded-md border ${statusTone(meeting.status)}`}>
@@ -195,18 +256,29 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
         {/* 操作行 */}
         <div className="flex items-center gap-2 mt-3 mb-4">
-          <RerunDropdown templates={templates} onPick={rerunWith} />
+          {!isRecording && (
+            <button
+              onClick={() => void polish()}
+              disabled={polishing}
+              className="btn-primary text-xs h-8 px-3"
+              title="用转录把速记扩写成完整笔记"
+            >{polishing ? '整理中…' : '整理笔记'}</button>
+          )}
+          {!isRecording && <RerunDropdown templates={templates} onPick={rerunWith} />}
           <button
             onClick={() => setChatOpen((v) => !v)}
-            className={`btn-outline text-xs h-8 ${chatOpen ? 'text-accent border-accent/40' : ''}`}
+            className={`btn-ghost text-xs h-8 px-3 ${chatOpen ? 'text-accent' : ''}`}
           >对话</button>
-          <button onClick={() => void deleteMeeting()} className="btn-danger text-xs h-8 ml-auto">
-            删除
-          </button>
+          <div className="ml-auto">
+            <OverflowMenu items={[{ label: '删除会议', danger: true, onClick: () => void deleteMeeting() }]} />
+          </div>
         </div>
+        {polishErr && <div className="text-xs text-danger mb-3">整理失败：{polishErr}</div>}
 
         {/* Tab 栏 */}
         <div className="border-b border-line flex items-center gap-1 mb-6 text-sm">
+          <TabBtn active={tab === 'scribble'} onClick={() => setTab('scribble')}>速记</TabBtn>
+          <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>笔记</TabBtn>
           <TabBtn active={tab === 'summary'} onClick={() => setTab('summary')}>纪要</TabBtn>
           {showTodosTab && (
             <TabBtn active={tab === 'todos'} onClick={() => setTab('todos')}>
@@ -215,9 +287,28 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           )}
           <TabBtn active={tab === 'transcript'} onClick={() => setTab('transcript')}>转录</TabBtn>
           <TabBtn active={tab === 'audio'} onClick={() => setTab('audio')}>录音</TabBtn>
+          <TabBtn active={tab === 'assist'} onClick={() => setTab('assist')}>助手</TabBtn>
         </div>
 
         {/* 内容 */}
+        {tab === 'scribble' && (
+          <ScribblePane
+            meeting={meeting}
+            live={isRecording}
+            canPolish={!isRecording && !polishing}
+            onPolish={() => void polish()}
+          />
+        )}
+        {tab === 'notes' && (
+          note?.body_md ? (
+            <MarkdownView source={note.body_md} />
+          ) : (
+            <EmptyState
+              title="还没有整理过的笔记"
+              hint={hasTranscript ? '点「整理笔记」：用转录把速记扩写成完整笔记。' : '录音转录完成后，可一键把速记整理成完整笔记。'}
+            />
+          )
+        )}
         {tab === 'summary' && (
           <SummaryTab
             meeting={meeting}
@@ -235,6 +326,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             onDelete={deleteTodo}
             onConfirmAll={confirmAll}
             onJumpToTranscript={jumpToTranscript}
+            krs={openKrs}
           />
         )}
         {tab === 'transcript' && (
@@ -250,6 +342,13 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             meetingId={meeting.id}
             seekRequest={seekRequest}
             onPlayheadUpdate={setPlayheadMs}
+          />
+        )}
+        {tab === 'assist' && (
+          <AssistPane
+            meeting={meeting}
+            scribbleMd={meeting.scribble_md}
+            transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
           />
         )}
         </div>
@@ -283,7 +382,7 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
   return (
     <div className="relative">
       <button onClick={() => setOpen((v) => !v)} className="btn-outline text-xs h-8">
-        ▾ 重新生成
+        深度总结 ▾
       </button>
       {open && (
         <>
@@ -295,7 +394,6 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
                   onClick={() => { setOpen(false); void onPick(t.id) }}
                   className="w-full text-left px-3 py-2 rounded-md hover:bg-bg-overlay text-text-1"
                 >
-                  <span className="mr-1.5">{t.icon}</span>
                   {t.name}
                   {t.builtin && <span className="ml-1 text-[10px] uppercase tracking-wider text-text-3">内置</span>}
                 </button>
@@ -303,6 +401,101 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
             ))}
           </ul>
         </>
+      )}
+    </div>
+  )
+}
+
+function LiveClock({ meetingId }: { meetingId: string }): JSX.Element {
+  const active = useRecorder((s) => s.meeting?.id === meetingId)
+  const elapsed = useRecorder((s) => s.elapsedMs)
+  return (
+    <span className="inline-flex items-center gap-1.5 text-danger font-medium">
+      <span className="rec-dot h-1.5 w-1.5 rounded-full bg-danger" />
+      REC <span className="tabular-nums">{active ? fmtClock(elapsed) : ''}</span>
+    </span>
+  )
+}
+
+// ── 速记 Scribble ─────────────────────────────────────────────────
+// 会中只记 2–3 字的 bullet；本地防抖保存到 meeting.scribble_md。
+// TODO(tauri): ScreenCaptureKit 系统音频采集（Phase-1 web 仅麦克风）。
+function ScribblePane({
+  meeting, live, canPolish, onPolish,
+}: {
+  meeting: Meeting
+  live: boolean
+  canPolish: boolean
+  onPolish: () => void
+}): JSX.Element {
+  const [text, setText] = useState(meeting.scribble_md ?? '')
+  const [saved, setSaved] = useState(true)
+  const pending = useRef<string | null>(null)
+
+  const flush = (): void => {
+    if (pending.current === null) return
+    const v = pending.current
+    pending.current = null
+    void db.meetings.update(meeting.id, { scribble_md: v, updated_at: now() }).then(() => setSaved(true))
+  }
+  useEffect(() => {
+    if (pending.current === null) return
+    const id = setTimeout(flush, 400)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text])
+  // 切 Tab / 离开页面时立刻落库
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => flush, [])
+
+  function onChange(v: string): void {
+    pending.current = v
+    setSaved(false)
+    setText(v)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    // 回车自动续写 bullet
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
+    const el = e.currentTarget
+    const before = text.slice(0, el.selectionStart)
+    const line = before.slice(before.lastIndexOf('\n') + 1)
+    if (!/^\s*- /.test(line)) return
+    e.preventDefault()
+    if (line.trim() === '-') {
+      // 空 bullet 再回车 → 结束列表
+      const start = before.length - line.length
+      onChange(text.slice(0, start) + text.slice(el.selectionStart))
+      return
+    }
+    const insert = '\n' + line.match(/^\s*- /)![0]
+    const next = before + insert + text.slice(el.selectionEnd)
+    onChange(next)
+    const pos = before.length + insert.length
+    requestAnimationFrame(() => el.setSelectionRange(pos, pos))
+  }
+
+  return (
+    <div className={`rounded-xl border bg-bg-raise ${live ? 'border-danger/25 shadow-[0_0_0_4px_color-mix(in_oklch,var(--danger)_6%,transparent)]' : 'border-line'}`}>
+      <div className="flex items-center gap-2 px-4 h-10 border-b border-line text-xs text-text-3">
+        <span className="font-medium text-text-2">速记</span>
+        <span>{live ? '只记关键词，会后一键整理成完整笔记' : '会中的速记；点「整理」用转录扩写'}</span>
+        <span className="ml-auto">{saved ? '已保存' : '保存中…'}</span>
+      </div>
+      <textarea
+        autoFocus={live}
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={flush}
+        placeholder={'- q4 预算??\n- 上线时间风险\n- @法务 合同'}
+        className={`w-full resize-none bg-transparent px-4 py-3 outline-none text-[15px] leading-7 text-text-1 placeholder:text-text-disabled font-mono ${live ? 'min-h-[52vh]' : 'min-h-[240px]'}`}
+      />
+      {!live && (
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-line">
+          <span className="text-[11px] text-text-3">整理 = 速记为骨架 + 转录补全细节</span>
+          <button onClick={onPolish} disabled={!canPolish} className="btn-primary text-xs h-7 px-3 ml-auto">整理笔记</button>
+        </div>
       )}
     </div>
   )
@@ -380,10 +573,11 @@ function Step({ done, label }: { done: boolean; label: string }): JSX.Element {
 
 // ── 待办 Tab ──────────────────────────────────────────────────────
 function TodosTab({
-  todos, onConfirm, onDelete, onConfirmAll, onJumpToTranscript,
+  todos, onConfirm, onDelete, onConfirmAll, onJumpToTranscript, krs,
 }: {
   todos: Todo[]
-  onConfirm: (t: Todo) => void | Promise<void>
+  krs: Todo[]
+  onConfirm: (t: Todo, kr?: Todo) => void | Promise<void>
   onDelete: (t: Todo) => void | Promise<void>
   onConfirmAll: () => void | Promise<void>
   onJumpToTranscript?: (t: Todo) => void
@@ -393,25 +587,36 @@ function TodosTab({
       <div className="flex items-center mb-3">
         <div className="section-title">待审待办 · {todos.length}</div>
         <button onClick={() => void onConfirmAll()} className="btn-primary text-xs h-7 ml-auto">
-          全部确认加入待办
+          全部确认进 Inbox
         </button>
       </div>
 
       <div className="card p-4">
         {todos.length === 0 ? (
-          <EmptyState icon="✓" title="全部已确认" hint="这些待办都已进入待办系统。" />
+          <EmptyState title="全部已确认" hint="这些待办都已进入 OKR / Inbox。" />
         ) : (
           <div className="divide-y divide-line">
-            {todos.map((t) => (
-              <TodoRow
-                key={t.id}
-                todo={t}
-                onConfirm={onConfirm}
-                onDelete={onDelete}
-                onJumpToTranscript={onJumpToTranscript}
-                showMeetingLink={false}
-              />
-            ))}
+            {todos.map((t) => {
+              const kr = suggestKr(t.title, krs)
+              return (
+                <div key={t.id}>
+                  <TodoRow
+                    todo={t}
+                    onConfirm={(x) => onConfirm(x)}
+                    onDelete={onDelete}
+                    onJumpToTranscript={onJumpToTranscript}
+                    showMeetingLink={false}
+                  />
+                  {kr && (
+                    <button
+                      onClick={() => void onConfirm(t, kr)}
+                      className="ml-12 mb-2 -mt-0.5 text-[11.5px] text-text-3 hover:text-accent transition-colors"
+                      title="确认并挂到这个 KR（✓ 则进 Inbox）"
+                    >确认并挂到 {levelLabel(kr)} · <span className="text-text-2">{kr.title}</span></button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -580,6 +785,203 @@ function AudioTab({
       ) : (
         <div className="text-xs text-text-3">{err ?? '生成 blob URL 失败'}</div>
       )}
+    </div>
+  )
+}
+
+// ── Live Assist（Phase-2 item 5）──────────────────────────────────────────
+// 录制中（或刚结束）：从速记 + 最近转录片段拼成 query → keyword 检索
+// KnowledgeEntries；Pinned 卡片持久化在会议下，跨 retrieve 持续显示。
+function AssistPane({
+  meeting, scribbleMd, transcriptText,
+}: {
+  meeting: Meeting
+  scribbleMd: string | undefined
+  transcriptText: string | undefined
+}): JSX.Element {
+  const entries = useLiveQuery(() => db.knowledgeEntries.toArray(), []) ?? []
+  const settings = useLiveQuery(async () => {
+    const row = await db.kv.get('settings')
+    return ((row?.value as { knowledge_folders?: string[] } | undefined)?.knowledge_folders) ?? []
+  }, []) ?? []
+
+  const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<KnowledgeEntry[]>([])
+  const [pinned, setPinned] = useState<PinnedAssistCard[]>([])
+
+  // 计算 query：用户输入 > 速记 > 转录尾部 200 字
+  const effectiveQuery = useMemo(() => {
+    if (query.trim()) return query.trim()
+    if (scribbleMd && scribbleMd.trim()) return scribbleMd.trim().slice(0, 400)
+    if (transcriptText) {
+      const tail = transcriptText.slice(-200)
+      return tail
+    }
+    return ''
+  }, [query, scribbleMd, transcriptText])
+
+  // debounce 200ms 自动重新检索
+  useEffect(() => {
+    if (!effectiveQuery) {
+      setHits([])
+      return
+    }
+    const t = setTimeout(() => {
+      setHits(retrieveKnowledge(effectiveQuery, entries, 8))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [effectiveQuery, entries])
+
+  // 加载 pinned
+  const refreshPinned = useCallback(async (): Promise<void> => {
+    setPinned(await listPinnedCards(meeting.id))
+  }, [meeting.id])
+  useEffect(() => {
+    void refreshPinned()
+  }, [refreshPinned])
+
+  async function togglePin(entry: KnowledgeEntry): Promise<void> {
+    const existing = pinned.find((p) => p.source_entry_id === entry.id)
+    if (existing) {
+      await unpinAssistCard(existing.id)
+    } else {
+      await pinAssistCard(meeting.id, entry)
+    }
+    await refreshPinned()
+  }
+
+  if (settings.length === 0) {
+    return (
+      <EmptyState
+        icon="◇"
+        title="还没有知识库文件夹"
+        hint="在「设置 → 知识库」里添加 .md / .txt 路径，重新索引后这里会按速记 / 转录推荐相关卡片。"
+        action={
+          <button
+            onClick={() => useUI.getState().goSettings()}
+            className="btn-outline text-xs h-8 px-3"
+          >→ 设置</button>
+        }
+      />
+    )
+  }
+
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        icon="◇"
+        title="还没有索引过的内容"
+        hint={`已配置 ${settings.length} 个文件夹，但还没有可检索的条目。先在「设置 → 知识库」点「重新索引」。`}
+        action={
+          <button
+            onClick={() => useUI.getState().goSettings()}
+            className="btn-outline text-xs h-8 px-3"
+          >→ 去索引</button>
+        }
+      />
+    )
+  }
+
+  return (
+    <div>
+      <div className="card p-4 mb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="section-title">检索</span>
+          <span className="text-[11px] text-text-3">
+            来自速记 / 转录 / 手动输入 — 关键词 + 标题匹配
+          </span>
+        </div>
+        <input
+          className="input"
+          placeholder="想找什么？或留空用速记自动检索"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {!query.trim() && effectiveQuery && (
+          <div className="mt-2 text-[11px] text-text-3 truncate" title={effectiveQuery}>
+            自动 query：{effectiveQuery.slice(0, 80)}{effectiveQuery.length > 80 ? '…' : ''}
+          </div>
+        )}
+      </div>
+
+      {pinned.length > 0 && (
+        <div className="mb-4">
+          <div className="section-title mb-2">已固定 · {pinned.length}</div>
+          <div className="space-y-2">
+            {pinned.map((p) => (
+              <PinnedCardRow key={p.id} card={p} onUnpin={() => void togglePin({
+                id: p.source_entry_id ?? p.id,
+                folder: '', path: p.path, title: p.title, snippet: p.snippet,
+                fullText: '', mtime: 0, size_bytes: 0,
+                created_at: p.created_at, updated_at: p.updated_at, deleted_at: null, sync_version: 0,
+              })} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="section-title mb-2">相关 · {hits.length}</div>
+      {hits.length === 0 ? (
+        <div className="text-[12px] text-text-3 py-6 text-center">
+          没有匹配 — 换个关键词或去「设置」添加更多文件夹。
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {hits.map((e) => {
+            const isPinned = pinned.some((p) => p.source_entry_id === e.id)
+            return (
+              <div key={e.id} className="card p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-text-1 truncate">{e.title}</div>
+                    <div className="text-[11px] text-text-3 font-mono truncate mt-0.5" title={e.path}>
+                      {e.folder} / {e.path}
+                    </div>
+                    <div className="text-[12px] text-text-2 mt-1.5 line-clamp-3 leading-relaxed">
+                      {e.snippet}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void togglePin(e)}
+                    className={isPinned ? 'btn-primary text-[11px] h-7 px-2.5' : 'btn-outline text-[11px] h-7 px-2.5'}
+                    title={isPinned ? '取消固定' : '固定到这场会议'}
+                  >
+                    {isPinned ? '✓ 已固定' : '固定'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PinnedCardRow({
+  card, onUnpin,
+}: {
+  card: PinnedAssistCard
+  onUnpin: () => void | Promise<void>
+}): JSX.Element {
+  return (
+    <div className="card p-3 border-accent/30 bg-accent/5">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-text-1 truncate">{card.title}</div>
+          <div className="text-[11px] text-text-3 font-mono truncate mt-0.5">{card.path}</div>
+          <div className="text-[12px] text-text-2 mt-1.5 line-clamp-3 leading-relaxed">
+            {card.snippet}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onUnpin()}
+          className="btn-outline text-[11px] h-7 px-2.5"
+          title="取消固定"
+        >✕ 取消</button>
+      </div>
     </div>
   )
 }

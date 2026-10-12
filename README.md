@@ -1,19 +1,25 @@
-# 拾贝 Shibei · AI 会议笔记与待办
+# NotesToGO · 会议速记 × 嵌套 OKR
 
-> 开会时只管说话，散会时纪要和待办已经排好。
+> 开会时只记关键词，散会后一键整理成笔记；每个行动项落到正确的 KR 上。
 
-一个 AI-native 的会议笔记 + 三级待办应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
+产品名 **NotesToGO**（仓库名 notestodo，「拾贝 Shibei」为旧名/别名）。一个 AI-native 的会议速记 + 嵌套 OKR 应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
+
+**当前状态（2026-10-12）**：Phase-1～3 已合入 `main`（嵌套 OKR、Scribble→Polish、暖浅色主题、本地 LLM/ASR、知识库+Assist、macOS ScreenCaptureKit 系统音频采集）。桌面包名 **拾贝**；PCM 混录进 MediaRecorder 见 Phase-4。
 
 ## 核心特性
 
 - **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟；电平条可见麦在响。
 - **AI 转录 + 总结**：BYOK，支持 MiniMax asr-1.0（含说话人分离）/ Deepgram Nova-3 / OpenAI Whisper；用户可自定义模板（`{{var}}` 语法）。
-- **三级待办**：Objective > KR > Task，支持 tags、日期、委派人员；会议提取的 ToDo 带「证据引文」可一键跳回转录原文。
+- **Scribble → Polish**：录音时速记是主角（短 bullet，回车自动续写）；停止后「整理笔记」用转录把速记扩写成完整 Markdown，写入会议笔记。原模板纪要 + 待办提取保留为「深度总结」。
+- **嵌套 OKR**：战略 O/KR → 季度 O/KR（`period` 如 `2026-Q4`）→ 项目 O/KR → Task；父子规则见 [`web/src/lib/okr.ts`](web/src/lib/okr.ts)，进度按权重逐级汇总。三种视图：**Focus**（默认：Inbox + 本季任务，无树）/ **Quarter** / **Strategy**。会议提取的 ToDo 确认后进 Inbox，或一键挂到建议的 KR；带「证据引文」可跳回转录原文。旧数据的 O/KR 自动迁移为战略层。
 - **AI 对话**：会议详情页内置 ChatPanel，对这场会议的纪要+全文转录提问。
 - **日历集成**：订阅任意 .ics URL（Apple iCloud / Google / QQ / Outlook），点击事件直接启动录音（预填标题与时间）。
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
+- **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
+- **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
+- **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 
 ## 仓库结构
 
@@ -58,12 +64,19 @@ pnpm tauri dev     # 原生窗口开发模式（自动起 vite）
 pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 ```
 
+**Tauri 端 macOS 授权**（Phase-3 系统音频已实装）：
+- `NSMicrophoneUsageDescription`（录音）— 首次启动弹框
+- `NSScreenCaptureUsageDescription`（系统音频 loopback）— 首次启用 system-audio 时弹框
+- 桌面 App 显示名是 **拾贝**（`cc.secondplanet.shibei`）；「屏幕录制」列表里找「拾贝」，不是 NotesToGO
+- 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后自动降级到 mic-only + honest banner
+
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
 
 ## 设计语言
 
-- 主背景 `oklch(16%)` + 提升层 `oklch(19.5%)`，暗色默认
-- 唯一强调色：青蓝 `oklch(70% 0.12 230)`
+- **浅色默认**：暖纸色画布 `oklch(97.9% 0.009 85)` + 白色提升层、细线分隔、柔和阴影；墨色正文
+- 深色可选：柔和炭灰 `oklch(23–30%)`，不是纯黑
+- 唯一强调色：低饱和青蓝 `oklch(51% 0.075 205)`（深色下提亮）
 - 4pt 间距网格，150-250ms ease-out 动效
 - 文字符号优先（● ▣ ◆ ✎ ✓ ✕），不用 emoji
 - 详见 [`web/src/styles/main.css`](web/src/styles/main.css)
@@ -72,13 +85,94 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 | 维度 | 选择 | 理由 |
 |------|------|------|
-| 平台 | Web（MVP） | 一份代码覆盖 mac/iPad/iPhone；后续 Tauri 包装 |
+| 平台 | Web（MVP） + Tauri 2 macOS desktop | 一份代码覆盖 mac/iPad/iPhone；桌面版承担系统音频 / 屏录授权 |
 | 存储 | Local-first（Dexie / IndexedDB） | 录音是敏感数据；断网可录；同步问题从 Day 1 降级 |
 | 转录 | MiniMax / Deepgram / Whisper 多 provider | BYOK；用户按价格/语言/说话人分离能力选择 |
 | 总结 | Anthropic-兼容 LLM（MiniMax M3 / Claude） | 中文质量 + 结构化输出 + 长上下文 |
+| 本地 LLM | Ollama（首选 preset）/ LM Studio / MLX / 自建 OpenAI 兼容 | Ollama 一行 `ollama serve` 就能跑；Ollama 跑不动再换 MLX |
+| 系统音频 | Tauri + ScreenCaptureKit (macOS) | 平台原生 loopback，无需 meeting bot；屏录权限用户在「系统设置」批准 |
+| 知识库 | MVP: keyword + 标题匹配（lib/knowledge.ts）| 零外部依赖，中英文混排都可用；升级到 on-device embedding 留接口 |
 | 日历 | .ics 订阅（ical.js） | 零 OAuth/审批，覆盖 Apple/Google/QQ/Outlook |
 | 导出 | .zip 含音频（fflate） | 数据所有权；14 KB minified |
 | 同步 | MVP 不做（M3 用 LWW） | 验证 PMF 前不投入 |
+
+## Phase-2 能力（Foresight 路线图）
+
+> 详细设计见 [`docs/FORESIGHT_OKR_REDESIGN.md`](docs/FORESIGHT_OKR_REDESIGN.md)。本节是给「现在就要跑起来」的用户看的。
+
+### 1. 系统音频（macOS 桌面版 · Phase-3 已实装）
+
+- **Web 路径**（默认）：浏览器仅能拿到麦克风（DRM / 平台限制）。UI 在录音条下方显示 banner：「浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。」
+- **Tauri 桌面版路径**（macOS，Phase-3 已实装）：
+  1. 启动 NotesToGO 桌面版（`pnpm tauri dev` / 已打包 .app）
+  2. 首次录音时 macOS 弹「屏幕录制」授权；批准后 NotesToGO 可同时录到 Zoom/Meet 播放声
+  3. 若用户在「系统设置 → 隐私与安全性 → 屏幕录制」中撤销 → 仍可继续，但仅 mic-only（同一 honest banner）
+  4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。前端本期只 banner（`captureMode='mic+system'`），把 PCM 拼进 MediaRecorder 留 Phase-4。
+- **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未授权屏录 / 非 macOS），不会让用户误以为系统声音已录上。
+
+#### 首次授权步骤（必须手动批准）
+
+1. 启动桌面版（`/Applications/拾贝.app` 或 `pnpm tauri dev`），录音一次 → macOS 自动弹屏录授权
+2. 若点了「不允许」或在 System Settings 里撤销：
+   - 「系统设置 → 隐私与安全性 → 屏幕录制」中打开 **拾贝** 开关（列表里是「拾贝」，不是 NotesToGO）
+   - 杀掉并重启 App（macOS TCC 不会即时刷新已运行的进程）
+3. 重启后再录音 → banner 自动翻「麦克风 + 系统声音」
+
+
+### 2. 本地 LLM
+
+- **Cloud BYOK**（默认）：填 MiniMax / Anthropic / OpenAI 兼容网关的 key；原有功能不变。
+- **Local**：填 Ollama / LM Studio / MLX / 自建 OpenAI 兼容端点；API Key 留空即可（Ollama 默认无鉴权），Model 填已下载的模型名。
+  - 切到 Local 模式不会清空 Cloud 那一侧的字段；反之亦然。
+  - **Ollama 启动**：`ollama serve`（默认 `http://127.0.0.1:11434/v1`）。若模型放在外置盘（如 UGREEN），启动前 `export OLLAMA_MODELS=/Volumes/UGREEN/ollama`。
+  - **LM Studio**：开启 Local Server，端口 1234 → Base URL `http://127.0.0.1:1234/v1`。
+- **测试连接** 在 Local 模式下会请求 `/v1/models`（Ollama 实现），拉到已下载模型列表即视为通。
+- **降级**：若端点不通，UI 给出明确错误（如「HTTP 502: connection refused」），不会让用户以为 LLM 在跑。
+
+### 3. 知识库 + Live Assist
+
+- **添加文件夹**（Settings → 知识库）：粘贴 .md / .txt 路径（HTTP URL 也可；web 路径用 `fetch` 读）。点「重新索引」建索引。
+- **Live Assist Tab**（会议详情 → 助手）：
+  - 速记非空时自动用速记作 query；录音中持续重检索
+  - 找到的相关卡片可「固定」到会议，pinned 卡片持久化在 `pinnedAssistCards` 表
+  - 「没有匹配」是空态，不报错
+- **MVP 限制**：当前仅 keyword + 标题匹配（bigram Jaccard + CJK 2-gram）；不支持语义检索。
+- **升级路径**（接口不变）：替换 `lib/knowledge.ts` 的 `retrieveKnowledge()` 实现，调用方零改动。推荐方向：
+  - On-device embedding：EmbeddingGemma 2（Google，~50MB，300M 参数）or `fastembed-wasm`
+  - Chunked 索引（按段落 / 滑动窗口 256 token）
+  - 向量存储：先 `sqlite-vss`，后续换 `lancedb` 持久化
+  - 检索融合：保留 keyword 兜底（title 命中 + 罕见专有名词仍需）
+
+## Phase-3 增量（已合入）
+
+| Gap | 内容 | 关键文件 |
+| --- | --- | --- |
+| 5 | `@tauri-apps/api` 装好 + `tauriInvoke.ts` 不再走 `new Function('import')` hack | `web/src/lib/tauriInvoke.ts`、`web/package.json` |
+| 4 | Local ASR 路径：Settings 加 Cloud \| Local ASR 切换 + Whisper / MLX / faster-whisper openai-compatible 客户端；`asr_mode` / `local_asr_*` 字段 + `resolveASRConfig` 镜像 Local LLM 模式 | `web/src/types.ts`、`web/src/transcribe/openai-whisper.ts`、`web/src/llm/test-connection.ts`、`web/src/pages/settings/SettingsPage.tsx` |
+| 2 | Tauri 端 `tauri-plugin-fs` + `tauri-plugin-dialog` 实装；桌面端递归 walk .md/.txt → knowledgeEntries；web 端 fallback 到 HTTP(S)。scope 缩窄到 `$HOME`/`$DOCUMENT`/`$DESKTOP`/`$DOWNLOAD`，**不**放 `"**"`。 | `web/src-tauri/Cargo.toml`、`web/src-tauri/capabilities/default.json`、`web/src-tauri/src/lib.rs`、`web/src/lib/knowledge.ts`、`web/src/pages/settings/SettingsPage.tsx` |
+| 3 | PDF 索引（`pdfjs-dist` lazy chunk + worker）：Vite 自动 code-split，用户不碰 PDF 时主 bundle 不增负担。扫描件 / 损坏 → 静默 skip。 | `web/src/lib/pdf.ts`、`web/src/lib/knowledge.ts` |
+| 1 | ScreenCaptureKit 系统音频采集（macOS）：`screencapturekit-sys` 0.2 直 ObjC FFI（避开 screencapturekit 11 的 swift-bridge 需要完整 Xcode 的问题）；48kHz/2ch Float32 PCM → Tauri event `system_audio:chunk` → 前端 banner。Phase-4 PR 会把 PCM 拼进 MediaRecorder。 | `web/src-tauri/src/system_audio.rs`、`web/src-tauri/src/lib.rs`、`web/src/lib/tauriSystemAudio.ts` |
+
+### Local ASR 起手（whisper.cpp / MLX STT / faster-whisper 兼容）
+
+```bash
+# whisper.cpp（OpenAI-compatible 默认端口 8080）
+whisper-server --inference-path  # 或 ./server --model ~/models/ggml-base.en.bin
+
+# MLX STT、faster-whisper 也都暴露 POST {base}/v1/audio/transcriptions，
+# Settings → Local ASR → Base URL 填对应端点，API Key 留空（whisper.cpp
+# 默认无鉴权）→ 测试连接 → 切 Cloud → Local 用……自动切到本地 STT
+```
+
+### Knowledge folder 起手
+
+桌面版 → 「📁 选文件夹」按钮弹系统文件夹选择器 → 选中目录 → 「重新索引」→ 助手 Tab 即可检索。
+
+Web 版（无 Tauri）依然可粘贴 HTTP(S) 直链 .md / .txt（GitHub raw 之类）；本地路径在 web 里会被静默跳过。
+
+### 关键 commit
+
+Phase-3 完整 brief 见 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md)。下一步（Phase-4）：把 `system_audio:chunk` PCM 混进 MediaRecorder，让系统声音真正写入录音文件。
 
 ## 状态机
 

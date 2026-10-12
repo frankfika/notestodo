@@ -13,13 +13,13 @@ export interface EmptyStateProps {
 
 export default function EmptyState({ icon = '◌', title, hint, action }: EmptyStateProps): JSX.Element {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-10 px-6 gap-2">
-      <div className="text-3xl text-text-3 leading-none" aria-hidden="true">
+    <div className="flex flex-col items-center justify-center text-center py-8 px-6 gap-1.5">
+      <div className="text-xl text-text-disabled leading-none mb-1" aria-hidden="true">
         {icon}
       </div>
       <div className="text-sm text-text-1 font-medium">{title}</div>
       {hint && <div className="text-xs text-text-3 max-w-[42ch] leading-relaxed">{hint}</div>}
-      {action && <div className="mt-3">{action}</div>}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   )
 }
