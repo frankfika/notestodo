@@ -231,7 +231,7 @@ export default function SettingsPage(): JSX.Element {
           />
         </Section>
 
-        <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书「导出链接」都行），仅本地拉取。">
+        <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书日历「订阅链接」/ 腾讯会议日历订阅链接都行），仅本地拉取。">
           <IcsListEditor
             urls={settings.calendar_ics_urls}
             onChange={(urls) => patch({ calendar_ics_urls: urls })}

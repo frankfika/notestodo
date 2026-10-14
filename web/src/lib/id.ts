@@ -55,3 +55,11 @@ export function fmtDateTime(iso: string | undefined): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${fmtDate(iso)} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+/** 本周五（周一为一周起点）YYYY-MM-DD；循环卡去重 & 周报范围用 */
+export function thisFriday(d = new Date()): string {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  x.setDate(x.getDate() + ((5 - x.getDay() + 7) % 7))
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`
+}

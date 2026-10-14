@@ -136,6 +136,10 @@ export interface Todo extends EntityMeta {
   /** 出处引文：可定位到转录段 */
   transcript_span?: { start_ms: number; end_ms: number; quote: string }
   sort_order: number
+  /** 看板列（done 由 status 决定）；缺省=待办 */
+  board_col?: 'todo' | 'doing' | 'review'
+  /** 循环卡：每周自动出现，点开即周报草稿 */
+  recurring?: 'weekly-report'
 }
 
 // ── 标签 ─────────────────────────────────────────────────────────────────────

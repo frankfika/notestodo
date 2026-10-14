@@ -17,12 +17,12 @@
   --text-2: oklch(41% 0.014 60);
   --text-3: oklch(52% 0.013 65);        /* ≥ 4.5:1 on paper */
   --text-disabled: oklch(70% 0.01 70);
-  --accent: oklch(51% 0.075 205);
-  --accent-strong: oklch(45% 0.08 205);
+  --accent: oklch(58% 0.15 45);
+  --accent-strong: oklch(52% 0.15 45);
   --accent-contrast: oklch(99% 0.005 85);
   --danger: oklch(55% 0.145 28);
   --warning: oklch(60% 0.115 68);
-  --ring: oklch(51% 0.075 205 / 0.35);
+  --ring: oklch(58% 0.15 45 / 0.35);
   --scrim: oklch(30% 0.02 60 / 0.28);
   --shadow-1: 0 1px 2px oklch(35% 0.03 60 / 0.05), 0 1px 1px oklch(35% 0.03 60 / 0.03);
   --shadow-2: 0 8px 24px -6px oklch(35% 0.03 60 / 0.14), 0 2px 6px oklch(35% 0.03 60 / 0.06);
@@ -40,12 +40,12 @@
   --text-2: oklch(80% 0.008 80);
   --text-3: oklch(67% 0.01 80);
   --text-disabled: oklch(50% 0.01 75);
-  --accent: oklch(75% 0.075 205);
-  --accent-strong: oklch(81% 0.08 205);
-  --accent-contrast: oklch(22% 0.02 210);
+  --accent: oklch(74% 0.14 50);
+  --accent-strong: oklch(80% 0.14 50);
+  --accent-contrast: oklch(22% 0.03 50);
   --danger: oklch(69% 0.13 28);
   --warning: oklch(77% 0.1 75);
-  --ring: oklch(75% 0.075 205 / 0.45);
+  --ring: oklch(74% 0.14 50 / 0.45);
   --scrim: oklch(12% 0.01 70 / 0.6);
   --shadow-1: none;
   --shadow-2: 0 12px 32px -8px oklch(5% 0 0 / 0.5);

@@ -24,7 +24,9 @@ test('iPhone 13 — 各页面', async ({ page }) => {
   for (const [label, fname] of [
     ['会议', 'mobile-meetings'],
     ['笔记', 'mobile-notes'],
-    ['待办', 'mobile-todos'],
+    ['OKR', 'mobile-todos'],
+    ['看板', 'mobile-board'],
+    ['周报', 'mobile-report'],
     ['模板', 'mobile-templates'],
   ] as const) {
     // 桌面 sidebar 在 md 以下隐藏；用 nav[aria-label="主导航"] 锁定移动 tab bar

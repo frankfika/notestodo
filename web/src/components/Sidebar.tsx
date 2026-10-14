@@ -7,13 +7,15 @@ import { useLiveQuery } from 'dexie-react-hooks'
 const NAV: { view: ViewName; label: string; icon: string }[] = [
   { view: 'today', label: '今天', icon: '◐' },
   { view: 'meetings', label: '会议', icon: '●' },
+  { view: 'board', label: '看板', icon: '▦' },
+  { view: 'todos', label: 'OKR', icon: '◎' },
+  { view: 'report', label: '周报', icon: '☰' },
   { view: 'notes', label: '笔记', icon: '✎' },
-  { view: 'todos', label: '待办', icon: '◎' },
   { view: 'templates', label: '模板', icon: '▢' },
 ]
 
 export default function Sidebar() {
-  const { view, goToday, goMeetings, goNotes, goTodos, goTemplates, goSettings } = useUI()
+  const { view, goToday, goMeetings, goNotes, goTodos, goTemplates, goSettings, goBoard, goReport } = useUI()
   const phase = useRecorder((s) => s.phase)
   const [clock, setClock] = useState(() => new Date())
 
@@ -53,7 +55,7 @@ export default function Sidebar() {
             <button
               key={item.view}
               onClick={() =>
-                ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: goTodos, templates: goTemplates } as Record<string, () => void>)[item.view]()
+                ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: goTodos, templates: goTemplates, board: goBoard, report: goReport } as Record<string, () => void>)[item.view]()
               }
               className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
                 active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
@@ -63,7 +65,7 @@ export default function Sidebar() {
                 {item.icon}
               </span>
               {item.label}
-              {item.view === 'todos' && (openTodos ?? 0) > 0 && (
+              {item.view === 'board' && (openTodos ?? 0) > 0 && (
                 <span className="ml-auto text-[11px] text-text-3 tabular-nums">{openTodos}</span>
               )}
             </button>
@@ -92,7 +94,7 @@ export default function Sidebar() {
  * 保持与桌面 sidebar 一样的 chip/badge 行为。
  */
 export function BottomTabBar() {
-  const { view, goToday, goMeetings, goNotes, goTodos, goSettings, goTemplates } = useUI()
+  const { view, goToday, goMeetings, goNotes, goTodos, goSettings, goTemplates, goBoard, goReport } = useUI()
   const phase = useRecorder((s) => s.phase)
   const openTodos = useLiveQuery(
     () => db.todos.where('status').anyOf('open', 'pending_review').count(),
@@ -102,8 +104,10 @@ export function BottomTabBar() {
   const items: { view: ViewName; label: string; icon: string; onClick: () => void; badge?: number | null }[] = [
     { view: 'today', label: '今天', icon: '◐', onClick: goToday },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
+    { view: 'board', label: '看板', icon: '▦', onClick: goBoard },
+    { view: 'todos', label: 'OKR', icon: '◎', onClick: goTodos, badge: openTodos ?? 0 },
+    { view: 'report', label: '周报', icon: '☰', onClick: goReport },
     { view: 'notes', label: '笔记', icon: '✎', onClick: goNotes },
-    { view: 'todos', label: '待办', icon: '◎', onClick: goTodos, badge: openTodos ?? 0 },
     { view: 'templates', label: '模板', icon: '▢', onClick: goTemplates },
   ]
 
@@ -131,7 +135,7 @@ export function BottomTabBar() {
           <button
             key={item.view}
             onClick={item.onClick}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] ${
+            className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[10px] ${
               active ? 'text-text-1' : 'text-text-2'
             }`}
             aria-current={active ? 'page' : undefined}

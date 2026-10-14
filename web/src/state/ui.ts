@@ -7,6 +7,8 @@ export type ViewName =
   | 'notes'
   | 'note-detail'
   | 'todos'
+  | 'board'
+  | 'report'
   | 'templates'
   | 'settings'
 
@@ -25,6 +27,8 @@ interface UIStore extends RouteState {
   goNotes: () => void
   goNote: (noteId: string) => void
   goTodos: (todoFocusId?: string) => void
+  goBoard: () => void
+  goReport: () => void
   goTemplates: () => void
   goSettings: () => void
 
@@ -54,6 +58,8 @@ export const useUI = create<UIStore>((set) => ({
   goNotes: () => set({ view: 'notes', meetingId: null, noteId: null }),
   goNote: (noteId) => set({ view: 'note-detail', meetingId: null, noteId }),
   goTodos: (todoFocusId) => set({ view: 'todos', meetingId: null, noteId: null, todoFocusId: todoFocusId ?? null }),
+  goBoard: () => set({ view: 'board', meetingId: null, noteId: null }),
+  goReport: () => set({ view: 'report', meetingId: null, noteId: null }),
   goTemplates: () => set({ view: 'templates', meetingId: null, noteId: null }),
   goSettings: () => set({ view: 'settings', meetingId: null, noteId: null }),
 

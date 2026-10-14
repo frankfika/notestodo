@@ -14,6 +14,8 @@ import MeetingDetailPage from './pages/meeting/MeetingDetailPage'
 import NotesPage from './pages/notes/NotesPage'
 import NoteDetailPage from './pages/notes/NoteDetailPage'
 import TodosPage from './pages/todos/TodosPage'
+import BoardPage from './pages/board/BoardPage'
+import ReportPage from './pages/report/ReportPage'
 import TemplatesPage from './pages/templates/TemplatesPage'
 import SettingsPage from './pages/settings/SettingsPage'
 
@@ -66,6 +68,8 @@ export default function App() {
             {view === 'notes' && <NotesPage />}
             {view === 'note-detail' && <NoteDetailPage />}
             {view === 'todos' && <TodosPage />}
+            {view === 'board' && <BoardPage />}
+            {view === 'report' && <ReportPage />}
             {view === 'templates' && <TemplatesPage />}
             {view === 'settings' && <SettingsPage />}
           </div>

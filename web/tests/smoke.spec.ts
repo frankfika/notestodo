@@ -50,8 +50,8 @@ test.describe('Shibei shell smoke', () => {
     await dismissOnboarding(page)
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
-    for (const label of ['会议', '笔记', '待办', '模板']) {
-      await page.getByRole('button', { name: label }).click()
+    for (const label of ['会议', '笔记', 'OKR', '模板']) {
+      await page.locator('aside').getByRole('button', { name: label }).click()
       await page.waitForTimeout(200)
     }
     await expect(errors, errors.join('\n')).toHaveLength(0)
@@ -92,7 +92,7 @@ test.describe('Shibei shell smoke', () => {
   test('新建一个 Objective 时 持久化到 IndexedDB', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)
-    await page.getByRole('button', { name: '待办' }).click()
+    await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
     await page.waitForTimeout(300)
 
     await page.getByRole('tab', { name: 'Strategy' }).click()
@@ -143,7 +143,7 @@ test.describe('Shibei shell smoke', () => {
     await page.goto(BASE)
     // 不要 dismiss — 让 onboarding 第一次显示
     // 触发第一个真实动作 — 创建 Objective
-    await page.getByRole('button', { name: '待办' }).click()
+    await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
     await page.waitForTimeout(300)
     await page.getByRole('tab', { name: 'Strategy' }).click()
     const newBtn = page.getByRole('button', { name: /新建战略 O/ }).first()
@@ -218,7 +218,7 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await page.goto(BASE)
-    await page.getByRole('button', { name: '待办' }).click()
+    await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
     await page.waitForTimeout(500)
     // 来源会议链接可见 → 点击 → 跳到会议详情
     const link = page.getByRole('button', { name: /E2E 来源会议/ }).first()
@@ -257,7 +257,7 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await page.goto(BASE)
-    await page.getByRole('button', { name: '待办' }).click()
+    await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
     await page.waitForTimeout(500)
     const link = page.getByRole('button', { name: /E2E 来源笔记/ }).first()
     await expect(link).toBeVisible({ timeout: 5000 })
@@ -305,7 +305,7 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await page.goto(BASE)
-    await page.getByRole('button', { name: '待办' }).click()
+    await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
     await page.waitForTimeout(600)
     // tag 行出现 → 点击 #urgent
     const tagChip = page.getByRole('button', { name: /^#urgent/ }).first()
@@ -371,7 +371,7 @@ test.describe('Shibei shell smoke', () => {
     await page.waitForTimeout(1500)
 
     // 3) 验证数据完整恢复：会议与待办都在
-    await page.getByRole('button', { name: '待办' }).click()
+    await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
     await page.waitForTimeout(500)
     await expect(page.locator('text=Roundtrip 任务').first()).toBeVisible({ timeout: 5000 })
     const restored = await page.evaluate(async () => {

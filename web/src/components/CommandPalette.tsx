@@ -43,6 +43,8 @@ export default function CommandPalette() {
       { group: '跳转', label: '会议', hint: '2', run: () => go.goMeetings() },
       { group: '跳转', label: '笔记', hint: '3', run: () => go.goNotes() },
       { group: '跳转', label: '待办', hint: '4', run: () => go.goTodos() },
+      { group: '跳转', label: '看板', run: () => go.goBoard() },
+      { group: '跳转', label: '周报', run: () => go.goReport() },
       { group: '跳转', label: '模板', hint: '5', run: () => go.goTemplates() },
       { group: '跳转', label: '设置', run: () => go.goSettings() },
     ]
