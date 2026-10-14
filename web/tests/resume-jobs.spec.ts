@@ -93,7 +93,7 @@ test('启动恢复：上次卡在 processing 的会议被自动接续到 summari
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : (input as Request).url
       if (url.includes('/v1/speech_to_text')) {
-        return new Response(JSON.stringify({ task_id: 'm', task_status: 'success', result: { text: '恢复后的转录文本', segments: [{ speaker: 'A', text: '恢复后的转录文本', start_time: 0, end_time: 1000 }] } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ task_id: 'm', task_status: 'success', text: '恢复后的转录文本', segments: [{ speaker: 'S1', text: '恢复后的转录文本', start: 0, end: 1 }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
       }
       if (url.includes('/v1/messages') || url.includes('/chat/completions')) {
         return new Response(JSON.stringify({ id: 'm', type: 'message', role: 'assistant', content: [{ type: 'text', text: canned }], model: 'm', stop_reason: 'end_turn' }), { status: 200, headers: { 'Content-Type': 'application/json' } })

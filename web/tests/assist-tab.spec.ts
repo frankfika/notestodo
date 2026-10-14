@@ -43,14 +43,7 @@ test.describe('Live Assist Tab', () => {
     // 立刻停止
     await page.getByRole('button', { name: /■ 停止/ }).first().click()
     await page.waitForTimeout(800)
-    // 此时列表里有一条已停止的 meeting；点它进详情
-    const meetingItem = page.locator('button:has-text("会议")').nth(1) // 跳过「会议」侧栏按钮
-    await meetingItem.first().click()
-    await page.waitForTimeout(400)
-
-    // 切到完整详情页（侧栏预览只能看摘要）
-    await page.getByRole('button', { name: /打开详情/ }).first().click()
-    await page.waitForTimeout(400)
+    // 停止后自动进入这场会议的详情页（一条龙，不需要再点列表）
 
     // 切到「助手」Tab
     await page.getByRole('button', { name: '助手' }).first().click()
@@ -96,11 +89,7 @@ test.describe('Live Assist Tab', () => {
     await page.waitForTimeout(400)
     await page.getByRole('button', { name: /■ 停止/ }).first().click()
     await page.waitForTimeout(800)
-    const meetingItem = page.locator('button:has-text("会议")').nth(1)
-    await meetingItem.first().click()
-    await page.waitForTimeout(400)
-    await page.getByRole('button', { name: /打开详情/ }).first().click()
-    await page.waitForTimeout(400)
+    // 停止后自动进入详情页
 
     await page.getByRole('button', { name: '助手' }).first().click()
     await expect(page.getByText(/还没有索引过的内容/)).toBeVisible({ timeout: 5000 })

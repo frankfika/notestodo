@@ -93,10 +93,9 @@ test('Rerun 重新生成：删旧 summary + 重置 status + 重新跑 pipeline',
   }, meetingId)
   await page.waitForTimeout(800)
 
-  // 打开 RerunDropdown → 选「新模板」
-  await page.getByRole('button', { name: /深度总结/ }).first().click({ timeout: 5_000 })
+  // ⋯ 菜单 → 「用「新模板」重新生成」
+  await page.getByRole('button', { name: '更多' }).first().click({ timeout: 5_000 })
   await page.waitForTimeout(300)
-  // 下拉项里点「🎯 新模板」
   await page.locator('button:has-text("新模板")').first().click({ timeout: 5_000 })
   await page.waitForTimeout(3000) // 等 pipeline 跑完
 

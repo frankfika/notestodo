@@ -11,8 +11,9 @@ import OverflowMenu from '../../components/OverflowMenu'
 import { runSummarizePipeline } from '../../pipeline/summarize'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
+import { runTranscribePipeline } from '../../pipeline/transcribe'
+import LevelMeter from '../../components/LevelMeter'
 import { chunksInOrder } from '../../audio/merge'
-import { buildPolishMessages, stripFence } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { useRecorder } from '../../state/recorder'
 import {
@@ -23,7 +24,7 @@ import {
 } from '../../lib/knowledge'
 import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 
-type Tab = 'scribble' | 'notes' | 'summary' | 'todos' | 'transcript' | 'audio' | 'assist'
+type Tab = 'notes' | 'scribble' | 'transcript' | 'assist'
 
 function statusLabel(s: MeetingStatus): string {
   switch (s) {
@@ -114,9 +115,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   ) ?? []
 
   const isRecording = meeting.status === 'recording'
-  const [tab, setTab] = useState<Tab>(() => isRecording || !meeting.scribble_md ? (isRecording ? 'scribble' : 'summary') : 'notes')
-  const [polishing, setPolishing] = useState(false)
-  const [polishErr, setPolishErr] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>('notes')
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [seekRequest, setSeekRequest] = useState<number | null>(null)
@@ -124,7 +123,6 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
   const seekToSegment = (ms: number): void => {
     setSeekRequest(ms)
-    setTab('audio')
   }
 
   const jumpToTranscript = (t: Todo): void => {
@@ -136,19 +134,9 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     setTab('transcript')
   }
 
-  // 阶段推导
   const hasTranscript = Boolean(transcript && transcript.segments.length > 0)
-  const hasSummary = meeting.status === 'summarized' || Boolean(summary)
-  const stepTranscriptDone = hasTranscript
-  const stepSummaryDone = hasSummary
-  const stepTodosDone = reviewTodos.every((t) => t.status !== 'pending_review')
-
-  // 如果待办 Tab 没有内容，自动跳走
-  useEffect(() => {
-    if (tab === 'todos' && reviewTodos.length === 0) setTab('summary')
-  }, [tab, reviewTodos.length])
-
-  const showTodosTab = reviewTodos.length > 0
+  const hasNote = Boolean(summary) || Boolean(note?.body_md)
+  const inFlight = meeting.status === 'processing' || meeting.status === 'transcribed' || meeting.status === 'summarizing'
 
   // 会议待办 → OKR：默认进 Inbox；只有用户点了建议才挂到 KR（不自动深挂）
   async function confirmTodo(t: Todo, kr?: Todo): Promise<void> {
@@ -183,37 +171,16 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     })
   }
 
-  async function polish(): Promise<void> {
-    if (polishing) return
-    setPolishErr(null)
-    setPolishing(true)
-    try {
-      const settings = await getSettings()
-      if (!settings.llm_api_key) throw new Error('请先在「设置」页填 LLM API Key')
-      const fresh = await db.meetings.get(meeting.id) // 取最新速记（防抖保存可能刚落库）
-      const md = stripFence(await callLLM(
-        settings,
-        buildPolishMessages(meeting, fresh?.scribble_md ?? '', transcript),
-        { maxTokens: 3072, temperature: 0.3 },
-      ))
-      if (!md) throw new Error('模型返回为空')
-      const ts = now()
-      if (meeting.note_id && await db.notes.get(meeting.note_id)) {
-        await db.notes.update(meeting.note_id, { body_md: md, updated_at: ts })
-      } else {
-        const id = uid()
-        await db.notes.add({
-          id, title: meeting.title, body_md: md, meeting_id: meeting.id, todo_ids: [], pinned: false,
-          created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
-        })
-        await db.meetings.update(meeting.id, { note_id: id, updated_at: ts })
-      }
-      setTab('notes')
-    } catch (e: unknown) {
-      setPolishErr(e instanceof Error ? e.message : String(e))
-    } finally {
-      setPolishing(false)
-    }
+  /** 失败后重试：转录已存在则直接续跑总结（管线幂等）。 */
+  async function retry(): Promise<void> {
+    await db.meetings.update(meeting.id, { status: 'processing', error: undefined, updated_at: now() })
+    await runTranscribePipeline(meeting.id).catch((e) => console.error('重试失败', e))
+  }
+
+  /** 用最新速记 + 默认模板重新整理笔记。 */
+  async function regenerate(): Promise<void> {
+    const t = templates.find((x) => x.is_default && !x.deleted_at) ?? templates.find((x) => !x.deleted_at)
+    if (t) await rerunWith(t.id)
   }
 
   async function deleteMeeting(): Promise<void> {
@@ -229,12 +196,14 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     useUI.getState().goMeetings()
   }
 
+  if (isRecording) return <LiveView meeting={meeting} />
+
   return (
     <div className="h-full overflow-hidden flex">
       <div className="flex-1 min-w-0 overflow-y-auto">
         <div className={`mx-auto px-6 py-8 ${chatOpen ? 'max-w-[640px]' : 'max-w-[760px]'}`}>
-        {/* 顶部 */}
-        <div className="flex items-start gap-3 mb-2">
+        {/* 顶部：标题 + 一个次要操作区 */}
+        <div className="flex items-start gap-3 mb-5">
           <button
             onClick={useUI.getState().goMeetings}
             className="icon-btn -ml-2 mt-0.5"
@@ -246,103 +215,75 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             <div className="flex items-center gap-2 text-xs text-text-3 mt-1">
               <span>{fmtDateTime(meeting.started_at)}</span>
               <span>·</span>
-              {isRecording ? <LiveClock meetingId={meeting.id} /> : <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>}
+              <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>
             </div>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded-md border ${statusTone(meeting.status)}`}>
-            {statusLabel(meeting.status)}
-          </span>
-        </div>
-
-        {/* 操作行 */}
-        <div className="flex items-center gap-2 mt-3 mb-4">
-          {!isRecording && (
-            <button
-              onClick={() => void polish()}
-              disabled={polishing}
-              className="btn-primary text-xs h-8 px-3"
-              title="用转录把速记扩写成完整笔记"
-            >{polishing ? '整理中…' : '整理笔记'}</button>
-          )}
-          {!isRecording && <RerunDropdown templates={templates} onPick={rerunWith} />}
           <button
             onClick={() => setChatOpen((v) => !v)}
             className={`btn-ghost text-xs h-8 px-3 ${chatOpen ? 'text-accent' : ''}`}
           >对话</button>
-          <div className="ml-auto">
-            <OverflowMenu items={[{ label: '删除会议', danger: true, onClick: () => void deleteMeeting() }]} />
-          </div>
+          <OverflowMenu items={[
+            { label: '按最新速记重新整理', onClick: () => void regenerate() },
+            ...templates.filter((t) => !t.deleted_at).map((t) => ({ label: `用「${t.name}」重新生成`, onClick: () => void rerunWith(t.id) })),
+            { label: '删除会议', danger: true, onClick: () => void deleteMeeting() },
+          ]} />
         </div>
-        {polishErr && <div className="text-xs text-danger mb-3">整理失败：{polishErr}</div>}
 
-        {/* Tab 栏 */}
+        {/* Tab：笔记（含待办）· 速记 · 转录（含录音）· 助手 */}
         <div className="border-b border-line flex items-center gap-1 mb-6 text-sm">
+          <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>
+            笔记{reviewTodos.length > 0 && <span className="ml-1 text-[11px] text-accent">· {reviewTodos.length} 待办</span>}
+          </TabBtn>
           <TabBtn active={tab === 'scribble'} onClick={() => setTab('scribble')}>速记</TabBtn>
-          <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>笔记</TabBtn>
-          <TabBtn active={tab === 'summary'} onClick={() => setTab('summary')}>纪要</TabBtn>
-          {showTodosTab && (
-            <TabBtn active={tab === 'todos'} onClick={() => setTab('todos')}>
-              待办 <span className="ml-1 text-[11px] text-text-3">{reviewTodos.length}</span>
-            </TabBtn>
-          )}
-          <TabBtn active={tab === 'transcript'} onClick={() => setTab('transcript')}>转录</TabBtn>
-          <TabBtn active={tab === 'audio'} onClick={() => setTab('audio')}>录音</TabBtn>
+          <TabBtn active={tab === 'transcript'} onClick={() => setTab('transcript')}>转录 · 录音</TabBtn>
           <TabBtn active={tab === 'assist'} onClick={() => setTab('assist')}>助手</TabBtn>
         </div>
 
-        {/* 内容 */}
-        {tab === 'scribble' && (
-          <ScribblePane
-            meeting={meeting}
-            live={isRecording}
-            canPolish={!isRecording && !polishing}
-            onPolish={() => void polish()}
-          />
-        )}
         {tab === 'notes' && (
-          note?.body_md ? (
-            <MarkdownView source={note.body_md} />
-          ) : (
-            <EmptyState
-              title="还没有整理过的笔记"
-              hint={hasTranscript ? '点「整理笔记」：用转录把速记扩写成完整笔记。' : '录音转录完成后，可一键把速记整理成完整笔记。'}
-            />
-          )
+          <div className="space-y-8">
+            {inFlight && !hasNote && <Progress meeting={meeting} hasTranscript={hasTranscript} />}
+            {meeting.status === 'failed' && (
+              <div className="card p-4 border-danger/30 bg-danger/5 flex items-center gap-3">
+                <span className="text-sm text-text-1 flex-1 min-w-0">{meeting.error ?? '处理失败'}</span>
+                <button onClick={() => void retry()} className="btn-primary text-xs h-8 px-3 shrink-0">重试</button>
+              </div>
+            )}
+            {note?.body_md ? (
+              <MarkdownView source={note.body_md} />
+            ) : (
+              !inFlight && meeting.status !== 'failed' && (
+                <EmptyState
+                  title="还没有笔记"
+                  hint="录音结束后会自动转录并整理成笔记。"
+                  action={hasTranscript ? <button onClick={() => void regenerate()} className="btn-primary h-8 text-xs px-3">现在整理</button> : undefined}
+                />
+              )
+            )}
+            {reviewTodos.length > 0 && (
+              <TodosTab
+                todos={reviewTodos}
+                onConfirm={confirmTodo}
+                onDelete={deleteTodo}
+                onConfirmAll={confirmAll}
+                onJumpToTranscript={jumpToTranscript}
+                krs={openKrs}
+              />
+            )}
+          </div>
         )}
-        {tab === 'summary' && (
-          <SummaryTab
-            meeting={meeting}
-            transcript={transcript}
-            summary={summary}
-            stepTranscriptDone={stepTranscriptDone}
-            stepSummaryDone={stepSummaryDone}
-            stepTodosDone={stepTodosDone}
-          />
-        )}
-        {tab === 'todos' && showTodosTab && (
-          <TodosTab
-            todos={reviewTodos}
-            onConfirm={confirmTodo}
-            onDelete={deleteTodo}
-            onConfirmAll={confirmAll}
-            onJumpToTranscript={jumpToTranscript}
-            krs={openKrs}
-          />
+        {tab === 'scribble' && (
+          <ScribblePane meeting={meeting} live={false} onRegenerate={() => void regenerate()} />
         )}
         {tab === 'transcript' && (
-          <TranscriptTab
-            transcriptId={meeting.id}
-            highlightStartMs={highlightStartMs}
-            playheadMs={playheadMs}
-            onSeekTo={seekToSegment}
-          />
-        )}
-        {tab === 'audio' && (
-          <AudioTab
-            meetingId={meeting.id}
-            seekRequest={seekRequest}
-            onPlayheadUpdate={setPlayheadMs}
-          />
+          <div className="space-y-4">
+            <AudioTab meetingId={meeting.id} seekRequest={seekRequest} onPlayheadUpdate={setPlayheadMs} />
+            <TranscriptTab
+              transcriptId={meeting.id}
+              highlightStartMs={highlightStartMs}
+              playheadMs={playheadMs}
+              onSeekTo={seekToSegment}
+            />
+          </div>
         )}
         {tab === 'assist' && (
           <AssistPane
@@ -366,6 +307,46 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   )
 }
 
+/** 录音中：整页只有速记。计时 / 电平 / 停止都在一条顶栏里。 */
+function LiveView({ meeting }: { meeting: Meeting }): JSX.Element {
+  const elapsed = useRecorder((s) => s.elapsedMs)
+  const level = useRecorder((s) => s.audioLevel)
+  const interrupted = useRecorder((s) => s.interrupted)
+  const captureMode = useRecorder((s) => s.captureMode)
+  const stop = useRecorder((s) => s.stop)
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-[760px] mx-auto px-6 py-6">
+        <div className="flex items-center gap-3 mb-4">
+          <span className={`rec-dot h-2.5 w-2.5 rounded-full ${interrupted ? 'bg-warning' : 'bg-danger'}`} />
+          <span className="font-mono tabular-nums text-2xl text-text-1">{fmtClock(elapsed)}</span>
+          <LevelMeter level={level} />
+          <span className="text-xs text-text-3 truncate">
+            {interrupted ? '麦克风被中断，正在恢复…' : `正在录音 · ${captureMode === 'mic+system' ? '麦克风 + 系统声音' : '仅麦克风'}`}
+          </span>
+          <button onClick={() => void stop()} className="ml-auto btn-danger h-9 px-4">■ 停止</button>
+        </div>
+        <ScribblePane meeting={meeting} live />
+        <p className="mt-3 text-xs text-text-3">结束后自动转录并整理成笔记 + 待办，不需要再点任何按钮。</p>
+      </div>
+    </div>
+  )
+}
+
+/** 会后处理进度：一行讲清楚走到哪一步。 */
+function Progress({ meeting, hasTranscript }: { meeting: Meeting; hasTranscript: boolean }): JSX.Element {
+  const label = hasTranscript || meeting.status === 'summarizing' ? '正在整理笔记与待办…' : '正在转录录音…'
+  return (
+    <div className="card p-5 flex items-center gap-3">
+      <span className="rec-dot h-2 w-2 rounded-full bg-accent" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-text-1">{label}</div>
+        <div className="text-xs text-text-3 mt-0.5">可以离开此页，完成后在「会议」里找到它。</div>
+      </div>
+    </div>
+  )
+}
+
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }): JSX.Element {
   return (
     <button
@@ -377,55 +358,14 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   )
 }
 
-function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; onPick: (id: string) => void | Promise<void> }): JSX.Element {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="btn-outline text-xs h-8">
-        深度总结 ▾
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <ul className="absolute z-40 left-0 mt-1 min-w-[200px] card p-1 text-sm shadow-xl">
-            {templates.map((t) => (
-              <li key={t.id}>
-                <button
-                  onClick={() => { setOpen(false); void onPick(t.id) }}
-                  className="w-full text-left px-3 py-2 rounded-md hover:bg-bg-overlay text-text-1"
-                >
-                  {t.name}
-                  {t.builtin && <span className="ml-1 text-[10px] uppercase tracking-wider text-text-3">内置</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </div>
-  )
-}
-
-function LiveClock({ meetingId }: { meetingId: string }): JSX.Element {
-  const active = useRecorder((s) => s.meeting?.id === meetingId)
-  const elapsed = useRecorder((s) => s.elapsedMs)
-  return (
-    <span className="inline-flex items-center gap-1.5 text-danger font-medium">
-      <span className="rec-dot h-1.5 w-1.5 rounded-full bg-danger" />
-      REC <span className="tabular-nums">{active ? fmtClock(elapsed) : ''}</span>
-    </span>
-  )
-}
-
 // ── 速记 Scribble ─────────────────────────────────────────────────
 // 会中只记 2–3 字的 bullet；本地防抖保存到 meeting.scribble_md。
 function ScribblePane({
-  meeting, live, canPolish, onPolish,
+  meeting, live, onRegenerate,
 }: {
   meeting: Meeting
   live: boolean
-  canPolish: boolean
-  onPolish: () => void
+  onRegenerate?: () => void
 }): JSX.Element {
   const [text, setText] = useState(meeting.scribble_md ?? '')
   const [saved, setSaved] = useState(true)
@@ -478,7 +418,7 @@ function ScribblePane({
     <div className={`rounded-xl border bg-bg-raise ${live ? 'border-danger/25 shadow-[0_0_0_4px_color-mix(in_oklch,var(--danger)_6%,transparent)]' : 'border-line'}`}>
       <div className="flex items-center gap-2 px-4 h-10 border-b border-line text-xs text-text-3">
         <span className="font-medium text-text-2">速记</span>
-        <span>{live ? '只记关键词，会后一键整理成完整笔记' : '会中的速记；点「整理」用转录扩写'}</span>
+        <span>{live ? '只记关键词，结束后 AI 用转录补全成完整笔记' : '会中的速记 · 改完可重新整理'}</span>
         <span className="ml-auto">{saved ? '已保存' : '保存中…'}</span>
       </div>
       <textarea
@@ -490,83 +430,13 @@ function ScribblePane({
         placeholder={'- q4 预算??\n- 上线时间风险\n- @法务 合同'}
         className={`w-full resize-none bg-transparent px-4 py-3 outline-none text-[15px] leading-7 text-text-1 placeholder:text-text-disabled font-mono ${live ? 'min-h-[52vh]' : 'min-h-[240px]'}`}
       />
-      {!live && (
+      {!live && onRegenerate && (
         <div className="flex items-center gap-2 px-4 py-2.5 border-t border-line">
-          <span className="text-[11px] text-text-3">整理 = 速记为骨架 + 转录补全细节</span>
-          <button onClick={onPolish} disabled={!canPolish} className="btn-primary text-xs h-7 px-3 ml-auto">整理笔记</button>
+          <span className="text-[11px] text-text-3">速记为骨架 + 转录补全细节</span>
+          <button onClick={onRegenerate} className="btn-outline text-xs h-7 px-3 ml-auto">按此重新整理</button>
         </div>
       )}
     </div>
-  )
-}
-
-// ── 纪要 Tab ──────────────────────────────────────────────────────
-function SummaryTab({
-  meeting, transcript, summary, stepTranscriptDone, stepSummaryDone, stepTodosDone,
-}: {
-  meeting: Meeting
-  transcript: { segments: { speaker_label: string; text: string }[] } | undefined
-  summary: { content_md: string } | undefined
-  stepTranscriptDone: boolean
-  stepSummaryDone: boolean
-  stepTodosDone: boolean
-}): JSX.Element {
-  const hasSummary = meeting.status === 'summarized' || Boolean(summary)
-
-  return (
-    <div>
-      {!hasSummary && (
-        <div className="card p-5 mb-6">
-          <div className="section-title mb-3">进度</div>
-          <ol className="space-y-2 text-sm">
-            <Step done={stepTranscriptDone} label="转录" />
-            <Step done={stepSummaryDone} label="总结" />
-            <Step done={stepTodosDone} label="待办提取" />
-          </ol>
-          {!stepTranscriptDone && (
-            <p className="mt-3 text-xs text-text-3">
-              音频分片已落本地（{meeting.audio.chunk_count} 片 · {fmtClock(meeting.audio.duration_ms)}），待联网后自动转录。
-            </p>
-          )}
-          {stepTranscriptDone && !stepSummaryDone && (
-            <p className="mt-3 text-xs text-text-3">
-              已转录 {transcript?.segments.length ?? 0} 段，正等待总结生成…
-            </p>
-          )}
-        </div>
-      )}
-
-      {hasSummary ? (
-        summary ? (
-          <MarkdownView source={summary.content_md} />
-        ) : (
-          <EmptyState icon="◌" title="未找到纪要" hint="状态显示为已完成但 Summary 行缺失——尝试重新生成。" />
-        )
-      ) : (
-        !transcript && (
-          <EmptyState
-            icon="◐"
-            title="还没有可显示的纪要"
-            hint="可在「转录」Tab 看是否有原文；或在「录音」Tab 回放原始音频。"
-          />
-        )
-      )}
-    </div>
-  )
-}
-
-function Step({ done, label }: { done: boolean; label: string }): JSX.Element {
-  return (
-    <li className="flex items-center gap-2">
-      <span
-        className={`h-5 w-5 rounded-full flex items-center justify-center text-[11px] ${
-          done ? 'bg-accent text-accent-contrast' : 'bg-bg-overlay text-text-3 border border-line'
-        }`}
-      >
-        {done ? '✓' : '⋯'}
-      </span>
-      <span className={done ? 'text-text-1' : 'text-text-3'}>{label}</span>
-    </li>
   )
 }
 
@@ -584,9 +454,9 @@ function TodosTab({
   return (
     <div>
       <div className="flex items-center mb-3">
-        <div className="section-title">待审待办 · {todos.length}</div>
+        <div className="section-title">AI 提取的待办 · {todos.length}</div>
         <button onClick={() => void onConfirmAll()} className="btn-primary text-xs h-7 ml-auto">
-          全部确认进 Inbox
+          全部加入待办
         </button>
       </div>
 

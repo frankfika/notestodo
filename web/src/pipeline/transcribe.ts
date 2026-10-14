@@ -62,7 +62,7 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     audio: {
       format: merged.mimeType,
       codec: meeting.audio.codec,
-      duration_ms: merged.durationMs,
+      duration_ms: merged.durationMs || meeting.audio.duration_ms,
       chunk_count: meeting.audio.chunk_count,
       size_bytes: merged.sizeBytes,
       gaps: meeting.audio.gaps ?? [],
@@ -87,7 +87,7 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     segments = await provider.transcribe({
       blob: merged.blob,
       mimeType: merged.mimeType,
-      durationMs: merged.durationMs,
+      durationMs: merged.durationMs || meeting.audio.duration_ms,
       settings,
     })
   } catch (e) {

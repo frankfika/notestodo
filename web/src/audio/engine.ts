@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import { now, uid } from '../lib/id'
 import { setRecorderPartial, useRecorder } from '../state/recorder'
+import { useUI } from '../state/ui'
 import { runTranscribePipeline } from '../pipeline/transcribe'
 import { chunksInOrder } from './merge'
 import { isTauri } from '../lib/tauri'
@@ -269,6 +270,8 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     },
     chunkCount: 1,
   })
+  // 开录即进入速记页：会中唯一要做的事就是记几个关键词。
+  useUI.getState().goMeeting(meetingId)
 }
 
 export async function stopRecorder(): Promise<string | null> {
@@ -328,6 +331,9 @@ export async function stopRecorder(): Promise<string | null> {
     chunkCount: 0,
     interrupted: false,
   })
+
+  // 结束即回到这场会议：页面上直接看到「转录 → 整理」进度，完成后就是笔记 + 待办。
+  useUI.getState().goMeeting(meetingId)
 
   // Fire and forget — the pipeline updates meeting.status itself.
   void runTranscribePipeline(meetingId).catch((e) => {
@@ -619,7 +625,9 @@ async function finaliseMeeting(meetingId: string): Promise<void> {
   const meeting = (await db.meetings.get(meetingId)) as Meeting | undefined
   if (!meeting) return
 
-  const totalDuration = dataChunks.reduce((s, c) => s + c.duration_ms, 0)
+  // 分片本身不记时长（恒为 0），以录音挂钟时间为准；分片若有时长则取较大者。
+  const wallMs = Math.max(0, Date.now() - Date.parse(meeting.created_at))
+  const totalDuration = Math.max(wallMs, dataChunks.reduce((s, c) => s + c.duration_ms, 0))
   const totalSize = dataChunks.reduce((s, c) => s + c.size_bytes, 0)
 
   await db.meetings.update(meetingId, {
