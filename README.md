@@ -4,16 +4,18 @@
 
 产品名 **NotesToGO**（仓库名 notestodo，「拾贝 Shibei」为旧名/别名）。一个 AI-native 的会议速记 + 嵌套 OKR 应用。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
-**当前状态（2026-10-12）**：Phase-1～3 已合入 `main`（嵌套 OKR、Scribble→Polish、暖浅色主题、本地 LLM/ASR、知识库+Assist、macOS ScreenCaptureKit 系统音频采集）。桌面包名 **拾贝**；Phase-4 已把系统声音 PCM 混进录音文件。
+**当前状态（2026-10-15）**：Phase-1～4 已合入 `main`（嵌套 OKR、Scribble→Polish、暖白 macOS 风主题、本地 LLM/ASR、知识库+Assist、macOS ScreenCaptureKit 系统音频混录）。新增项目看板 + 自动周报，会议页改为速记优先的 Live Meeting 布局；`design/notestodo.pen` 六屏均已落地。桌面包名 **拾贝**。
 
 ## 核心特性
 
 - **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟；电平条可见麦在响。
 - **AI 转录 + 总结**：BYOK，支持 MiniMax asr-1.0（含说话人分离）/ Deepgram Nova-3 / OpenAI Whisper；用户可自定义模板（`{{var}}` 语法）。
-- **Scribble → Polish**：录音时速记是主角（短 bullet，回车自动续写）；停止后「整理笔记」用转录把速记扩写成完整 Markdown，写入会议笔记。原模板纪要 + 待办提取保留为「深度总结」。
+- **Scribble → Polish**：录音时进入 Live Meeting 布局（左速记 / 右实时转录 + 相关资料），速记是主角（短 bullet，回车即存并带时间锚点，点时间戳跳播）；停止后「整理笔记」用转录把速记扩写成完整 Markdown，写入会议笔记。原模板纪要 + 待办提取保留为「深度总结」。
 - **嵌套 OKR**：战略 O/KR → 季度 O/KR（`period` 如 `2026-Q4`）→ 项目 O/KR → Task；父子规则见 [`web/src/lib/okr.ts`](web/src/lib/okr.ts)，进度按权重逐级汇总。三种视图：**Focus**（默认：Inbox + 本季任务，无树）/ **Quarter** / **Strategy**。会议提取的 ToDo 确认后进 Inbox，或一键挂到建议的 KR；带「证据引文」可跳回转录原文。旧数据的 O/KR 自动迁移为战略层。
+- **项目看板**：Trello 式四列（待办 / 进行中 / 评审 / 完成），原生拖拽换列；卡片显示所属 KR、截止日、来源（会议卡带「● 会议」）；按全部 / 来自会议 / 本周到期筛选。每周自动生成「写本周周报」循环卡（确定性 id 幂等去重）。
+- **自动周报**：从本周已完成卡片、会议、OKR 进度汇总成 Markdown 草稿（总结 / 按 KR 归组的关键进展 / 会议 / 逾期风险 / 下周计划），可翻任意周、补充说明、一键复制粘贴到飞书文档。
 - **AI 对话**：会议详情页内置 ChatPanel，对这场会议的纪要+全文转录提问。
-- **日历集成**：订阅任意 .ics URL（Apple iCloud / Google / QQ / Outlook），点击事件直接启动录音（预填标题与时间）。
+- **日历集成**：订阅任意 .ics URL（Apple iCloud / Google / QQ / Outlook / 飞书日历 / 腾讯会议），点击事件直接启动录音（预填标题与时间）。
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
