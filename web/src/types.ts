@@ -45,8 +45,20 @@ export interface Meeting extends EntityMeta {
   }
   note_id: ID
   /** 会中速记（Scribble）：短 bullet，Polish 时结合转录扩写进 note */
-  scribble_md?: string
   error?: string
+}
+
+/**
+ * 会中速记 bullet：键入即存，一行一条。
+ * t_ms = 记下这条时的录音时间轴毫秒（与音频/转录对齐）；
+ * 非录音状态补记的条目没有时间锚点，t_ms 为 null。
+ */
+export interface Scribble {
+  id: ID
+  meeting_id: ID
+  t_ms: number | null
+  text: string
+  created_at: ISODateTime
 }
 
 /** 录音分片，按 seq 排序拼接即完整录音 */

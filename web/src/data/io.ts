@@ -22,7 +22,7 @@ interface Manifest {
 
 const TABLE_NAMES = [
   'meetings', 'transcripts', 'notes', 'summaries', 'templates',
-  'todos', 'tags', 'tagBindings', 'chatMessages', 'kv', 'queueJobs',
+  'todos', 'tags', 'tagBindings', 'chatMessages', 'scribbles', 'kv', 'queueJobs',
 ] as const
 
 type TableName = (typeof TABLE_NAMES)[number]
@@ -140,7 +140,7 @@ export async function importData(
 
   onProgress?.({ phase: 'packing', message: '写入数据库…' })
 
-  // 先清空 11 个业务表 + audioChunks
+  // 先清空业务表 + audioChunks
   for (const name of TABLE_NAMES) {
     await (db as any)[name].clear()
   }

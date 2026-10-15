@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtClock, fmtDateTime, mod, now, uid } from '../../lib/id'
-import type { ChatMessage, Meeting, MeetingStatus, SummaryTemplate, Todo } from '../../types'
+import type { ChatMessage, Meeting, MeetingStatus, Scribble, SummaryTemplate, Todo } from '../../types'
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import TodoRow from '../../components/TodoRow'
@@ -12,7 +12,7 @@ import { runSummarizePipeline } from '../../pipeline/summarize'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
 import { chunksInOrder } from '../../audio/merge'
-import { buildPolishMessages, stripFence } from '../../llm/prompts'
+import { buildPolishMessages, scribblesToMarkdown, stripFence } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { useRecorder } from '../../state/recorder'
 import {
@@ -113,8 +113,14 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     [meeting.id],
   ) ?? []
 
+  const scribbles = useLiveQuery(
+    () => db.scribbles.where('meeting_id').equals(meeting.id).sortBy('created_at'),
+    [meeting.id],
+  ) ?? []
+  const scribbleMd = useMemo(() => scribblesToMarkdown(scribbles), [scribbles])
+
   const isRecording = meeting.status === 'recording'
-  const [tab, setTab] = useState<Tab>(() => isRecording || !meeting.scribble_md ? (isRecording ? 'scribble' : 'summary') : 'notes')
+  const [tab, setTab] = useState<Tab>(() => meeting.note_id ? 'notes' : 'summary')
   const [polishing, setPolishing] = useState(false)
   const [polishErr, setPolishErr] = useState<string | null>(null)
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
@@ -190,10 +196,11 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     try {
       const settings = await getSettings()
       if (!settings.llm_api_key) throw new Error('请先在「设置」页填 LLM API Key')
-      const fresh = await db.meetings.get(meeting.id) // 取最新速记（防抖保存可能刚落库）
+      // 取最新速记（键入即存，可能刚落库）
+      const rows = await db.scribbles.where('meeting_id').equals(meeting.id).sortBy('created_at')
       const md = stripFence(await callLLM(
         settings,
-        buildPolishMessages(meeting, fresh?.scribble_md ?? '', transcript),
+        buildPolishMessages(meeting, scribblesToMarkdown(rows), transcript),
         { maxTokens: 3072, temperature: 0.3 },
       ))
       if (!md) throw new Error('模型返回为空')
@@ -225,8 +232,23 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     await db.todos.where('meeting_id').equals(meeting.id).delete()
     // 之前漏了 chatMessages — 累积多了会浪费磁盘 + 让关联查询变慢
     await db.chatMessages.where('meeting_id').equals(meeting.id).delete()
+    await db.scribbles.where('meeting_id').equals(meeting.id).delete()
     if (meeting.note_id) await db.notes.delete(meeting.note_id)
     useUI.getState().goMeetings()
+  }
+
+  // 会中：Foresight 式实时布局 —— 左速记 / 右（实时转录 + 相关资料）
+  if (isRecording) {
+    return (
+      <LiveMeetingView
+        meeting={meeting}
+        scribbleMd={scribbleMd}
+        transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
+        polishing={polishing}
+        polishErr={polishErr}
+        onPolish={() => void polish()}
+      />
+    )
   }
 
   return (
@@ -292,12 +314,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
         {/* 内容 */}
         {tab === 'scribble' && (
-          <ScribblePane
-            meeting={meeting}
-            live={isRecording}
-            canPolish={!isRecording && !polishing}
-            onPolish={() => void polish()}
-          />
+          <ScribbleEditor meeting={meeting} live={false} onSeek={seekToSegment} />
         )}
         {tab === 'notes' && (
           note?.body_md ? (
@@ -347,7 +364,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
         {tab === 'assist' && (
           <AssistPane
             meeting={meeting}
-            scribbleMd={meeting.scribble_md}
+            scribbleMd={scribbleMd}
             transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
           />
         )}
@@ -417,85 +434,185 @@ function LiveClock({ meetingId }: { meetingId: string }): JSX.Element {
   )
 }
 
+// ── 会中实时布局（Foresight）──────────────────────────────────────
+// 左主栏「速记」，右侧「实时转录」+「相关资料」。录音结束回到 Tab 视图。
+function LiveMeetingView({
+  meeting, scribbleMd, transcriptText, polishing, polishErr, onPolish,
+}: {
+  meeting: Meeting
+  scribbleMd: string
+  transcriptText: string | undefined
+  polishing: boolean
+  polishErr: string | null
+  onPolish: () => void
+}): JSX.Element {
+  const captureMode = useRecorder((s) => s.captureMode)
+  const captureLabel = captureMode === 'mic+system' ? '麦克风 + 系统音频'
+    : captureMode === 'mic-only' ? '仅麦克风' : '音频不可用'
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Live 头部 */}
+      <div className="flex items-center gap-3 px-6 h-14 border-b border-line shrink-0">
+        <LiveClock meetingId={meeting.id} />
+        <h1 className="text-base font-semibold text-text-1 truncate">{meeting.title}</h1>
+        <span className="text-[11px] text-text-3 hidden sm:inline">{captureLabel}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={onPolish}
+            disabled={polishing}
+            className="btn-outline text-xs h-8 px-3"
+            title="随时把当前速记整理成笔记（结束后可再整理一次）"
+          >{polishing ? '整理中…' : '整理'}</button>
+          <button
+            onClick={() => void useRecorder.getState().stop()}
+            className="btn-primary text-xs h-8 px-3 bg-danger border-danger"
+          >■ 停止</button>
+        </div>
+      </div>
+      {polishErr && <div className="text-xs text-danger px-6 py-1.5 shrink-0">整理失败：{polishErr}</div>}
+
+      {/* 主体：左速记 / 右（转录 + 相关资料）；窄屏纵向堆叠 */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+        <div className="flex-1 min-w-0 lg:overflow-y-auto p-6">
+          <ScribbleEditor meeting={meeting} live />
+        </div>
+        <aside className="w-full lg:w-[380px] shrink-0 border-t lg:border-t-0 lg:border-l border-line lg:overflow-y-auto p-4 space-y-5">
+          <section>
+            <div className="section-title mb-2">实时转录</div>
+            <TranscriptTab transcriptId={meeting.id} highlightStartMs={null} playheadMs={null} onSeekTo={() => {}} />
+          </section>
+          <section>
+            <div className="section-title mb-2">相关资料</div>
+            <AssistPane meeting={meeting} scribbleMd={scribbleMd} transcriptText={transcriptText} />
+          </section>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
 // ── 速记 Scribble ─────────────────────────────────────────────────
-// 会中只记 2–3 字的 bullet；本地防抖保存到 meeting.scribble_md。
-function ScribblePane({
-  meeting, live, canPolish, onPolish,
+// 一行一条 bullet，键入即存（db.scribbles）；录音中带时间轴锚点 t_ms。
+function ScribbleEditor({
+  meeting, live, onSeek,
 }: {
   meeting: Meeting
   live: boolean
-  canPolish: boolean
-  onPolish: () => void
+  onSeek?: (ms: number) => void
 }): JSX.Element {
-  const [text, setText] = useState(meeting.scribble_md ?? '')
-  const [saved, setSaved] = useState(true)
-  const pending = useRef<string | null>(null)
+  const rows = useLiveQuery(
+    () => db.scribbles.where('meeting_id').equals(meeting.id).sortBy('created_at'),
+    [meeting.id],
+  ) ?? []
+  const elapsedMs = useRecorder((s) => s.meeting?.id === meeting.id ? s.elapsedMs : null)
+  const [draft, setDraft] = useState('')
 
-  const flush = (): void => {
-    if (pending.current === null) return
-    const v = pending.current
-    pending.current = null
-    void db.meetings.update(meeting.id, { scribble_md: v, updated_at: now() }).then(() => setSaved(true))
-  }
-  useEffect(() => {
-    if (pending.current === null) return
-    const id = setTimeout(flush, 400)
-    return () => clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text])
-  // 切 Tab / 离开页面时立刻落库
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => flush, [])
+  // 停止录音会切走本视图、卸载输入框 —— onBlur 不触发，故用 ref 在卸载时补存那条未回车的速记
+  const draftRef = useRef('')
+  draftRef.current = draft
+  const liveRef = useRef(live)
+  liveRef.current = live
+  const elapsedRef = useRef(elapsedMs)
+  elapsedRef.current = elapsedMs
+  useEffect(() => () => {
+    const text = draftRef.current.trim()
+    if (!text) return
+    void db.scribbles.add({
+      id: uid(), meeting_id: meeting.id, t_ms: liveRef.current ? (elapsedRef.current ?? 0) : null, text, created_at: now(),
+    })
+  }, [meeting.id])
 
-  function onChange(v: string): void {
-    pending.current = v
-    setSaved(false)
-    setText(v)
-  }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    // 回车自动续写 bullet
-    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
-    const el = e.currentTarget
-    const before = text.slice(0, el.selectionStart)
-    const line = before.slice(before.lastIndexOf('\n') + 1)
-    if (!/^\s*- /.test(line)) return
-    e.preventDefault()
-    if (line.trim() === '-') {
-      // 空 bullet 再回车 → 结束列表
-      const start = before.length - line.length
-      onChange(text.slice(0, start) + text.slice(el.selectionStart))
-      return
-    }
-    const insert = '\n' + line.match(/^\s*- /)![0]
-    const next = before + insert + text.slice(el.selectionEnd)
-    onChange(next)
-    const pos = before.length + insert.length
-    requestAnimationFrame(() => el.setSelectionRange(pos, pos))
+  async function commit(): Promise<void> {
+    const text = draft.trim()
+    if (!text) return
+    draftRef.current = ''
+    setDraft('')
+    await db.scribbles.add({
+      id: uid(),
+      meeting_id: meeting.id,
+      t_ms: live ? (elapsedMs ?? 0) : null,
+      text,
+      created_at: now(),
+    })
   }
 
   return (
     <div className={`rounded-xl border bg-bg-raise ${live ? 'border-danger/25 shadow-[0_0_0_4px_color-mix(in_oklch,var(--danger)_6%,transparent)]' : 'border-line'}`}>
       <div className="flex items-center gap-2 px-4 h-10 border-b border-line text-xs text-text-3">
         <span className="font-medium text-text-2">速记</span>
-        <span>{live ? '只记关键词，会后一键整理成完整笔记' : '会中的速记；点「整理」用转录扩写'}</span>
-        <span className="ml-auto">{saved ? '已保存' : '保存中…'}</span>
+        <span>{live ? '只写关键词，别和转录较劲 — 回车存一条' : '会中的速记；点「整理笔记」用转录扩写'}</span>
+        <span className="ml-auto">{rows.length} 条</span>
       </div>
-      <textarea
-        autoFocus={live}
-        value={text}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        onBlur={flush}
-        placeholder={'- q4 预算??\n- 上线时间风险\n- @法务 合同'}
-        className={`w-full resize-none bg-transparent px-4 py-3 outline-none text-[15px] leading-7 text-text-1 placeholder:text-text-disabled font-mono ${live ? 'min-h-[52vh]' : 'min-h-[240px]'}`}
-      />
-      {!live && (
-        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-line">
-          <span className="text-[11px] text-text-3">整理 = 速记为骨架 + 转录补全细节</span>
-          <button onClick={onPolish} disabled={!canPolish} className="btn-primary text-xs h-7 px-3 ml-auto">整理笔记</button>
+      <div className="px-4 py-3 space-y-1.5 min-h-[180px]">
+        {rows.map((r) => (
+          <BulletRow key={r.id} row={r} onSeek={onSeek} />
+        ))}
+        {/* 活动输入行（设计里的 caret 行） */}
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono tabular-nums text-[11px] text-text-disabled w-12 shrink-0 text-right">
+            {live ? fmtClock(elapsedMs ?? 0) : '·'}
+          </span>
+          <span className="text-text-disabled select-none">-</span>
+          <input
+            autoFocus={live}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void commit() }
+            }}
+            onBlur={() => void commit()}
+            placeholder={rows.length === 0 ? 'q4 预算?? / 上线风险 / @法务 合同…' : '再记一条…'}
+            className="flex-1 min-w-0 bg-transparent outline-none text-[15px] leading-7 text-text-1 placeholder:text-text-disabled"
+          />
         </div>
+      </div>
+    </div>
+  )
+}
+
+// 单条 bullet：时间戳（可跳播）+ 就地编辑；清空后失焦即删除。
+function BulletRow({
+  row, onSeek,
+}: {
+  row: Scribble
+  onSeek?: (ms: number) => void
+}): JSX.Element {
+  const [text, setText] = useState(row.text)
+
+  async function save(): Promise<void> {
+    const v = text.trim()
+    if (v === row.text) return
+    if (!v) { await db.scribbles.delete(row.id); return }
+    await db.scribbles.update(row.id, { text: v })
+  }
+
+  return (
+    <div className="group flex items-baseline gap-3">
+      {row.t_ms != null && onSeek ? (
+        <button
+          onClick={() => onSeek(row.t_ms!)}
+          className="font-mono tabular-nums text-[11px] text-text-3 hover:text-accent w-12 shrink-0 text-right transition-colors"
+          title={`跳到 ${fmtClock(row.t_ms)} 播放`}
+        >{fmtClock(row.t_ms)}</button>
+      ) : (
+        <span className="font-mono tabular-nums text-[11px] text-text-3 w-12 shrink-0 text-right">
+          {row.t_ms != null ? fmtClock(row.t_ms) : '·'}
+        </span>
       )}
+      <span className="text-text-3 select-none">-</span>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) e.currentTarget.blur() }}
+        onBlur={() => void save()}
+        className="flex-1 min-w-0 bg-transparent outline-none text-[15px] leading-7 text-text-1"
+      />
+      <button
+        onClick={() => void db.scribbles.delete(row.id)}
+        className="opacity-0 group-hover:opacity-100 text-text-disabled hover:text-danger text-xs shrink-0 transition-opacity"
+        title="删除这条"
+      >✕</button>
     </div>
   )
 }
