@@ -6,18 +6,15 @@ import { useUI } from '../../state/ui'
 import type { Todo, TodoStatus } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import TagPicker from '../../components/TagPicker'
+import TaskModeSwitch from '../../components/TaskModeSwitch'
+import QuickAddBar from '../../components/QuickAddBar'
+import { attachTask } from '../../lib/todoActions'
 import {
   LEVELS, canParent, childLevels, childrenIndex, currentPeriod, inheritedScope,
-  levelLabel, periodOf, periodRange, rollupProgress, shiftPeriod, subtreeIds, type Level,
+  levelLabel, periodOf, periodRange, rollupProgress, shiftPeriod, subtreeIds, suggestKr, type Level,
 } from '../../lib/okr'
 
 type Mode = 'focus' | 'quarter' | 'strategy'
-
-const MODES: { id: Mode; label: string }[] = [
-  { id: 'focus', label: 'Focus' },
-  { id: 'quarter', label: 'Quarter' },
-  { id: 'strategy', label: 'Strategy' },
-]
 
 const STATUS_LABELS: Record<TodoStatus, string> = {
   open: '进行中',
@@ -54,7 +51,8 @@ interface Ctx {
 export default function TodosPage(): JSX.Element {
   const raw = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const focusId = useUI((s) => s.todoFocusId)
-  const [mode, setMode] = useState<Mode>('focus')
+  const mode = useUI((s) => s.taskMode)
+  const setMode = (m: Mode): void => useUI.setState({ taskMode: m })
   const [period, setPeriod] = useState(currentPeriod())
   const [tagFilter, setTagFilter] = useState<string | null>(null)
 
@@ -110,25 +108,13 @@ export default function TodosPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-[820px] mx-auto px-6 py-8">
-        <div className="flex items-end gap-3 mb-5">
+        <div className="flex flex-wrap items-end gap-3 mb-5">
           <div>
-            <div className="section-title">OKR</div>
+            <div className="section-title">任务 · OKR</div>
             <h1 className="text-2xl font-semibold tracking-tight text-text-1 mt-1">目标与待办</h1>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div role="tablist" className="flex p-0.5 rounded-lg bg-bg-overlay border border-line">
-              {MODES.map((m) => (
-                <button
-                  key={m.id}
-                  role="tab"
-                  aria-selected={mode === m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`px-3 h-7 text-xs rounded-md transition-colors ${
-                    mode === m.id ? 'bg-bg-raise text-text-1 shadow-sm font-medium' : 'text-text-3 hover:text-text-1'
-                  }`}
-                >{m.label}</button>
-              ))}
-            </div>
+            <TaskModeSwitch />
             <AddMenu levels={MODE_LEVELS[mode]} ctx={ctx} />
           </div>
         </div>
@@ -239,6 +225,7 @@ function FocusView({ ctx }: { ctx: Ctx }): JSX.Element {
 
   return (
     <div className="space-y-6">
+      <QuickAddBar />
       {activeKrs.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {activeKrs.map((kr) => (
@@ -268,7 +255,7 @@ function FocusView({ ctx }: { ctx: Ctx }): JSX.Element {
           <div className="card">
             <EmptyState
               title="本季度没有进行中的任务"
-              hint="在 Quarter / Strategy 模式里给 KR 挂 Task，它们会出现在这里。"
+              hint="在「本季 OKR」/「战略」视图里给 KR 挂 Task，它们会出现在这里。"
             />
           </div>
         ) : (
@@ -574,6 +561,11 @@ function TodoLine({ todo, ctx, showParent }: { todo: Todo; ctx: Ctx; showParent?
     [todo.id],
   ) ?? []
   const parent = showParent && todo.parent_id ? ctx.byId.get(todo.parent_id) : undefined
+  // Inbox 任务：给出一个建议 KR，一键挂上（不用打开编辑表单选父节点）
+  const suggested = useMemo(
+    () => isTask && todo.parent_id === null && !isDone ? suggestKr(todo.title, ctx.all) : null,
+    [isTask, isDone, todo.parent_id, todo.title, ctx.all],
+  )
   const progress = ctx.progress.get(todo.id) ?? 0
   const overdue = !isDone && todo.due_date && todo.due_date < todayIso()
 
@@ -615,6 +607,13 @@ function TodoLine({ todo, ctx, showParent }: { todo: Todo; ctx: Ctx; showParent?
               <button onClick={() => goNote(note.id)} className="text-accent/80 hover:text-accent" title="打开这篇笔记">
                 笔记 · {note.title || '未命名笔记'}
               </button>
+            )}
+            {suggested && (
+              <button
+                onClick={() => void attachTask(todo, suggested)}
+                className="px-1.5 rounded border border-dashed border-accent/40 text-accent/80 hover:text-accent hover:bg-accent/8"
+                title="一键挂到这个 KR"
+              >→ 挂到 {levelLabel(suggested)} · {suggested.title}</button>
             )}
             {rowTags.map((tag) => (
               <button key={tag.id} onClick={() => ctx.setTagFilter(tag.id)} className="text-accent/70 hover:text-accent" title={`按 #${tag.name} 过滤`}>

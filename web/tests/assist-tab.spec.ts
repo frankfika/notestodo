@@ -2,7 +2,7 @@
  * Live Assist Tab (Phase-2 item 5) 烟雾测试
  *
  * 覆盖：
- *   1. 会议详情页 Tab 栏出现「助手」
+ *   1. 会议详情页 Tab 栏出现「资料」
  *   2. 未配知识库 → 空态 + CTA 跳到设置
  *   3. 配了文件夹但无索引 → "去索引" 空态
  *
@@ -43,17 +43,10 @@ test.describe('Live Assist Tab', () => {
     // 立刻停止
     await page.getByRole('button', { name: /■ 停止/ }).first().click()
     await page.waitForTimeout(800)
-    // 此时列表里有一条已停止的 meeting；点它进详情
-    const meetingItem = page.locator('button:has-text("会议")').nth(1) // 跳过「会议」侧栏按钮
-    await meetingItem.first().click()
-    await page.waitForTimeout(400)
-
-    // 切到完整详情页（侧栏预览只能看摘要）
-    await page.getByRole('button', { name: /打开详情/ }).first().click()
-    await page.waitForTimeout(400)
+    // 开录即自动进入会议页，停止后就停在详情页
 
     // 切到「助手」Tab
-    await page.getByRole('button', { name: '助手' }).first().click()
+    await page.getByRole('button', { name: '资料' }).first().click()
     await expect(page.getByText(/还没有知识库文件夹/)).toBeVisible({ timeout: 5000 })
     const cta = page.getByRole('button', { name: /→ 设置/ }).first()
     await expect(cta).toBeVisible()
@@ -96,13 +89,8 @@ test.describe('Live Assist Tab', () => {
     await page.waitForTimeout(400)
     await page.getByRole('button', { name: /■ 停止/ }).first().click()
     await page.waitForTimeout(800)
-    const meetingItem = page.locator('button:has-text("会议")').nth(1)
-    await meetingItem.first().click()
-    await page.waitForTimeout(400)
-    await page.getByRole('button', { name: /打开详情/ }).first().click()
-    await page.waitForTimeout(400)
 
-    await page.getByRole('button', { name: '助手' }).first().click()
+    await page.getByRole('button', { name: '资料' }).first().click()
     await expect(page.getByText(/还没有索引过的内容/)).toBeVisible({ timeout: 5000 })
   })
 })

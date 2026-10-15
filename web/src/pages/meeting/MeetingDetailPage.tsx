@@ -6,14 +6,15 @@ import { fmtClock, fmtDateTime, mod, now, uid } from '../../lib/id'
 import type { ChatMessage, Meeting, MeetingStatus, Scribble, SummaryTemplate, Todo } from '../../types'
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
-import TodoRow from '../../components/TodoRow'
 import OverflowMenu from '../../components/OverflowMenu'
 import { runSummarizePipeline } from '../../pipeline/summarize'
+import { runPolish } from '../../pipeline/polish'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
 import { chunksInOrder } from '../../audio/merge'
-import { buildPolishMessages, scribblesToMarkdown, stripFence } from '../../llm/prompts'
+import { scribblesToMarkdown } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
+import { attachTask, discardTask } from '../../lib/todoActions'
 import { useRecorder } from '../../state/recorder'
 import {
   listPinnedCards,
@@ -23,7 +24,8 @@ import {
 } from '../../lib/knowledge'
 import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 
-type Tab = 'scribble' | 'notes' | 'summary' | 'todos' | 'transcript' | 'audio' | 'assist'
+// Foresight 式：一场会一份笔记。速记 / 待办确认并入「笔记」，录音并入「转录」
+type Tab = 'notes' | 'summary' | 'transcript' | 'assist'
 
 function statusLabel(s: MeetingStatus): string {
   switch (s) {
@@ -48,12 +50,11 @@ function statusTone(s: MeetingStatus): string {
 }
 
 /**
- * 会议详情：标题 + 状态 + Tab(速记/笔记/纪要/待办/转录/录音)
- * - 录音中：速记（Scribble）是主角，其它 Tab 让路
- * - 整理（Polish）：速记 + 转录 → 润色笔记，写入会议关联的 Note
- * - 深度总结：原模板纪要 + 待办提取管线
- * - 待办 Tab 仅在有 pending_review 的 todo 时出现
- * - 录音 Tab 从 audioChunks 拼 blob URL
+ * 会议详情：标题 + 状态 + Tab(笔记/纪要/转录/资料)
+ * - 录音中：全屏速记（LiveMeetingView）
+ * - 散会后自动整理（pipeline/polish）：笔记 Tab 顶部是待确认待办，中间 AI 笔记，底部原始速记
+ * - 深度总结：按模板重新生成纪要 + 待办提取
+ * - 转录 Tab 顶部是录音播放器，点时间戳跳播
  */
 export default function MeetingDetailPage(): JSX.Element {
   const meetingId = useUI((s) => s.meetingId)
@@ -120,7 +121,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   const scribbleMd = useMemo(() => scribblesToMarkdown(scribbles), [scribbles])
 
   const isRecording = meeting.status === 'recording'
-  const [tab, setTab] = useState<Tab>(() => meeting.note_id ? 'notes' : 'summary')
+  const [tab, setTab] = useState<Tab>('notes')
   const [polishing, setPolishing] = useState(false)
   const [polishErr, setPolishErr] = useState<string | null>(null)
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
@@ -130,7 +131,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
   const seekToSegment = (ms: number): void => {
     setSeekRequest(ms)
-    setTab('audio')
+    setTab('transcript')
   }
 
   const jumpToTranscript = (t: Todo): void => {
@@ -148,33 +149,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   const stepTranscriptDone = hasTranscript
   const stepSummaryDone = hasSummary
   const stepTodosDone = reviewTodos.every((t) => t.status !== 'pending_review')
-
-  // 如果待办 Tab 没有内容，自动跳走
-  useEffect(() => {
-    if (tab === 'todos' && reviewTodos.length === 0) setTab('summary')
-  }, [tab, reviewTodos.length])
-
-  const showTodosTab = reviewTodos.length > 0
-
-  // 会议待办 → OKR：默认进 Inbox；只有用户点了建议才挂到 KR（不自动深挂）
-  async function confirmTodo(t: Todo, kr?: Todo): Promise<void> {
-    await db.todos.update(t.id, {
-      status: 'open',
-      parent_id: kr?.id ?? null,
-      scope: kr?.scope ?? null,
-      updated_at: now(),
-      sync_version: t.sync_version + 1,
-    })
-  }
-  async function deleteTodo(t: Todo): Promise<void> {
-    await db.todos.delete(t.id)
-  }
-  async function confirmAll(): Promise<void> {
-    const ts = now()
-    for (const t of reviewTodos) {
-      await db.todos.update(t.id, { status: 'open', updated_at: ts, sync_version: t.sync_version + 1 })
-    }
-  }
+  const inFlight = meeting.status === 'processing' || meeting.status === 'transcribed' || meeting.status === 'summarizing'
 
   async function rerunWith(templateId: string): Promise<void> {
     // 记录选中的模板到 KVK，触发重生成
@@ -194,27 +169,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     setPolishErr(null)
     setPolishing(true)
     try {
-      const settings = await getSettings()
-      if (!settings.llm_api_key) throw new Error('请先在「设置」页填 LLM API Key')
-      // 取最新速记（键入即存，可能刚落库）
-      const rows = await db.scribbles.where('meeting_id').equals(meeting.id).sortBy('created_at')
-      const md = stripFence(await callLLM(
-        settings,
-        buildPolishMessages(meeting, scribblesToMarkdown(rows), transcript),
-        { maxTokens: 3072, temperature: 0.3 },
-      ))
-      if (!md) throw new Error('模型返回为空')
-      const ts = now()
-      if (meeting.note_id && await db.notes.get(meeting.note_id)) {
-        await db.notes.update(meeting.note_id, { body_md: md, updated_at: ts })
-      } else {
-        const id = uid()
-        await db.notes.add({
-          id, title: meeting.title, body_md: md, meeting_id: meeting.id, todo_ids: [], pinned: false,
-          created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
-        })
-        await db.meetings.update(meeting.id, { note_id: id, updated_at: ts })
-      }
+      await runPolish(meeting.id)
       setTab('notes')
     } catch (e: unknown) {
       setPolishErr(e instanceof Error ? e.message : String(e))
@@ -244,9 +199,6 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
         meeting={meeting}
         scribbleMd={scribbleMd}
         transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
-        polishing={polishing}
-        polishErr={polishErr}
-        onPolish={() => void polish()}
       />
     )
   }
@@ -283,10 +235,10 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
               onClick={() => void polish()}
               disabled={polishing}
               className="btn-primary text-xs h-8 px-3"
-              title="用转录把速记扩写成完整笔记"
-            >{polishing ? '整理中…' : '整理笔记'}</button>
+              title="用转录把速记扩写成完整笔记（散会后会自动整理一次）"
+            >{polishing ? '整理中…' : note?.body_md ? '重新整理' : '整理笔记'}</button>
           )}
-          {!isRecording && <RerunDropdown templates={templates} onPick={rerunWith} />}
+          {!isRecording && <RerunDropdown templates={templates} onPick={(id) => { setTab('summary'); return rerunWith(id) }} />}
           <button
             onClick={() => setChatOpen((v) => !v)}
             className={`btn-ghost text-xs h-8 px-3 ${chatOpen ? 'text-accent' : ''}`}
@@ -299,32 +251,35 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
         {/* Tab 栏 */}
         <div className="border-b border-line flex items-center gap-1 mb-6 text-sm">
-          <TabBtn active={tab === 'scribble'} onClick={() => setTab('scribble')}>速记</TabBtn>
-          <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>笔记</TabBtn>
+          <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>
+            笔记{reviewTodos.length > 0 && <span className="ml-1 text-[11px] text-accent tabular-nums">· {reviewTodos.length} 待办</span>}
+          </TabBtn>
           <TabBtn active={tab === 'summary'} onClick={() => setTab('summary')}>纪要</TabBtn>
-          {showTodosTab && (
-            <TabBtn active={tab === 'todos'} onClick={() => setTab('todos')}>
-              待办 <span className="ml-1 text-[11px] text-text-3">{reviewTodos.length}</span>
-            </TabBtn>
-          )}
           <TabBtn active={tab === 'transcript'} onClick={() => setTab('transcript')}>转录</TabBtn>
-          <TabBtn active={tab === 'audio'} onClick={() => setTab('audio')}>录音</TabBtn>
-          <TabBtn active={tab === 'assist'} onClick={() => setTab('assist')}>助手</TabBtn>
+          <TabBtn active={tab === 'assist'} onClick={() => setTab('assist')}>资料</TabBtn>
         </div>
 
         {/* 内容 */}
-        {tab === 'scribble' && (
-          <ScribbleEditor meeting={meeting} live={false} onSeek={seekToSegment} />
-        )}
         {tab === 'notes' && (
-          note?.body_md ? (
-            <MarkdownView source={note.body_md} />
-          ) : (
-            <EmptyState
-              title="还没有整理过的笔记"
-              hint={hasTranscript ? '点「整理笔记」：用转录把速记扩写成完整笔记。' : '录音转录完成后，可一键把速记整理成完整笔记。'}
-            />
-          )
+          <div className="space-y-6">
+            {reviewTodos.length > 0 && (
+              <PendingTodos todos={reviewTodos} krs={openKrs} onJumpToTranscript={jumpToTranscript} />
+            )}
+            {note?.body_md ? (
+              <MarkdownView source={note.body_md} />
+            ) : (
+              <div className="card">
+                <EmptyState
+                  icon={inFlight || polishing ? '◌' : '✎'}
+                  title={inFlight || polishing ? 'AI 正在整理笔记…' : '还没有整理过的笔记'}
+                  hint={inFlight
+                    ? '转录完成后会自动把下面的速记扩写成完整笔记，待办会出现在这里等你确认。可以先离开。'
+                    : hasTranscript ? '点「整理笔记」：用转录把速记扩写成完整笔记。' : '录音转录完成后会自动整理。'}
+                />
+              </div>
+            )}
+            <ScribbleEditor meeting={meeting} live={false} onSeek={seekToSegment} />
+          </div>
         )}
         {tab === 'summary' && (
           <SummaryTab
@@ -336,30 +291,20 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             stepTodosDone={stepTodosDone}
           />
         )}
-        {tab === 'todos' && showTodosTab && (
-          <TodosTab
-            todos={reviewTodos}
-            onConfirm={confirmTodo}
-            onDelete={deleteTodo}
-            onConfirmAll={confirmAll}
-            onJumpToTranscript={jumpToTranscript}
-            krs={openKrs}
-          />
-        )}
         {tab === 'transcript' && (
-          <TranscriptTab
-            transcriptId={meeting.id}
-            highlightStartMs={highlightStartMs}
-            playheadMs={playheadMs}
-            onSeekTo={seekToSegment}
-          />
-        )}
-        {tab === 'audio' && (
-          <AudioTab
-            meetingId={meeting.id}
-            seekRequest={seekRequest}
-            onPlayheadUpdate={setPlayheadMs}
-          />
+          <div className="space-y-4">
+            <AudioTab
+              meetingId={meeting.id}
+              seekRequest={seekRequest}
+              onPlayheadUpdate={setPlayheadMs}
+            />
+            <TranscriptTab
+              transcriptId={meeting.id}
+              highlightStartMs={highlightStartMs}
+              playheadMs={playheadMs}
+              onSeekTo={seekToSegment}
+            />
+          </div>
         )}
         {tab === 'assist' && (
           <AssistPane
@@ -416,6 +361,12 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
                 </button>
               </li>
             ))}
+            <li className="border-t border-line mt-1 pt-1">
+              <button
+                onClick={() => { setOpen(false); useUI.getState().goTemplates() }}
+                className="w-full text-left px-3 py-2 rounded-md hover:bg-bg-overlay text-text-3 text-xs"
+              >管理模板…</button>
+            </li>
           </ul>
         </>
       )}
@@ -437,14 +388,11 @@ function LiveClock({ meetingId }: { meetingId: string }): JSX.Element {
 // ── 会中实时布局（Foresight）──────────────────────────────────────
 // 左主栏「速记」，右侧「实时转录」+「相关资料」。录音结束回到 Tab 视图。
 function LiveMeetingView({
-  meeting, scribbleMd, transcriptText, polishing, polishErr, onPolish,
+  meeting, scribbleMd, transcriptText,
 }: {
   meeting: Meeting
   scribbleMd: string
   transcriptText: string | undefined
-  polishing: boolean
-  polishErr: string | null
-  onPolish: () => void
 }): JSX.Element {
   const captureMode = useRecorder((s) => s.captureMode)
   const captureLabel = captureMode === 'mic+system' ? '麦克风 + 系统音频'
@@ -458,20 +406,13 @@ function LiveMeetingView({
         <h1 className="text-base font-semibold text-text-1 truncate">{meeting.title}</h1>
         <span className="text-[11px] text-text-3 hidden sm:inline">{captureLabel}</span>
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={onPolish}
-            disabled={polishing}
-            className="btn-outline text-xs h-8 px-3"
-            title="随时把当前速记整理成笔记（结束后可再整理一次）"
-          >{polishing ? '整理中…' : '整理'}</button>
+          <span className="text-[11px] text-text-3 hidden md:inline">散会后自动整理成笔记</span>
           <button
             onClick={() => void useRecorder.getState().stop()}
             className="btn-primary text-xs h-8 px-3 bg-danger border-danger"
           >■ 停止</button>
         </div>
       </div>
-      {polishErr && <div className="text-xs text-danger px-6 py-1.5 shrink-0">整理失败：{polishErr}</div>}
-
       {/* 主体：左速记 / 右（转录 + 相关资料）；窄屏纵向堆叠 */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         <div className="flex-1 min-w-0 lg:overflow-y-auto p-6">
@@ -687,56 +628,77 @@ function Step({ done, label }: { done: boolean; label: string }): JSX.Element {
   )
 }
 
-// ── 待办 Tab ──────────────────────────────────────────────────────
-function TodosTab({
-  todos, onConfirm, onDelete, onConfirmAll, onJumpToTranscript, krs,
+// ── 待确认待办（笔记 Tab 顶部）─────────────────────────────────────
+// 每条一行：✓ 确认（挂到建议 KR，没有建议则进 Inbox）/ ✕ 丢弃；
+// 建议 KR 以 chip 显示，点 chip 可取消挂载改进 Inbox。「全部确认」按每行当前选择一次落库。
+function PendingTodos({
+  todos, krs, onJumpToTranscript,
 }: {
   todos: Todo[]
   krs: Todo[]
-  onConfirm: (t: Todo, kr?: Todo) => void | Promise<void>
-  onDelete: (t: Todo) => void | Promise<void>
-  onConfirmAll: () => void | Promise<void>
-  onJumpToTranscript?: (t: Todo) => void
+  onJumpToTranscript: (t: Todo) => void
 }): JSX.Element {
-  return (
-    <div>
-      <div className="flex items-center mb-3">
-        <div className="section-title">待审待办 · {todos.length}</div>
-        <button onClick={() => void onConfirmAll()} className="btn-primary text-xs h-7 ml-auto">
-          全部确认进 Inbox
-        </button>
-      </div>
+  const [skipKr, setSkipKr] = useState<Set<string>>(new Set())
+  const targetOf = (t: Todo): Todo | null => skipKr.has(t.id) ? null : suggestKr(t.title, krs)
+  const toggleKr = (id: string): void => setSkipKr((s) => {
+    const n = new Set(s)
+    if (n.has(id)) n.delete(id); else n.add(id)
+    return n
+  })
 
-      <div className="card p-4">
-        {todos.length === 0 ? (
-          <EmptyState title="全部已确认" hint="这些待办都已进入 OKR / Inbox。" />
-        ) : (
-          <div className="divide-y divide-line">
-            {todos.map((t) => {
-              const kr = suggestKr(t.title, krs)
-              return (
-                <div key={t.id}>
-                  <TodoRow
-                    todo={t}
-                    onConfirm={(x) => onConfirm(x)}
-                    onDelete={onDelete}
-                    onJumpToTranscript={onJumpToTranscript}
-                    showMeetingLink={false}
-                  />
+  return (
+    <section className="card p-4 border-accent/30">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="section-title">会议待办 · {todos.length}</div>
+        <span className="text-[11px] text-text-3 hidden sm:inline">AI 从转录里提取，确认后进入任务</span>
+        <button
+          onClick={() => void Promise.all(todos.map((t) => attachTask(t, targetOf(t))))}
+          className="btn-primary text-xs h-7 px-3 ml-auto"
+        >全部确认</button>
+      </div>
+      <ul className="divide-y divide-line">
+        {todos.map((t) => {
+          const kr = suggestKr(t.title, krs)
+          const target = targetOf(t)
+          return (
+            <li key={t.id} className="flex items-start gap-2.5 py-2">
+              <button
+                onClick={() => void attachTask(t, target)}
+                className="mt-0.5 h-5 w-5 shrink-0 rounded-full border border-line-strong hover:border-accent hover:bg-accent/10 text-[11px] text-accent"
+                aria-label="确认"
+                title={target ? `确认并挂到「${target.title}」` : '确认，进 Inbox'}
+              >✓</button>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-text-1 leading-snug">{t.title}</div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-text-3">
+                  {t.assignee && <span>@{t.assignee}</span>}
+                  {t.due_date && <span>{t.due_date}</span>}
+                  {t.transcript_span && (
+                    <button onClick={() => onJumpToTranscript(t)} className="hover:text-accent truncate max-w-[32ch]" title="跳到转录原文">
+                      「{t.transcript_span.quote || fmtClock(t.transcript_span.start_ms)}」
+                    </button>
+                  )}
                   {kr && (
                     <button
-                      onClick={() => void onConfirm(t, kr)}
-                      className="ml-12 mb-2 -mt-0.5 text-[11.5px] text-text-3 hover:text-accent transition-colors"
-                      title="确认并挂到这个 KR（✓ 则进 Inbox）"
-                    >确认并挂到 {levelLabel(kr)} · <span className="text-text-2">{kr.title}</span></button>
+                      onClick={() => toggleKr(t.id)}
+                      className={`px-1.5 rounded border transition-colors ${target ? 'border-accent/40 bg-accent/8 text-accent' : 'border-line text-text-3 line-through'}`}
+                      title={target ? '点一下改为只进 Inbox' : '点一下恢复挂到这个 KR'}
+                    >→ {levelLabel(kr)} · {kr.title}</button>
                   )}
+                  {!kr && <span>→ Inbox</span>}
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+              </div>
+              <button
+                onClick={() => void discardTask(t)}
+                className="mt-0.5 text-text-disabled hover:text-danger text-xs shrink-0"
+                aria-label="丢弃"
+                title="不是待办，丢弃"
+              >✕</button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -922,7 +884,6 @@ function AssistPane({
   }, []) ?? []
 
   const [query, setQuery] = useState('')
-  const [hits, setHits] = useState<KnowledgeEntry[]>([])
   const [pinned, setPinned] = useState<PinnedAssistCard[]>([])
 
   // 计算 query：用户输入 > 速记 > 转录尾部 200 字
@@ -936,17 +897,17 @@ function AssistPane({
     return ''
   }, [query, scribbleMd, transcriptText])
 
-  // debounce 200ms 自动重新检索
+  // debounce 200ms 只作用于 query 字符串；命中由 useMemo 派生。
+  // 不能在 effect 里依赖 entries 再 setState：`useLiveQuery() ?? []` 每次渲染都是新数组 → 无限渲染（会中页面卡死）
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   useEffect(() => {
-    if (!effectiveQuery) {
-      setHits([])
-      return
-    }
-    const t = setTimeout(() => {
-      setHits(retrieveKnowledge(effectiveQuery, entries, 8))
-    }, 200)
+    const t = setTimeout(() => setDebouncedQuery(effectiveQuery), 200)
     return () => clearTimeout(t)
-  }, [effectiveQuery, entries])
+  }, [effectiveQuery])
+  const hits = useMemo(
+    () => debouncedQuery ? retrieveKnowledge(debouncedQuery, entries, 8) : [],
+    [debouncedQuery, entries],
+  )
 
   // 加载 pinned
   const refreshPinned = useCallback(async (): Promise<void> => {

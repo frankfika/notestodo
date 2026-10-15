@@ -1,3 +1,4 @@
+import { useUI } from '../../state/ui'
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
@@ -64,6 +65,7 @@ export default function TemplatesPage(): JSX.Element {
     <div className="h-full flex">
       <aside className="w-[260px] shrink-0 border-r border-line overflow-y-auto">
         <div className="px-4 py-4 border-b border-line flex items-center">
+          <button onClick={() => useUI.getState().goSettings()} className="icon-btn -ml-1 mr-1 !h-7 !w-7" aria-label="返回设置" title="返回设置">←</button>
           <h1 className="text-sm font-semibold text-text-1">模板</h1>
           <span className="ml-2 text-[11px] text-text-3 tabular-nums">{templates.length}</span>
           <button onClick={() => void createTemplate()} className="ml-auto btn-outline text-xs h-7 px-2">+ 新建</button>

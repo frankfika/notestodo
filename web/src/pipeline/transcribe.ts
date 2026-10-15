@@ -5,6 +5,7 @@ import { getSettings } from '../db/settings'
 import { now } from '../lib/id'
 import { resolveASRConfig, type Meeting, type Transcript, type TranscriptSegment } from '../types'
 import { runSummarizePipeline } from './summarize'
+import { autoPolish } from './polish'
 
 /**
  * Transcription pipeline entry point.
@@ -126,6 +127,6 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     updated_at: now(),
   })
 
-  // Hand off to summarisation.
-  await runSummarizePipeline(meetingId)
+  // Hand off：纪要/待办提取 与 速记整理 并行（整理失败不影响纪要）
+  await Promise.all([runSummarizePipeline(meetingId), autoPolish(meetingId)])
 }

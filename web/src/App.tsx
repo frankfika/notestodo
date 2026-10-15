@@ -35,6 +35,11 @@ export default function App() {
     }
   }, [])
 
+  // 一开录就进会中速记视图（无论从今天 / 日历 / ⌘⇧R 哪里开始），不用再找入口
+  useEffect(() => useRecorder.subscribe((s, prev) => {
+    if (s.meeting && s.meeting.id !== prev.meeting?.id) useUI.getState().goMeeting(s.meeting.id)
+  }), [])
+
   // 全局快捷键：⌘K 命令面板 + ⌘⇧R 录制切换
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

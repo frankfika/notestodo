@@ -98,7 +98,7 @@ test('视觉审计 — Today / Meetings / Todos / Notes / Settings', async ({ pa
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-meeting-detail.png', fullPage: false })
 
-  await page.locator('aside').getByRole('button', { name: 'OKR' }).click()
+  await page.locator('aside').getByRole('button', { name: '任务' }).click()
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-todos.png', fullPage: false })
 
@@ -106,11 +106,12 @@ test('视觉审计 — Today / Meetings / Todos / Notes / Settings', async ({ pa
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-notes.png', fullPage: false })
 
-  await page.getByRole('button', { name: '模板' }).click()
-  await page.waitForTimeout(400)
-  await page.screenshot({ path: 'tests/screenshots/visual-templates.png', fullPage: false })
-
   await page.getByRole('button', { name: '设置' }).click()
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-settings.png', fullPage: false })
+
+  // 模板并入设置页
+  await page.getByRole('button', { name: '纪要模板 →' }).click()
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'tests/screenshots/visual-templates.png', fullPage: false })
 })

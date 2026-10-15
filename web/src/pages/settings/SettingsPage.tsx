@@ -71,6 +71,7 @@ export default function SettingsPage(): JSX.Element {
             <div className="section-title">SETTINGS</div>
             <h1 className="text-2xl font-semibold text-text-1 mt-1">设置</h1>
           </div>
+          <button onClick={() => useUI.getState().goTemplates()} className="btn-outline text-sm h-9 px-3 ml-auto mr-2">纪要模板 →</button>
           <button
             onClick={() => void save()}
             disabled={!dirty}

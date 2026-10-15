@@ -9,6 +9,9 @@ import { fmtClock, fmtDateTime, mod, now, today as todayIso } from '../../lib/id
 import type { Todo } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import LevelMeter from '../../components/LevelMeter'
+import QuickAddBar from '../../components/QuickAddBar'
+import { attachTask, discardTask } from '../../lib/todoActions'
+import { suggestKr } from '../../lib/okr'
 
 /**
  * Today 页：默认首页。三块——
@@ -31,6 +34,11 @@ export default function TodayPage(): JSX.Element {
 
   const openTodos = useLiveQuery(
     () => db.todos.where('status').anyOf('open', 'pending_review').toArray(),
+    [],
+  ) ?? []
+
+  const krs = useLiveQuery(
+    () => db.todos.where('kind').equals('kr').and((k) => k.deleted_at === null && k.status === 'open').toArray(),
     [],
   ) ?? []
 
@@ -83,7 +91,9 @@ export default function TodayPage(): JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [upcomingMeetings]) // 同步 on settings change (when meetings change page re-renders; manual via settings 按钮)
+    // 只在进入「今天」时拉一次（15 分钟缓存）；改日历 URL 在设置页，回来即重新挂载。
+    // 别依赖 upcomingMeetings：`useLiveQuery() ?? []` 每次渲染换引用 → 无限重拉，点「今天」时主线程卡死
+  }, [])
 
   // 未来 12 小时之内的日程
   const upcomingCal = useMemo(() => {
@@ -158,19 +168,20 @@ export default function TodayPage(): JSX.Element {
           <div className="flex items-center mb-2 px-1">
             <h2 className="section-title">今日</h2>
             <span className="ml-2 text-[11px] text-text-3 tabular-nums">{due.length + inbox.length}</span>
-            <button onClick={() => goTodos()} className="ml-auto text-xs text-text-3 hover:text-text-1">打开 OKR →</button>
+            <button onClick={() => goTodos()} className="ml-auto text-xs text-text-3 hover:text-text-1">全部任务 →</button>
           </div>
+          <div className="mb-2"><QuickAddBar /></div>
 
           {due.length + inbox.length === 0 ? (
             <EmptyState
               title="今天没有要处理的事"
-              hint={`按 ${mod()}⇧R 开一场会议，会中速记、会后一键整理。`}
+              hint={`按 ${mod()}⇧R 开一场会议：会中只记关键词，散会自动整理成笔记。`}
               action={<button onClick={() => void start()} className="btn-primary h-8 text-xs px-3">● 开始录音</button>}
             />
           ) : (
             <ul className="divide-y divide-line">
-              {due.map((td) => <TodayRow key={td.id} todo={td} hint={td.due_date === t ? '今天' : `逾期 · ${td.due_date}`} overdue={td.due_date !== t} />)}
-              {inbox.map((td) => <TodayRow key={td.id} todo={td} hint={td.status === 'pending_review' ? '会议提取 · 待确认' : 'Inbox'} />)}
+              {due.map((td) => <TodayRow key={td.id} todo={td} krs={krs} hint={td.due_date === t ? '今天' : `逾期 · ${td.due_date}`} overdue={td.due_date !== t} />)}
+              {inbox.map((td) => <TodayRow key={td.id} todo={td} krs={krs} hint={td.status === 'pending_review' ? '会议提取 · 待确认' : 'Inbox'} />)}
             </ul>
           )}
         </section>
@@ -240,13 +251,19 @@ export default function TodayPage(): JSX.Element {
   )
 }
 
-function TodayRow({ todo, hint, overdue }: { todo: Todo; hint: string; overdue?: boolean }): JSX.Element {
+function TodayRow({ todo, hint, overdue, krs }: { todo: Todo; hint: string; overdue?: boolean; krs: Todo[] }): JSX.Element {
   const goMeeting = useUI((s) => s.goMeeting)
   const pending = todo.status === 'pending_review'
+  const kr = pending ? suggestKr(todo.title, krs) : null
   return (
-    <li className="flex items-center gap-2.5 py-2 px-1">
+    <li className="group flex items-center gap-2.5 py-2 px-1">
       {pending ? (
-        <span className="h-4 w-4 shrink-0 rounded-full border border-dashed border-line-strong" aria-hidden="true" />
+        <button
+          onClick={() => void attachTask(todo, kr)}
+          className="h-4 w-4 shrink-0 rounded-full border border-dashed border-accent text-[9px] text-accent hover:bg-accent/10"
+          aria-label="确认"
+          title={kr ? `确认并挂到「${kr.title}」` : '确认，进 Inbox'}
+        >✓</button>
       ) : (
         <button
           onClick={() => void db.todos.update(todo.id, { status: 'done', updated_at: now() })}
@@ -259,7 +276,10 @@ function TodayRow({ todo, hint, overdue }: { todo: Todo; hint: string; overdue?:
       ) : (
         <span className="flex-1 min-w-0 text-sm text-text-1 truncate">{todo.title}</span>
       )}
-      <span className={`text-[11px] shrink-0 ${overdue ? 'text-danger' : 'text-text-3'}`}>{hint}</span>
+      <span className={`text-[11px] shrink-0 ${overdue ? 'text-danger' : 'text-text-3'}`}>{kr ? `→ ${kr.title}` : hint}</span>
+      {pending && (
+        <button onClick={() => void discardTask(todo)} className="opacity-0 group-hover:opacity-100 text-text-disabled hover:text-danger text-xs" aria-label="丢弃" title="不是待办，丢弃">✕</button>
+      )}
     </li>
   )
 }

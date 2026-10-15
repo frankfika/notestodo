@@ -4,18 +4,27 @@ import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 
+// 只留 4 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
 const NAV: { view: ViewName; label: string; icon: string }[] = [
   { view: 'today', label: '今天', icon: '◐' },
   { view: 'meetings', label: '会议', icon: '●' },
-  { view: 'board', label: '看板', icon: '▦' },
-  { view: 'todos', label: 'OKR', icon: '◎' },
-  { view: 'report', label: '周报', icon: '☰' },
+  { view: 'todos', label: '任务', icon: '◎' },
   { view: 'notes', label: '笔记', icon: '✎' },
-  { view: 'templates', label: '模板', icon: '▢' },
 ]
 
+/** 子页面归属到哪个一级入口（高亮用） */
+function navOf(v: ViewName): ViewName {
+  if (v === 'meeting-detail') return 'meetings'
+  if (v === 'note-detail') return 'notes'
+  if (v === 'board' || v === 'report') return 'todos'
+  if (v === 'templates') return 'settings'
+  return v
+}
+
 export default function Sidebar() {
-  const { view, goToday, goMeetings, goNotes, goTodos, goTemplates, goSettings, goBoard, goReport } = useUI()
+  const { view, goToday, goMeetings, goNotes, goSettings } = useUI()
+  const goTasks = useUI((s) => s.goTaskMode)
+  const taskMode = useUI((s) => s.taskMode)
   const phase = useRecorder((s) => s.phase)
   const [clock, setClock] = useState(() => new Date())
 
@@ -47,15 +56,12 @@ export default function Sidebar() {
 
       <nav className="px-2 mt-2 space-y-0.5">
         {NAV.map((item) => {
-          const active =
-            view === item.view ||
-            (item.view === 'meetings' && view === 'meeting-detail') ||
-            (item.view === 'notes' && view === 'note-detail')
+          const active = navOf(view) === item.view
           return (
             <button
               key={item.view}
               onClick={() =>
-                ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: goTodos, templates: goTemplates, board: goBoard, report: goReport } as Record<string, () => void>)[item.view]()
+                ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: () => goTasks(taskMode) } as Record<string, () => void>)[item.view]()
               }
               className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
                 active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
@@ -65,7 +71,7 @@ export default function Sidebar() {
                 {item.icon}
               </span>
               {item.label}
-              {item.view === 'board' && (openTodos ?? 0) > 0 && (
+              {item.view === 'todos' && (openTodos ?? 0) > 0 && (
                 <span className="ml-auto text-[11px] text-text-3 tabular-nums">{openTodos}</span>
               )}
             </button>
@@ -77,7 +83,7 @@ export default function Sidebar() {
         <button
           onClick={goSettings}
           className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors ${
-            view === 'settings' ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-3 hover:bg-bg-overlay hover:text-text-1'
+            navOf(view) === 'settings' ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-3 hover:bg-bg-overlay hover:text-text-1'
           }`}
         >
           <span className="text-xs w-4 text-center">{'⚙\uFE0E'}</span>
@@ -94,7 +100,9 @@ export default function Sidebar() {
  * 保持与桌面 sidebar 一样的 chip/badge 行为。
  */
 export function BottomTabBar() {
-  const { view, goToday, goMeetings, goNotes, goTodos, goSettings, goTemplates, goBoard, goReport } = useUI()
+  const { view, goToday, goMeetings, goNotes, goSettings } = useUI()
+  const goTasks = useUI((s) => s.goTaskMode)
+  const taskMode = useUI((s) => s.taskMode)
   const phase = useRecorder((s) => s.phase)
   const openTodos = useLiveQuery(
     () => db.todos.where('status').anyOf('open', 'pending_review').count(),
@@ -104,17 +112,11 @@ export function BottomTabBar() {
   const items: { view: ViewName; label: string; icon: string; onClick: () => void; badge?: number | null }[] = [
     { view: 'today', label: '今天', icon: '◐', onClick: goToday },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
-    { view: 'board', label: '看板', icon: '▦', onClick: goBoard },
-    { view: 'todos', label: 'OKR', icon: '◎', onClick: goTodos, badge: openTodos ?? 0 },
-    { view: 'report', label: '周报', icon: '☰', onClick: goReport },
+    { view: 'todos', label: '任务', icon: '◎', onClick: () => goTasks(taskMode), badge: openTodos ?? 0 },
     { view: 'notes', label: '笔记', icon: '✎', onClick: goNotes },
-    { view: 'templates', label: '模板', icon: '▢', onClick: goTemplates },
   ]
 
-  const isActive = (v: ViewName): boolean =>
-    view === v ||
-    (v === 'meetings' && view === 'meeting-detail') ||
-    (v === 'notes' && view === 'note-detail')
+  const isActive = (v: ViewName): boolean => navOf(view) === v
 
   return (
     <nav
@@ -156,11 +158,11 @@ export function BottomTabBar() {
       <button
         onClick={goSettings}
         className={`px-3 flex flex-col items-center justify-center gap-0.5 text-[10px] ${
-          view === 'settings' ? 'text-text-1' : 'text-text-2'
+          navOf(view) === 'settings' ? 'text-text-1' : 'text-text-2'
         }`}
         aria-label="设置"
       >
-        <span className={`text-base leading-none ${view === 'settings' ? 'text-accent' : 'text-text-3'}`}>{'⚙\uFE0E'}</span>
+        <span className={`text-base leading-none ${navOf(view) === 'settings' ? 'text-accent' : 'text-text-3'}`}>{'⚙\uFE0E'}</span>
         设置
       </button>
     </nav>

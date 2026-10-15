@@ -24,16 +24,20 @@ test('iPhone 13 — 各页面', async ({ page }) => {
   for (const [label, fname] of [
     ['会议', 'mobile-meetings'],
     ['笔记', 'mobile-notes'],
-    ['OKR', 'mobile-todos'],
-    ['看板', 'mobile-board'],
-    ['周报', 'mobile-report'],
-    ['模板', 'mobile-templates'],
+    ['任务', 'mobile-todos'],
   ] as const) {
     // 桌面 sidebar 在 md 以下隐藏；用 nav[aria-label="主导航"] 锁定移动 tab bar
     await page.locator('nav[aria-label="主导航"]').getByRole('button', { name: label }).click()
     await page.waitForTimeout(300)
     await page.screenshot({ path: `tests/screenshots/${fname}.png`, fullPage: false })
   }
+  // 看板 / 周报 并入「任务」页内切换
+  await page.getByRole('tab', { name: '看板' }).click()
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: 'tests/screenshots/mobile-board.png', fullPage: false })
+  await page.getByRole('button', { name: '周报 →' }).click()
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: 'tests/screenshots/mobile-report.png', fullPage: false })
 })
 
 test('iPad mini 视口（768x1024）', async ({ page }) => {

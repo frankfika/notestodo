@@ -36,6 +36,8 @@ test('连录两场：状态完全隔离（无 ghost meeting / 残留录制条）
   await page.waitForTimeout(1500)
 
   // ── 第二次录制（关键的「干净启动」验证）───
+  // 开录会自动进入会议页，回「今天」再开第二场
+  await page.locator('aside').getByRole('button', { name: '今天' }).click()
   await page.getByRole('button', { name: /● 开始录音/ }).first().click()
   await expect(page.locator('span.rec-dot').first()).toBeVisible({ timeout: 8000 })
   // 验证录制条内的 elapsed 计时独立 — 显式 scope 到 RecordingBar

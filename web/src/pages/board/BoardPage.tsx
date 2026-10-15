@@ -4,6 +4,7 @@ import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtDate, now, thisFriday, today as todayIso, uid } from '../../lib/id'
 import type { Todo } from '../../types'
+import TaskModeSwitch from '../../components/TaskModeSwitch'
 
 type Col = 'todo' | 'doing' | 'review' | 'done'
 const COLS: { key: Col; label: string; dot: string }[] = [
@@ -81,12 +82,13 @@ export default function BoardPage(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col px-6 md:px-10 pt-8 pb-6 gap-5 overflow-hidden">
-      <header className="flex items-end gap-4">
+      <header className="flex flex-wrap items-end gap-4">
         <div>
-          <div className="text-xs text-text-3">所有卡片 · 挂在 OKR 上的和日常事务都在这里</div>
+          <div className="section-title">任务 · 看板</div>
           <h1 className="text-2xl font-semibold tracking-tight">看板</h1>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto"><TaskModeSwitch /></div>
+        <div className="w-full flex gap-2">
           {FILTERS.map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 h-7 rounded-full text-xs border transition-colors ${filter === f ? 'bg-accent/10 border-accent text-accent' : 'border-line text-text-2 hover:bg-bg-overlay'}`}>

@@ -12,6 +12,9 @@ export type ViewName =
   | 'templates'
   | 'settings'
 
+/** 任务页的视角：看板与三种 OKR 视图是同一份数据 */
+export type TaskMode = 'board' | 'focus' | 'quarter' | 'strategy'
+
 export interface RouteState {
   view: ViewName
   meetingId: string | null
@@ -27,6 +30,9 @@ interface UIStore extends RouteState {
   goNotes: () => void
   goNote: (noteId: string) => void
   goTodos: (todoFocusId?: string) => void
+  /** 任务页内切视角（看板走 board 路由，其余走 todos） */
+  taskMode: Exclude<TaskMode, 'board'>
+  goTaskMode: (m: TaskMode) => void
   goBoard: () => void
   goReport: () => void
   goTemplates: () => void
@@ -59,6 +65,10 @@ export const useUI = create<UIStore>((set) => ({
   goNote: (noteId) => set({ view: 'note-detail', meetingId: null, noteId }),
   goTodos: (todoFocusId) => set({ view: 'todos', meetingId: null, noteId: null, todoFocusId: todoFocusId ?? null }),
   goBoard: () => set({ view: 'board', meetingId: null, noteId: null }),
+  taskMode: 'focus',
+  goTaskMode: (m) => set(m === 'board'
+    ? { view: 'board', meetingId: null, noteId: null }
+    : { view: 'todos', taskMode: m, meetingId: null, noteId: null, todoFocusId: null }),
   goReport: () => set({ view: 'report', meetingId: null, noteId: null }),
   goTemplates: () => set({ view: 'templates', meetingId: null, noteId: null }),
   goSettings: () => set({ view: 'settings', meetingId: null, noteId: null }),
