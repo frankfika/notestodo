@@ -16,6 +16,7 @@ import { scribblesToMarkdown } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { attachTask, discardTask } from '../../lib/todoActions'
 import { useRecorder } from '../../state/recorder'
+import { setLiveCaptionEnabled, useCaption } from '../../lib/liveCaption'
 import {
   listPinnedCards,
   pinAssistCard,
@@ -420,8 +421,7 @@ function LiveMeetingView({
         </div>
         <aside className="w-full lg:w-[380px] shrink-0 border-t lg:border-t-0 lg:border-l border-line lg:overflow-y-auto p-4 space-y-5">
           <section>
-            <div className="section-title mb-2">实时转录</div>
-            <TranscriptTab transcriptId={meeting.id} highlightStartMs={null} playheadMs={null} onSeekTo={() => {}} />
+            <LiveCaptionPane meetingId={meeting.id} />
           </section>
           <section>
             <div className="section-title mb-2">相关资料</div>
@@ -429,6 +429,58 @@ function LiveMeetingView({
           </section>
         </aside>
       </div>
+    </div>
+  )
+}
+
+// ── 会中实时字幕 ─────────────────────────────────────────────────
+// 默认关（Chrome 会把音频发到云端识别），一键开启并记住；不支持的浏览器如实说明。
+function LiveCaptionPane({ meetingId }: { meetingId: string }): JSX.Element {
+  const { status, error, segments, interim } = useCaption()
+  const startedAt = useRecorder((s) => s.meeting?.id === meetingId ? s.meeting.startedAt : null)
+  const endRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [segments.length, interim])
+  const toggle = (on: boolean): void => {
+    if (startedAt) void setLiveCaptionEnabled(on, meetingId, Date.parse(startedAt))
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="section-title">实时字幕</div>
+        {status === 'on' && <span className="rec-dot h-1.5 w-1.5 rounded-full bg-danger" />}
+        {status === 'on' && (
+          <button onClick={() => toggle(false)} className="ml-auto text-[11px] text-text-3 hover:text-text-1">关闭</button>
+        )}
+      </div>
+      {status === 'unsupported' ? (
+        <p className="text-[12px] text-text-3 leading-relaxed">
+          当前浏览器不支持实时字幕（Chrome / Edge / Safari 支持）。录音照常进行，散会后用正式转录生成全文。
+        </p>
+      ) : status === 'off' || status === 'error' ? (
+        <div className="rounded-lg border border-line p-3 text-[12px] text-text-3 leading-relaxed space-y-2">
+          <p>边说边出字，不用等散会。用的是浏览器自带的语音识别，免费、不需要 Key；Chrome / Edge 会把音频发到厂商云端识别。</p>
+          {error && <p className="text-danger">{error}</p>}
+          <button onClick={() => toggle(true)} className="btn-outline text-xs h-7 px-3">开启实时字幕</button>
+        </div>
+      ) : (
+        <div className="space-y-1.5 max-h-[50vh] overflow-y-auto text-[13px] leading-relaxed">
+          {segments.length === 0 && !interim && <p className="text-text-3 text-[12px]">正在听…</p>}
+          {segments.map((seg, i) => (
+            <div key={i} className="flex gap-2">
+              <span className="font-mono tabular-nums text-[11px] text-text-3 w-10 shrink-0 pt-0.5">{fmtClock(seg.start_ms)}</span>
+              <span className="text-text-1">{seg.text}</span>
+            </div>
+          ))}
+          {interim && (
+            <div className="flex gap-2">
+              <span className="w-10 shrink-0" />
+              <span className="text-text-3">{interim}</span>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+      )}
     </div>
   )
 }

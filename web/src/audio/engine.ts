@@ -2,6 +2,7 @@ import { db } from '../db/db'
 import { now, uid } from '../lib/id'
 import { setRecorderPartial, useRecorder } from '../state/recorder'
 import { runTranscribePipeline } from '../pipeline/transcribe'
+import { startLiveCaption, stopLiveCaption } from '../lib/liveCaption'
 import { chunksInOrder } from './merge'
 import { isTauri } from '../lib/tauri'
 import { systemAudioStatus, startSystemAudio, stopSystemAudio } from '../lib/tauriSystemAudio'
@@ -98,7 +99,17 @@ export function bindRecorderEngine(): void {
   }
 }
 
-export async function startRecorder(opts?: { title?: string }): Promise<void> {
+// 启动中的 Promise：停止若在 starting 阶段（等麦克风授权 / 建会议行）被按下，要等启动完再停，
+// 否则 stop 因 active 尚为空而被吞掉，录音停不下来。
+let starting: Promise<void> | null = null
+
+export function startRecorder(opts?: { title?: string }): Promise<void> {
+  if (starting) return starting
+  starting = startRecorderInner(opts).finally(() => { starting = null })
+  return starting
+}
+
+async function startRecorderInner(opts?: { title?: string }): Promise<void> {
   if (active) {
     // Idempotent: ignore double-taps.
     return
@@ -269,12 +280,15 @@ export async function startRecorder(opts?: { title?: string }): Promise<void> {
     },
     chunkCount: 1,
   })
+  void startLiveCaption(meetingId, startedAtMs)
 }
 
 export async function stopRecorder(): Promise<string | null> {
+  if (!active && starting) await starting.catch(() => undefined)
   if (!active) return null
   const meetingId = active.meetingId
   setRecorderPartial({ phase: 'stopping' })
+  stopLiveCaption()
 
   // 关键：recorder.stop() 会触发最后一次 ondataavailable（tail chunk）。
   // 必须保持 active 直到它落库，否则 allocateSeq 返回 null → tail chunk

@@ -6,6 +6,7 @@ import { now } from '../lib/id'
 import { resolveASRConfig, type Meeting, type Transcript, type TranscriptSegment } from '../types'
 import { runSummarizePipeline } from './summarize'
 import { autoPolish } from './polish'
+import { loadCaptions } from '../lib/liveCaption'
 
 /**
  * Transcription pipeline entry point.
@@ -84,7 +85,10 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
   }
 
   let segments: TranscriptSegment[]
+  // 兜底：没配 ASR Key 或 ASR 失败时，用会中实时字幕作转录（有总比没有强，笔记照样能整理）
+  let fallbackReason: string | null = null
   try {
+    if (!cfg.is_local && !cfg.api_key) throw new Error('未配置 ASR API Key')
     segments = await provider.transcribe({
       blob: merged.blob,
       mimeType: merged.mimeType,
@@ -93,12 +97,17 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    await db.meetings.update(meetingId, {
-      status: 'failed',
-      error: `转录失败：${msg}`,
-      updated_at: now(),
-    })
-    return
+    const captions = await loadCaptions(meetingId)
+    if (captions.length === 0) {
+      await db.meetings.update(meetingId, {
+        status: 'failed',
+        error: `转录失败：${msg}`,
+        updated_at: now(),
+      })
+      return
+    }
+    segments = captions
+    fallbackReason = msg
   }
 
   const transcript: Transcript = {
@@ -106,8 +115,9 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     meeting_id: meetingId,
     language: 'zh',
     // Phase-3: 记录 actual 调用（local 时为 openai-whisper，对调试有意义）
-    engine: cfg.provider,
+    engine: fallbackReason ? 'live-caption' : cfg.provider,
     engine_meta: {
+      ...(fallbackReason ? { fallback_from: cfg.provider, fallback_reason: fallbackReason } : {}),
       asr_mode: cfg.is_local ? 'local' : 'cloud',
       asr_model: cfg.model,
       asr_base_url: cfg.base_url,
