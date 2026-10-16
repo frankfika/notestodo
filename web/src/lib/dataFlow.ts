@@ -24,15 +24,16 @@ export interface FlowItem { what: string; where: Where; to: string }
 export function dataFlow(s: AppSettings, captionsOn: boolean): FlowItem[] {
   const asr = resolveASRConfig(s)
   const llm = resolveLLMConfig(s)
-  const item = (what: string, url: string, local: boolean): FlowItem => {
+  const item = (what: string, url: string, local: boolean, builtin: boolean): FlowItem => {
+    if (builtin) return { what, where: 'device', to: '本机（应用内置模型）' }
     const onDevice = local && isLoopbackUrl(url)
     return { what, where: onDevice ? 'device' : 'remote', to: onDevice ? '本机' : hostOf(url) }
   }
   const out = [
-    item('录音 → 转录', asr.base_url, asr.is_local),
-    item('转录 + 速记 → 笔记 / 待办 / 对话', llm.base_url, llm.is_local),
+    item('录音 → 转录', asr.base_url, asr.is_local, asr.provider === 'builtin'),
+    item('转录 + 速记 → 笔记 / 待办 / 对话', llm.base_url, llm.is_local, llm.provider === 'builtin'),
   ]
   // 浏览器字幕：本地转录模式下被禁用（见 lib/liveCaption）
-  if (captionsOn && s.asr_mode !== 'local') out.push({ what: '会中实时字幕', where: 'remote', to: '浏览器厂商云端' })
+  if (captionsOn && s.asr_mode === 'cloud') out.push({ what: '会中实时字幕', where: 'remote', to: '浏览器厂商云端' })
   return out
 }

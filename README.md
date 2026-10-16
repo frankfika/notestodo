@@ -23,6 +23,7 @@
 - **可安装**：macOS Safari / Edge「添加到程序坞」、iOS Safari「添加到主屏幕」、Android Chrome「安装应用」→ 启动无浏览器 UI。
 - **离线启动**：HTML/CSS/JS/icons 已 cache，联网首次访问后断网也能开。
 - **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端并混入录音，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
+- **本机内置模型（Foresight 式，UX 已完成，推理接入中）**：设置顶部「AI 运行在哪里」三选一——本机内置（推荐，完全离线）/ 云端 API / 自建本地服务，选择立即生效。内置模式由应用自己从 huggingface.co 下载模型（转录：Whisper Large v3 Turbo 574MB / Small 190MB；笔记：Google Gemma 4 E4B 5.2GB / E2B 3.4GB / 12B 7.0GB），后台下载、侧栏显示进度、失败可断点重试；下载完成前照常录音，会议显示「等待模型」，模型就绪后自动转录整理。设置页「数据去向」实时自检会议内容是否离开本机。桌面端 Rust 推理（whisper.cpp + llama.cpp）为下一步；浏览器版如实提示需要桌面版。开发调试：`localStorage.builtin_mock = '1'` 打开模拟后端。
 - **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
 - **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 

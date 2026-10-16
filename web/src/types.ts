@@ -230,6 +230,14 @@ export interface PinnedAssistCard {
 
 // ── 设置（KV）───────────────────────────────────────────────────────────────
 
+/**
+ * AI 在哪里运行：
+ *   'builtin' = 应用内置模型（Foresight 式，模型下载到本机、进程内推理，完全离线）
+ *   'local'   = 自建本地服务（Ollama / LM Studio / whisper.cpp server 等，高级）
+ *   'cloud'   = 云端 BYOK
+ */
+export type AiMode = 'cloud' | 'local' | 'builtin'
+
 export interface AppSettings {
   // AI Provider（BYOK，仅存本地）
   /**
@@ -237,13 +245,13 @@ export interface AppSettings {
    *         'local' = 用下面的 local_llm_*（Ollama / LM Studio / MLX / 自建 OpenAI 兼容）
    * 切换不会清空另一侧的字段（共存于 settings KV）。
    */
-  ai_mode: 'cloud' | 'local'
+  ai_mode: AiMode
   // Cloud BYOK（ai_mode='cloud' 时生效；保留所有 Phase-1 字段不动）
   llm_provider: 'openai-compatible' | 'anthropic-compatible'
   llm_base_url: string
   llm_api_key: string
   llm_model: string
-  asr_mode: 'cloud' | 'local'   // Phase-3: Local ASR mirror (whisper.cpp / MLX openai-compatible)
+  asr_mode: AiMode   // 'builtin' = 应用内置 whisper.cpp；'local' = 自建 whisper 兼容服务；'cloud' = BYOK
   asr_provider: 'minimax' | 'openai-whisper' | 'deepgram'
   asr_base_url: string
   asr_api_key: string
@@ -256,6 +264,9 @@ export interface AppSettings {
   local_asr_base_url: string
   local_asr_api_key: string
   local_asr_model: string
+  // 应用内置模型（mode='builtin' 时生效）：lib/builtinModels.ts CATALOG 的 id
+  builtin_llm_model: string
+  builtin_asr_model: string
   // 隐私
   delete_remote_audio: boolean   // 转录完成后删除云端音频
   // 外观
@@ -283,6 +294,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   local_asr_base_url: 'http://127.0.0.1:8080/v1',
   local_asr_api_key: '',
   local_asr_model: 'whisper-1',
+  builtin_llm_model: 'gemma-4-e4b',
+  builtin_asr_model: 'whisper-large-v3-turbo',
   delete_remote_audio: true,
   theme: 'light',
   calendar_ics_urls: [],
@@ -291,13 +304,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 /** Phase-2: 解析当前模式下的有效 LLM 配置。 */
 export function resolveLLMConfig(s: AppSettings): {
-  provider: 'openai-compatible' | 'anthropic-compatible'
+  provider: 'openai-compatible' | 'anthropic-compatible' | 'builtin'
   base_url: string
   api_key: string
   model: string
-  /** true 表示是本地端点（Ollama / LM Studio / 自建）— key 可空 */
+  /** true 表示是本地端点（Ollama / LM Studio / 自建）或应用内置 — key 可空 */
   is_local: boolean
 } {
+  if (s.ai_mode === 'builtin') {
+    return { provider: 'builtin', base_url: '', api_key: '', model: s.builtin_llm_model || DEFAULT_SETTINGS.builtin_llm_model, is_local: true }
+  }
   if (s.ai_mode === 'local') {
     return {
       provider: 'openai-compatible', // 本地端点统一走 openai 兼容协议
@@ -323,13 +339,16 @@ export function resolveLLMConfig(s: AppSettings): {
  * 默认无鉴权）。切换 Cloud ↔ Local 不丢另一侧的字段。
  */
 export function resolveASRConfig(s: AppSettings): {
-  /** 实际调用的 provider（local 强制 openai-whisper） */
-  provider: 'minimax' | 'openai-whisper' | 'deepgram'
+  /** 实际调用的 provider（local 强制 openai-whisper；builtin 走应用内置 whisper.cpp） */
+  provider: 'minimax' | 'openai-whisper' | 'deepgram' | 'builtin'
   base_url: string
   api_key: string
   model: string
   is_local: boolean
 } {
+  if (s.asr_mode === 'builtin') {
+    return { provider: 'builtin', base_url: '', api_key: '', model: s.builtin_asr_model || DEFAULT_SETTINGS.builtin_asr_model, is_local: true }
+  }
   if (s.asr_mode === 'local') {
     return {
       provider: 'openai-whisper',

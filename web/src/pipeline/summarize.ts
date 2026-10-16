@@ -11,6 +11,7 @@ import {
   stripFence,
 } from '../llm/prompts'
 import { now } from '../lib/id'
+import { oncePerMeeting } from './once'
 import type {
   AppSettings,
   Meeting,
@@ -35,7 +36,7 @@ import type {
  * Retry policy: on parse / network failure, retry once with a larger
  * max_tokens budget; on the second failure mark 'failed' with the error.
  */
-export async function runSummarizePipeline(meetingId: string): Promise<void> {
+export const runSummarizePipeline = oncePerMeeting(async (meetingId: string): Promise<void> => {
   const meeting = await db.meetings.get(meetingId)
   if (!meeting) throw new Error(`Meeting ${meetingId} not found`)
 
@@ -183,7 +184,7 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
     status: 'summarized',
     updated_at: now(),
   })
-}
+})
 
 /** 录音时自动起的占位标题（「会议 · 2026-10-14 16:32」），AI 标题可以替换它。 */
 const DEFAULT_TITLE_RE = /^(会议|新会议|未命名会议)(\s*·\s*\d{4}-\d{2}-\d{2}.*)?$/

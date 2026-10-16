@@ -3,6 +3,7 @@ import { useRecorder } from '../state/recorder'
 import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { DownloadIndicator } from './BuiltinModels'
 
 // 只留 4 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
 const NAV: { view: ViewName; label: string; icon: string }[] = [
@@ -65,6 +66,8 @@ export default function Sidebar() {
           <button onClick={() => void startRec()} disabled={phase !== 'idle'} className="btn-primary w-full h-9 text-sm">● 开始录音</button>
         )}
       </div>
+
+      <div className="px-3"><DownloadIndicator /></div>
 
       <nav className="px-2 mt-2 space-y-0.5">
         {NAV.map((item) => {

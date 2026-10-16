@@ -3,6 +3,7 @@ import { mergeAudioChunks } from '../audio/merge'
 import { getAsrProvider } from '../transcribe/types'
 import { getSettings } from '../db/settings'
 import { now } from '../lib/id'
+import { oncePerMeeting } from './once'
 import { resolveASRConfig, type Meeting, type Transcript, type TranscriptSegment } from '../types'
 import { runSummarizePipeline } from './summarize'
 import { loadCaptions } from '../lib/liveCaption'
@@ -20,7 +21,7 @@ import { loadCaptions } from '../lib/liveCaption'
  * Errors are caught and persisted on the meeting (`status='failed'`,
  * `error=…`). The caller (engine / resume) decides whether to retry.
  */
-export async function runTranscribePipeline(meetingId: string): Promise<void> {
+export const runTranscribePipeline = oncePerMeeting(async (meetingId: string): Promise<void> => {
   const meeting = await db.meetings.get(meetingId)
   if (!meeting) throw new Error(`Meeting ${meetingId} not found`)
 
@@ -117,7 +118,7 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     engine: fallbackReason ? 'live-caption' : cfg.provider,
     engine_meta: {
       ...(fallbackReason ? { fallback_from: cfg.provider, fallback_reason: fallbackReason } : {}),
-      asr_mode: cfg.is_local ? 'local' : 'cloud',
+      asr_mode: settings.asr_mode,
       asr_model: cfg.model,
       asr_base_url: cfg.base_url,
       mime_type: merged.mimeType,
@@ -138,4 +139,4 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
 
   // Hand off：一次调用产出 标题 + 笔记 + 待办
   await runSummarizePipeline(meetingId)
-}
+})

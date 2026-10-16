@@ -1,6 +1,7 @@
 import type { AppSettings } from '../types'
 import { resolveLLMConfig } from '../types'
 import { joinUrl } from './url'
+import { callBuiltinLLM } from './builtin'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -34,6 +35,9 @@ export async function callLLM(
   //   - 本地端点（Ollama / LM Studio / MLX）允许空 api_key —— 走 openai 兼容
   //   - 云端沿用 Phase-1 字段；空 key 报错
   const cfg = resolveLLMConfig(settings)
+  if (cfg.provider === 'builtin') {
+    return callBuiltinLLM(cfg.model, messages, { jsonMode, maxTokens, temperature })
+  }
   if (!cfg.is_local && !cfg.api_key) {
     throw new Error('LLM API key is empty — set it in Settings.')
   }
@@ -83,7 +87,7 @@ interface OpenAIResponse {
 }
 
 interface ResolvedLLMConfig {
-  provider: 'openai-compatible' | 'anthropic-compatible'
+  provider: 'openai-compatible' | 'anthropic-compatible' | 'builtin'
   base_url: string
   api_key: string
   model: string

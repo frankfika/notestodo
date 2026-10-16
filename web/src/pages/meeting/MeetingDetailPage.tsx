@@ -15,6 +15,10 @@ import { chunksInOrder } from '../../audio/merge'
 import { scribblesToMarkdown } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { attachTask, discardTask } from '../../lib/todoActions'
+import { MODEL_MISSING } from '../../llm/builtin'
+import { displayStatus, statusText, type DisplayStatus } from '../../lib/meetingStatus'
+import { useMissingBuiltin } from '../../components/BuiltinModels'
+import { useSettings } from '../../db/settings'
 import { useRecorder } from '../../state/recorder'
 import { setLiveCaptionEnabled, useCaption } from '../../lib/liveCaption'
 import {
@@ -28,19 +32,9 @@ import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 // Foresight 式：一场会一份笔记。速记 / 待办确认并入「笔记」，录音并入「转录」
 type Tab = 'notes' | 'transcript' | 'assist'
 
-function statusLabel(s: MeetingStatus): string {
+function statusTone(s: DisplayStatus): string {
   switch (s) {
-    case 'recording': return '录制中'
-    case 'processing': return '转录中'
-    case 'transcribed': return '转录完成'
-    case 'summarizing': return '总结中'
-    case 'summarized': return '已完成'
-    case 'failed': return '失败'
-  }
-}
-
-function statusTone(s: MeetingStatus): string {
-  switch (s) {
+    case 'waiting_model': return 'border-warning/40 text-warning bg-warning/8'
     case 'recording': return 'border-danger/30 text-danger bg-danger/8'
     case 'processing':
     case 'transcribed':
@@ -208,8 +202,8 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
               {isRecording ? <LiveClock meetingId={meeting.id} /> : <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>}
             </div>
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded-md border ${statusTone(meeting.status)}`}>
-            {statusLabel(meeting.status)}
+          <span className={`text-xs px-2 py-0.5 rounded-md border ${statusTone(displayStatus(meeting))}`}>
+            {statusText(meeting)}
           </span>
         </div>
 
@@ -233,10 +227,18 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           </div>
         </div>
         {meeting.status === 'failed' && (
-          <div className="card p-3 mb-4 border-danger/30 flex items-center gap-3 text-xs">
-            <span className="text-danger flex-1 min-w-0">{meeting.error ?? '整理失败'}</span>
-            {transcript && <button onClick={() => void regenerate()} className="btn-outline text-xs h-7 px-3 shrink-0">重试</button>}
-          </div>
+          meeting.error?.includes(MODEL_MISSING) ? (
+            // 不是失败：录音已安全保存，只是在等本地模型；下载完成会自动续跑
+            <div className="card p-3 mb-4 border-warning/40 flex items-center gap-3 text-xs">
+              <span className="text-text-2 flex-1 min-w-0">⏳ 录音已保存在本机，等本地模型下载完成后自动整理。</span>
+              <button onClick={() => useUI.getState().goSettings()} className="btn-primary text-xs h-7 px-3 shrink-0">去下载模型</button>
+            </div>
+          ) : (
+            <div className="card p-3 mb-4 border-danger/30 flex items-center gap-3 text-xs">
+              <span className="text-danger flex-1 min-w-0">{meeting.error ?? '整理失败'}</span>
+              {transcript && <button onClick={() => void regenerate()} className="btn-outline text-xs h-7 px-3 shrink-0">重试</button>}
+            </div>
+          )
         )}
 
         {/* Tab 栏 */}
@@ -374,6 +376,7 @@ function LiveMeetingView({
   transcriptText: string | undefined
 }): JSX.Element {
   const captureMode = useRecorder((s) => s.captureMode)
+  const missing = useMissingBuiltin(useSettings())
   const captureLabel = captureMode === 'mic+system' ? '麦克风 + 系统音频'
     : captureMode === 'mic-only' ? '仅麦克风' : '音频不可用'
 
@@ -392,6 +395,12 @@ function LiveMeetingView({
           >■ 停止</button>
         </div>
       </div>
+      {missing.length > 0 && (
+        <div className="px-6 py-2 text-xs bg-warning/8 border-b border-warning/30 flex items-center gap-3 shrink-0">
+          <span className="text-text-2 flex-1">本地模型（{missing.map((m) => m.name).join('、')}）还没下载完 —— 录音照常保存在本机，下好后自动转录整理。</span>
+          <button onClick={() => useUI.getState().goSettings()} className="btn-outline text-xs h-7 px-3">去下载</button>
+        </div>
+      )}
       {/* 主体：左速记 / 右（转录 + 相关资料）；窄屏纵向堆叠 */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         <div className="flex-1 min-w-0 lg:overflow-y-auto p-6">

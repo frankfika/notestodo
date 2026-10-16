@@ -1,3 +1,4 @@
+import { statusText } from '../../lib/meetingStatus'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db } from '../../db/db'
@@ -15,17 +16,6 @@ function statusDot(s: MeetingStatus): string {
     case 'summarizing': return 'bg-warning'
     case 'summarized': return 'bg-accent'
     case 'failed': return 'bg-danger'
-  }
-}
-
-function statusLabel(s: MeetingStatus): string {
-  switch (s) {
-    case 'recording': return '录制中'
-    case 'processing': return '转录中'
-    case 'transcribed': return '转录完成'
-    case 'summarizing': return '总结中'
-    case 'summarized': return '已完成'
-    case 'failed': return '失败'
   }
 }
 
@@ -147,7 +137,7 @@ function MeetingPreview({ meeting, onOpen }: { meeting: Meeting; onOpen: () => v
     <div className="max-w-[720px] mx-auto px-8 py-10">
       <div className="flex items-center gap-2 mb-3">
         <span className={`h-2 w-2 rounded-full ${statusDot(meeting.status)}`} />
-        <span className="text-xs text-text-3">{statusLabel(meeting.status)}</span>
+        <span className="text-xs text-text-3">{statusText(meeting)}</span>
         <span className="ml-auto text-xs text-text-3">{fmtDateTime(meeting.started_at)}</span>
       </div>
       <h2 className="text-2xl font-semibold text-text-1 mb-1">{meeting.title}</h2>

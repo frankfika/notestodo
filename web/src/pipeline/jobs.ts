@@ -3,6 +3,8 @@ import { now } from '../lib/id'
 import { runTranscribePipeline } from './transcribe'
 import { runSummarizePipeline } from './summarize'
 import type { Meeting, MeetingStatus } from '../types'
+import { onModelReady } from '../lib/builtinModels'
+import { MODEL_MISSING } from '../llm/builtin'
 
 /**
  * On app boot, sweep the DB for meetings that were left in an in-flight
@@ -85,3 +87,30 @@ async function recover(meeting: Meeting): Promise<void> {
       return
   }
 }
+
+/**
+ * 内置模型下载完成 → 自动续跑因「模型未下载」而搁置的会议（录完再下模型也不用手动重试）。
+ * 已有转录的直接整理，没有的从转录开始。
+ */
+export async function resumeModelMissing(): Promise<void> {
+  const waiting = (await db.meetings.toArray()).filter((m) => m.status === 'failed' && m.error?.includes(MODEL_MISSING))
+  for (const m of waiting) {
+    const hasTranscript = await db.transcripts.where('meeting_id').equals(m.id).count()
+    if (hasTranscript) {
+      await db.meetings.update(m.id, { status: 'summarizing', error: undefined, updated_at: now() })
+      await runSummarizePipeline(m.id).catch((e) => console.error('续跑整理失败', e))
+    } else {
+      await runTranscribePipeline(m.id).catch((e) => console.error('续跑转录失败', e))
+    }
+  }
+}
+// 合并触发：续跑进行中又有模型下完（比如笔记模型在转录期间下好）→ 结束后再扫一遍，不漏也不并发
+let resuming: Promise<void> | null = null
+let again = false
+function triggerResume(): void {
+  if (resuming) { again = true; return }
+  resuming = resumeModelMissing()
+    .catch((e) => console.error('续跑失败', e))
+    .finally(() => { resuming = null; if (again) { again = false; triggerResume() } })
+}
+onModelReady(triggerResume)

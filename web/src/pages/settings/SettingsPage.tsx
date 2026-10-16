@@ -3,7 +3,9 @@ import { PREF_KEY as CAPTION_PREF_KEY } from '../../lib/liveCaption'
 import { dataFlow, isLoopbackUrl } from '../../lib/dataFlow'
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
-import { DEFAULT_SETTINGS, type AppSettings } from '../../types'
+import { DEFAULT_SETTINGS, type AiMode, type AppSettings } from '../../types'
+import { EngineChooser, ModelPicker, useMissingBuiltin } from '../../components/BuiltinModels'
+import { builtinAvailable, downloadModel, fmtGB, modelState, useBuiltinModels } from '../../lib/builtinModels'
 import { getSettings, saveSettings } from '../../db/settings'
 import { applyTheme } from '../../state/ui'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
@@ -53,6 +55,19 @@ export default function SettingsPage(): JSX.Element {
     setDirty(true)
   }
 
+  // 引擎选择立即生效：只持久化两个 mode，不动页面上其它未保存的修改
+  async function pickEngine(mode: AiMode): Promise<void> {
+    setSettings((cur) => ({ ...cur, ai_mode: mode, asr_mode: mode }))
+    await saveSettings({ ai_mode: mode, asr_mode: mode })
+    flash(mode === 'builtin' ? '已切到本机内置模型' : mode === 'cloud' ? '已切到云端 API' : '已切到自建本地服务')
+  }
+
+  // 内置模型的选择也立即生效（下载状态是全局的，跟「保存」无关）
+  async function pickBuiltin(p: Partial<Pick<AppSettings, 'builtin_asr_model' | 'builtin_llm_model'>>): Promise<void> {
+    setSettings((cur) => ({ ...cur, ...p }))
+    await saveSettings(p)
+  }
+
   async function save(): Promise<void> {
     await saveSettings(settings)
     setDirty(false)
@@ -82,23 +97,30 @@ export default function SettingsPage(): JSX.Element {
           >保存修改</button>
         </div>
 
+        <Section title="AI 运行在哪里" desc="决定录音转录和笔记 / 待办 / 对话由谁来做。选择立即生效。">
+          <EngineChooser settings={settings} onPick={(m) => void pickEngine(m)} />
+          {(settings.ai_mode === 'builtin' || settings.asr_mode === 'builtin') && <BuiltinQuickStart settings={settings} />}
+        </Section>
+
         <DataFlowCard settings={settings} />
 
-        <Section title="AI Provider · LLM" desc="笔记 / 待办提取 / 对话都走它。切换 Cloud / Local 不会清空另一侧的字段。">
+        <Section title="笔记模型 · LLM" desc="笔记 / 待办提取 / 对话都走它。切换不会清空另一侧已填的字段。">
           <FieldRow label="模式">
             <ModeSegmented
               value={settings.ai_mode}
               onChange={(v) => patch({ ai_mode: v })}
               labels={{
-                cloud: 'Cloud BYOK',
+                cloud: '云端 API',
                 cloudSub: 'MiniMax / Anthropic / OpenAI 兼容网关',
-                local: 'Local',
+                local: '自建服务',
                 localSub: 'Ollama / LM Studio / MLX / 自建',
               }}
             />
           </FieldRow>
 
-          {settings.ai_mode === 'cloud' ? (
+          {settings.ai_mode === 'builtin' ? (
+            <ModelPicker kind="llm" selected={settings.builtin_llm_model} onSelect={(id) => void pickBuiltin({ builtin_llm_model: id })} />
+          ) : settings.ai_mode === 'cloud' ? (
             <>
               <FieldRow label="Provider">
                 <select
@@ -137,24 +159,26 @@ export default function SettingsPage(): JSX.Element {
           ) : (
             <LocalLLMFields settings={settings} patch={patch} />
           )}
-          <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />
+          {settings.ai_mode !== 'builtin' && <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />}
         </Section>
 
-        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。Local 模式强制走 OpenAI Whisper 兼容端点（whisper.cpp / MLX / faster-whisper）。">
+        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。可与上面的笔记模型分开选。">
           <FieldRow label="模式">
             <ModeSegmented
               value={settings.asr_mode}
               onChange={(v) => patch({ asr_mode: v })}
               labels={{
-                cloud: 'Cloud BYOK',
+                cloud: '云端 API',
                 cloudSub: 'MiniMax / Deepgram / OpenAI Whisper 兼容网关',
-                local: 'Local',
+                local: '自建服务',
                 localSub: 'whisper.cpp server / MLX STT / faster-whisper',
               }}
             />
           </FieldRow>
 
-          {settings.asr_mode === 'cloud' ? (
+          {settings.asr_mode === 'builtin' ? (
+            <ModelPicker kind="asr" selected={settings.builtin_asr_model} onSelect={(id) => void pickBuiltin({ builtin_asr_model: id })} />
+          ) : settings.asr_mode === 'cloud' ? (
             <>
               <FieldRow label="Provider">
                 <select
@@ -199,16 +223,18 @@ export default function SettingsPage(): JSX.Element {
               Cloud 那一侧（MiniMax / Deepgram）的字段已保留，切换回 Cloud 即可使用。
             </div>
           )}
-          <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />
+          {settings.asr_mode !== 'builtin' && <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />}
         </Section>
 
         <Section title="隐私" desc="音频归属与外观。">
-          <Toggle
-            checked={settings.delete_remote_audio}
-            onChange={(v) => patch({ delete_remote_audio: v })}
-            label="转录后删除云端音频"
-            hint="关掉则会保留在供应商的存储里——通常不要。"
-          />
+          {settings.asr_mode === 'cloud' && (
+            <Toggle
+              checked={settings.delete_remote_audio}
+              onChange={(v) => patch({ delete_remote_audio: v })}
+              label="转录后删除云端音频"
+              hint="关掉则会保留在供应商的存储里——通常不要。"
+            />
+          )}
           <FieldRow label="主题">
             <select
               className="input"
@@ -292,11 +318,12 @@ function ModeSegmented({
   onChange,
   labels,
 }: {
-  value: 'cloud' | 'local'
-  onChange: (v: 'cloud' | 'local') => void
+  value: AiMode
+  onChange: (v: AiMode) => void
   labels: { cloud: string; cloudSub: string; local: string; localSub: string }
 }): JSX.Element {
-  const opts: { v: 'cloud' | 'local'; label: string; sub: string }[] = [
+  const opts: { v: AiMode; label: string; sub: string; disabled?: boolean }[] = [
+    { v: 'builtin', label: '本机内置', sub: builtinAvailable() ? '应用内置模型，完全离线' : '需要 macOS 桌面版', disabled: !builtinAvailable() },
     { v: 'cloud', label: labels.cloud, sub: labels.cloudSub },
     { v: 'local', label: labels.local, sub: labels.localSub },
   ]
@@ -309,7 +336,8 @@ function ModeSegmented({
             key={o.v}
             type="button"
             onClick={() => onChange(o.v)}
-            className={`px-3 py-1.5 rounded-[8px] text-sm transition-colors ${
+            disabled={o.disabled}
+            className={`px-3 py-1.5 rounded-[8px] text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
               active ? 'bg-bg-raise text-text-1 shadow-sm' : 'text-text-3 hover:text-text-1'
             }`}
             title={o.sub}
@@ -945,8 +973,38 @@ function DataFlowCard({ settings }: { settings: AppSettings }): JSX.Element {
         ))}
       </ul>
       <p className="text-[11px] text-text-3 mt-2 leading-relaxed">
-        录音、速记、笔记、待办始终只存在本机（IndexedDB）。无遥测。日历 / 知识库只下载你配置的文件，不上传会议内容。
+        录音、速记、笔记、待办始终只存在本机（IndexedDB）。无遥测。日历 / 知识库 / 内置模型文件（huggingface.co）只下载，不上传会议内容。
       </p>
     </section>
+  )
+}
+
+// 选了「本机内置」但模型还没下：一键下载当前选中的转录 + 笔记模型
+function BuiltinQuickStart({ settings }: { settings: AppSettings }): JSX.Element | null {
+  const missing = useMissingBuiltin(settings)
+  useBuiltinModels((s) => s.models) // 订阅进度
+  if (missing.length === 0) {
+    return <p className="text-[12px] text-accent">✓ 本地模型已就绪，可以离线使用。</p>
+  }
+  const total = missing.reduce((a, m) => a + m.bytes, 0)
+  const downloading = missing.map((m) => modelState(m.id)).filter((x) => x.state === 'downloading')
+  if (downloading.length > 0) {
+    const got = downloading.reduce((a, x) => a + (x.state === 'downloading' ? x.received : 0), 0)
+    return (
+      <p className="text-[12px] text-text-2">
+        正在下载 {missing.map((m) => m.name).join(' + ')} · {fmtGB(got)} / {fmtGB(total)}（可离开此页，后台继续；期间可以照常录音）
+      </p>
+    )
+  }
+  return (
+    <div className="rounded-xl border border-accent/30 bg-accent/5 p-3 flex flex-wrap items-center gap-3">
+      <div className="flex-1 min-w-[220px]">
+        <div className="text-sm text-text-1 font-medium">还需要下载 {missing.map((m) => m.name).join(' + ')}</div>
+        <p className="text-[11.5px] text-text-3 mt-0.5">共 {fmtGB(total)}，只需一次；模型文件从 huggingface.co 下载，不上传任何内容。下载期间可以照常录音，下好后会自动整理。</p>
+      </div>
+      <button type="button" onClick={() => missing.forEach((m) => void downloadModel(m.id))} className="btn-primary text-xs h-8 px-3">
+        下载（{fmtGB(total)}）
+      </button>
+    </div>
   )
 }

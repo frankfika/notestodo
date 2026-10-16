@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../types'
 
@@ -24,4 +25,9 @@ export async function getCachedSettings(): Promise<AppSettings> {
 
 export function invalidateSettingsCache(): void {
   cache = null
+}
+
+/** 组件里实时读设置（设置页保存后各处立即跟随） */
+export function useSettings(): AppSettings | undefined {
+  return useLiveQuery(getSettings, [])
 }

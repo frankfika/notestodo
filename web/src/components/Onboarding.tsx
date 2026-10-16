@@ -5,6 +5,8 @@ import { DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { saveSettings } from '../db/settings'
 import { useUI } from '../state/ui'
 import { mod } from '../lib/id'
+import { EngineChooser, useMissingBuiltin } from './BuiltinModels'
+import { downloadModel, fmtGB } from '../lib/builtinModels'
 
 /**
  * 首次启动引导：右下角可关闭面板——始终不拦截主 UI。
@@ -18,6 +20,8 @@ export default function Onboarding(): JSX.Element | null {
   const [step, setStep] = useState(0)
   const [draft, setDraft] = useState<AppSettings>(DEFAULT_SETTINGS)
   const goSettings = useUI((s) => s.goSettings)
+  // 选内置时要下的模型（已下好的不重复下）
+  const builtinNeed = useMissingBuiltin({ ...draft, ai_mode: 'builtin', asr_mode: 'builtin' })
 
   // 通过 liveQuery 监听 onboarding_done_v1；外部写入后自动隐藏
   const onboardingRow = useLiveQuery(() => db.kv.get('onboarding_done_v1'), [])
@@ -37,6 +41,7 @@ export default function Onboarding(): JSX.Element | null {
 
   async function saveKeysAndNext(): Promise<void> {
     await saveSettings(draft)
+    if (draft.ai_mode === 'builtin') for (const m of builtinNeed) void downloadModel(m.id)
     setStep(2)
   }
 
@@ -98,11 +103,11 @@ export default function Onboarding(): JSX.Element | null {
         <div>
           <h3 className="text-base font-semibold text-text-1 mb-2">开会时只管说话</h3>
           <p className="text-xs text-text-2 leading-relaxed mb-4">
-            按 <span className="kbd">{mod()}⇧R</span> 一键录音；录音结束自动转录 + 生成纪要 + 提取行动项。
-            所有数据存你本机 IndexedDB，导出 .zip 备份即可带走。
+            按 <span className="kbd">{mod()}⇧R</span> 一键录音，会中只记关键词；散会自动转录、整理成笔记、提取待办。
+            所有数据存在你本机，导出 .zip 备份即可带走。
           </p>
           <div className="flex items-center gap-2">
-            <button onClick={() => setStep(1)} className="btn-primary text-xs h-8">填 API Key</button>
+            <button onClick={() => setStep(1)} className="btn-primary text-xs h-8">选择 AI 引擎</button>
             <button onClick={() => void close(false)} className="btn-ghost text-xs h-8">稍后</button>
           </div>
         </div>
@@ -110,10 +115,23 @@ export default function Onboarding(): JSX.Element | null {
 
       {step === 1 && (
         <div>
-          <h3 className="text-base font-semibold text-text-1 mb-2">两把钥匙 — LLM 与 ASR</h3>
-          <p className="text-[11px] text-text-3 mb-3">BYOK，地址已默认 MiniMax 端点。</p>
+          <h3 className="text-base font-semibold text-text-1 mb-1">AI 在哪里运行？</h3>
+          <p className="text-[11px] text-text-3 mb-3">随时可以在「设置」里改。</p>
+          <EngineChooser
+            stacked
+            settings={draft}
+            onPick={(m) => setDraft({ ...draft, ai_mode: m, asr_mode: m })}
+          />
 
-          <div className="space-y-2">
+          {draft.ai_mode === 'builtin' && draft.asr_mode === 'builtin' && (
+            <p className="text-[11.5px] text-text-2 mt-3 leading-relaxed">
+              将下载 {builtinNeed.map((m) => m.name).join(' + ')}（共 {fmtGB(builtinNeed.reduce((a, m) => a + m.bytes, 0))}），
+              只需一次，之后完全离线。下载在后台进行，期间可以照常录音，下好后自动整理。
+            </p>
+          )}
+
+          {draft.ai_mode === 'cloud' && (
+            <div className="space-y-2 mt-3">
             <label className="block">
               <span className="label">LLM API Key</span>
               <input
@@ -160,12 +178,19 @@ export default function Onboarding(): JSX.Element | null {
                 <input className="input text-xs" value={draft.asr_model} onChange={(e) => setDraft({ ...draft, asr_model: e.target.value })} placeholder="ASR Model" />
               </div>
             </details>
-          </div>
+            </div>
+          )}
+
+          {draft.ai_mode === 'local' && (
+            <p className="text-[11.5px] text-text-2 mt-3 leading-relaxed">
+              默认连接本机 Ollama（127.0.0.1:11434）与 whisper.cpp server（127.0.0.1:8080），可在「设置」里改地址和模型。
+            </p>
+          )}
 
           <div className="flex items-center gap-2 mt-4">
             <button onClick={() => setStep(0)} className="btn-ghost text-xs h-8">返回</button>
             <button onClick={() => void saveKeysAndNext()} className="btn-primary text-xs h-8 ml-auto">
-              保存并继续
+              {draft.ai_mode === 'builtin' && builtinNeed.length > 0 ? '开始下载并继续' : '保存并继续'}
             </button>
           </div>
         </div>
@@ -177,7 +202,8 @@ export default function Onboarding(): JSX.Element | null {
           <p className="text-xs text-text-2 leading-relaxed mb-4">
             按 <span className="kbd">{mod()}⇧R</span> 开始录音。
             <br />· {mod()}K 唤出命令面板（跳转 / 录制 / 导出）
-            <br />· 录制完成的会议会出现在「会议」列表，自动转录 + 总结
+            <br />· 录制完成的会议会出现在「会议」列表，自动转录 + 整理成笔记
+            {draft.ai_mode === 'builtin' && <><br />· 本地模型正在后台下载，进度见左侧栏</>}
           </p>
           <div className="flex items-center gap-2">
             <button onClick={() => goSettings()} className="btn-ghost text-xs h-8">去设置</button>

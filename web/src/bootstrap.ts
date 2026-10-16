@@ -4,6 +4,7 @@ import { getSettings, saveSettings } from './db/settings'
 import { applyTheme } from './state/ui'
 import { bindRecorderEngine } from './audio/engine'
 import { resumePendingJobs } from './pipeline/jobs'
+import { refreshBuiltinModels } from './lib/builtinModels'
 import { ensurePersistentStorage } from './lib/storage'
 
 /**
@@ -60,4 +61,5 @@ export async function bootstrap(): Promise<void> {
   applyTheme(settings.theme)
   bindRecorderEngine()
   void resumePendingJobs().catch((e) => console.error('恢复任务失败', e))
+  void refreshBuiltinModels()
 }

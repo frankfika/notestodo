@@ -3,6 +3,7 @@ import { resolveASRConfig } from '../types'
 import { minimaxProvider } from './minimax'
 import { openaiWhisperProvider } from './openai-whisper'
 import { deepgramProvider } from './deepgram'
+import { builtinAsrProvider } from './builtin'
 
 /**
  * ASR provider adapter interface.
@@ -13,7 +14,7 @@ import { deepgramProvider } from './deepgram'
  * responsibility (see minimax.ts for an example).
  */
 export interface AsrProvider {
-  id: 'minimax' | 'openai-whisper' | 'deepgram'
+  id: 'minimax' | 'openai-whisper' | 'deepgram' | 'builtin'
   transcribe(input: {
     blob: Blob
     mimeType: string
@@ -37,6 +38,8 @@ export function getAsrProvider(settings: AppSettings): AsrProvider | undefined {
       return openaiWhisperProvider
     case 'deepgram':
       return deepgramProvider
+    case 'builtin':
+      return builtinAsrProvider
     default:
       return undefined
   }

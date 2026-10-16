@@ -1,3 +1,4 @@
+import { statusText } from '../../lib/meetingStatus'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
 import { db } from '../../db/db'
@@ -210,7 +211,7 @@ export default function TodayPage(): JSX.Element {
                     {fmtDateTime(m.started_at).slice(6)}
                   </span>
                   <span className="flex-1 text-sm text-text-1 truncate">{m.title}</span>
-                  <span className="chip">{STATUS_ZH[m.status] ?? m.status}</span>
+                  <span className="chip">{statusText(m)}</span>
                 </li>
               ))}
             </ul>
@@ -221,9 +222,6 @@ export default function TodayPage(): JSX.Element {
   )
 }
 
-const STATUS_ZH: Record<string, string> = {
-  recording: '录音中', processing: '转录中', transcribed: '整理中', summarizing: '整理中', summarized: '已完成', failed: '失败',
-}
 
 function TodayRow({ todo, hint, overdue, krs }: { todo: Todo; hint: string; overdue?: boolean; krs: Todo[] }): JSX.Element {
   const goMeeting = useUI((s) => s.goMeeting)
