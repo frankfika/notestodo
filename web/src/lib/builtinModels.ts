@@ -65,6 +65,8 @@ export const catalogById = (id: string): CatalogModel | undefined => CATALOG.fin
 
 export type ModelState =
   | { state: 'absent' }
+  /** 上次没下完，再点会从断点续传 */
+  | { state: 'partial'; received: number }
   | { state: 'downloading'; received: number; total: number }
   | { state: 'ready' }
   | { state: 'error'; error: string }
@@ -94,7 +96,15 @@ interface Backend {
 type Progress = { id: string; received: number; total: number; done?: boolean; error?: string }
 
 function handleProgress(p: Progress): void {
-  if (p.error) { setModel(p.id, p.error === 'cancelled' ? { state: 'absent' } : { state: 'error', error: p.error }); return }
+  if (p.error) {
+    // 取消 / 失败都保留已下部分，下次续传
+    const prev = modelState(p.id)
+    const got = prev.state === 'downloading' ? prev.received : 0
+    setModel(p.id, p.error === 'cancelled'
+      ? (got > 0 ? { state: 'partial', received: got } : { state: 'absent' })
+      : { state: 'error', error: p.error })
+    return
+  }
   if (p.done) { setModel(p.id, { state: 'ready' }); for (const fn of readyListeners) fn(p.id); return }
   setModel(p.id, { state: 'downloading', received: p.received, total: p.total })
 }
@@ -155,7 +165,10 @@ export async function refreshBuiltinModels(): Promise<void> {
   try {
     const rows = await backend().list()
     const models: Record<string, ModelState> = {}
-    for (const r of rows) models[r.id] = r.state === 'ready' ? { state: 'ready' } : { state: 'absent' }
+    for (const r of rows) {
+      models[r.id] = r.state === 'ready' ? { state: 'ready' }
+        : r.state === 'partial' ? { state: 'partial', received: r.received ?? 0 } : { state: 'absent' }
+    }
     // 保留进行中的下载状态
     for (const [id, s] of Object.entries(useBuiltinModels.getState().models)) if (s.state === 'downloading') models[id] = s
     useBuiltinModels.setState({ models, loaded: true })
@@ -168,7 +181,8 @@ export async function refreshBuiltinModels(): Promise<void> {
 export async function downloadModel(id: string): Promise<void> {
   const m = catalogById(id)
   if (!m || modelState(id).state === 'downloading' || isReady(id)) return
-  setModel(id, { state: 'downloading', received: 0, total: m.bytes })
+  const prev = modelState(id)
+  setModel(id, { state: 'downloading', received: prev.state === 'partial' ? prev.received : 0, total: m.bytes })
   try {
     await backend().download(m)
   } catch (e) {

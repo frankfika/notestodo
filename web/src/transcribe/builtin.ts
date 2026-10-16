@@ -1,6 +1,6 @@
 import { mockEnabled } from '../lib/builtinModels'
 import { isTauri } from '../lib/tauri'
-import { invoke } from '../lib/tauriInvoke'
+import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { requireModel } from '../llm/builtin'
 import { resolveASRConfig, type TranscriptSegment } from '../types'
 import type { AsrProvider } from './types'
@@ -15,9 +15,11 @@ export const builtinAsrProvider: AsrProvider = {
     const m = requireModel(resolveASRConfig(settings).model)
     if (!isTauri() && mockEnabled()) return mockSegments()
     const pcm = await decodeTo16kMono(blob)
-    // ponytail: 整段 PCM 走 JSON IPC（1 小时约 57M 浮点）；超长会议再改成分段 / 原始字节通道
-    return invoke<TranscriptSegment[]>('builtin_asr_transcribe', {
-      model: m.id, file: m.file, language: 'zh', pcm: Array.from(pcm),
+    // raw IPC：请求体直接是 i16 LE 字节（1 小时约 115MB），不走 JSON
+    const i16 = new Int16Array(pcm.length)
+    for (let i = 0; i < pcm.length; i++) i16[i] = Math.max(-1, Math.min(1, pcm[i])) * 0x7fff
+    return tauriInvoke<TranscriptSegment[]>('builtin_asr_transcribe', new Uint8Array(i16.buffer), {
+      headers: { 'x-model-file': m.file, 'x-language': 'zh' },
     })
   },
 }

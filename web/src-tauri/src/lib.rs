@@ -12,6 +12,7 @@
 
 use serde::Serialize;
 
+mod builtin;
 mod system_audio;
 
 // ── Status 命令 ─────────────────────────────────────────────────────
@@ -113,6 +114,7 @@ fn restart_app(app: tauri::AppHandle) {
 pub fn run() {
   tauri::Builder::default()
     .manage(system_audio::Sessions::default())
+    .manage(builtin::models::Downloads::default())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -136,6 +138,12 @@ pub fn run() {
       system_audio_request_permission,
       open_screen_recording_settings,
       restart_app,
+      builtin::models::builtin_models_list,
+      builtin::models::builtin_model_download,
+      builtin::models::builtin_model_cancel,
+      builtin::models::builtin_model_delete,
+      builtin::asr::builtin_asr_transcribe,
+      builtin::llm::builtin_llm_chat,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

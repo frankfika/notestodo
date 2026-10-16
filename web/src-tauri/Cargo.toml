@@ -40,3 +40,14 @@ tauri-plugin-dialog = "2"
 screencapturekit-sys = "0.2"
 objc = "0.2.7"
 objc_id = "0.1.1"
+
+# 应用内置本地模型（Foresight 式）：模型下载 + 进程内推理，不依赖 Ollama 等外部服务。
+# whisper-rs / llama-cpp-2 用 cmake 编 whisper.cpp / llama.cpp；Metal 内嵌着色器源码运行时编译，无需完整 Xcode。
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["fs", "io-util"] }
+whisper-rs = { version = "0.16", features = ["metal"] }
+llama-cpp-2 = { version = "0.1.160", features = ["metal"] }
+# 渲染模型自带的 Jinja chat 模板（Gemma 4 等新格式）
+minijinja = "2"
+minijinja-contrib = { version = "2", features = ["pycompat"] }

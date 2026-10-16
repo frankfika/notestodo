@@ -136,6 +136,12 @@ function ModelAction({ m, st }: { m: CatalogModel; st: ModelState }): JSX.Elemen
       return <button type="button" onClick={() => void cancelDownload(m.id)} className="btn-ghost text-[11px] h-7 px-2 shrink-0">取消</button>
     case 'error':
       return <button type="button" onClick={() => void downloadModel(m.id)} className="btn-outline text-[11px] h-7 px-2.5 shrink-0">重试</button>
+    case 'partial':
+      return (
+        <button type="button" onClick={() => void downloadModel(m.id)} className="btn-outline text-[11px] h-7 px-2.5 shrink-0" title="从断点继续">
+          继续下载（已下 {fmtGB(st.received)}）
+        </button>
+      )
     default:
       return <button type="button" onClick={() => void downloadModel(m.id)} className="btn-outline text-[11px] h-7 px-2.5 shrink-0">下载</button>
   }
