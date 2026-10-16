@@ -5,7 +5,6 @@ import { getSettings } from '../db/settings'
 import { now } from '../lib/id'
 import { resolveASRConfig, type Meeting, type Transcript, type TranscriptSegment } from '../types'
 import { runSummarizePipeline } from './summarize'
-import { autoPolish } from './polish'
 import { loadCaptions } from '../lib/liveCaption'
 
 /**
@@ -64,7 +63,7 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     audio: {
       format: merged.mimeType,
       codec: meeting.audio.codec,
-      duration_ms: merged.durationMs,
+      duration_ms: merged.durationMs || meeting.audio.duration_ms,
       chunk_count: meeting.audio.chunk_count,
       size_bytes: merged.sizeBytes,
       gaps: meeting.audio.gaps ?? [],
@@ -92,7 +91,7 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     segments = await provider.transcribe({
       blob: merged.blob,
       mimeType: merged.mimeType,
-      durationMs: merged.durationMs,
+      durationMs: merged.durationMs || meeting.audio.duration_ms,
       settings,
     })
   } catch (e) {
@@ -137,6 +136,6 @@ export async function runTranscribePipeline(meetingId: string): Promise<void> {
     updated_at: now(),
   })
 
-  // Hand off：纪要/待办提取 与 速记整理 并行（整理失败不影响纪要）
-  await Promise.all([runSummarizePipeline(meetingId), autoPolish(meetingId)])
+  // Hand off：一次调用产出 标题 + 笔记 + 待办
+  await runSummarizePipeline(meetingId)
 }

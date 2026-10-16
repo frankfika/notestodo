@@ -35,7 +35,7 @@ test('标签页切走 → interrupted=true；回来 → 自动恢复正常', asy
   await page.waitForTimeout(300)
 
   // UI 应进入 interrupted 状态（amber 色 + 恢复文案）
-  expect(page.getByText('麦克风被中断，正在恢复…')).toBeAttached({ timeout: 3_000 })
+  await expect(page.getByText('麦克风被中断，正在恢复…')).toBeAttached({ timeout: 3_000 })
 
   // 2) 切回标签页
   await page.evaluate(() => {
@@ -44,8 +44,8 @@ test('标签页切走 → interrupted=true；回来 → 自动恢复正常', asy
   })
   await page.waitForTimeout(500)
 
-  // interrupted 应清回 false → 文案回到「正在录音」
-  expect(page.getByText('正在录音').first()).toBeAttached({ timeout: 3_000 })
+  // interrupted 应清回 false → 中断警示消失（速记页本身不再重复顶栏）
+  await expect(page.getByText('麦克风被中断，正在恢复…')).toHaveCount(0, { timeout: 3_000 })
 
   // 3) 停止（验证 finaliseMeeting 在 visibility 切换之后仍正常）
   await page.getByRole('button', { name: /■ 停止/ }).first().click()

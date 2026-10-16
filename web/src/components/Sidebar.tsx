@@ -26,6 +26,9 @@ export default function Sidebar() {
   const goTasks = useUI((s) => s.goTaskMode)
   const taskMode = useUI((s) => s.taskMode)
   const phase = useRecorder((s) => s.phase)
+  const recMeeting = useRecorder((s) => s.meeting)
+  const startRec = useRecorder((s) => s.start)
+  const goMeeting = useUI((s) => s.goMeeting)
   const [clock, setClock] = useState(() => new Date())
 
   useEffect(() => {
@@ -52,6 +55,15 @@ export default function Sidebar() {
         <span className="font-semibold tracking-tight text-text-1">NotesToGO</span>
         <span className="text-[11px] text-text-3">拾贝</span>
         <span className="ml-auto font-mono text-xs text-text-3 tabular-nums">{clockText}</span>
+      </div>
+
+      {/* 全局录音入口：任何页面一键开始；录音中则回到速记页 */}
+      <div className="px-3 mb-1">
+        {phase === 'recording' && recMeeting ? (
+          <button onClick={() => goMeeting(recMeeting.id)} className="btn-danger w-full h-9 text-sm">● 录音中 · 回到速记</button>
+        ) : (
+          <button onClick={() => void startRec()} disabled={phase !== 'idle'} className="btn-primary w-full h-9 text-sm">● 开始录音</button>
+        )}
       </div>
 
       <nav className="px-2 mt-2 space-y-0.5">

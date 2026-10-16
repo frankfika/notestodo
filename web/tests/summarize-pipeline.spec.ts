@@ -30,7 +30,7 @@ const CANNED_LLM_JSON = JSON.stringify({
       assignee_hint: '',
       due_hint: '',
       evidence_quote: '',
-      evidence_span: null, // ← 应被过滤（无效 span）
+      evidence_span: null, // ← 无出处：仍保留，只是没有跳转
     },
     {
       title: '', // ← 应被过滤（空标题）
@@ -40,7 +40,7 @@ const CANNED_LLM_JSON = JSON.stringify({
   ],
 })
 
-test('总结管线：转录 → LLM → todos 落库（过滤空标题/无效 span）', async ({ page }) => {
+test('总结管线：转录 → LLM → todos 落库（空标题过滤，无出处也保留）', async ({ page }) => {
   test.setTimeout(120_000)
   page.setDefaultTimeout(60_000)
   page.on('console', (msg) => {
@@ -143,7 +143,7 @@ test('总结管线：转录 → LLM → todos 落库（过滤空标题/无效 sp
       meetingStatus: string
       meetingError?: string
       summary: { content_md: string } | null
-      todos: Array<{ title: string; assignee?: string; meeting_id?: string; transcript_span: { start_ms: number; end_ms: number } }>
+      todos: Array<{ title: string; assignee?: string; meeting_id?: string; transcript_span: { start_ms: number; end_ms: number } | undefined }>
     }>((res, rej) => {
       const req = indexedDB.open('shibei')
       req.onerror = () => rej(new Error('idxb-open-failed'))
@@ -184,11 +184,14 @@ test('总结管线：转录 → LLM → todos 落库（过滤空标题/无效 sp
   expect(result.meetingError).toBeUndefined()
   expect(result.summary).not.toBeNull()
   expect(result.summary?.content_md).toContain('决策')
-  // 只有 1 条 todo 应该落地（空标题 + 无效 span 应被过滤）
-  expect(result.todos.length).toBe(1)
-  expect(result.todos[0]?.title).toBe('整理 Q4 OKR 草稿')
-  expect(result.todos[0]?.assignee).toBe('陈放')
-  expect(result.todos[0]?.meeting_id).toBeTruthy()
-  expect(result.todos[0]?.transcript_span.start_ms).toBe(0)
-  expect(result.todos[0]?.transcript_span.end_ms).toBe(3000)
+  // 空标题被过滤；找不到出处的待办必须保留（丢待办比缺出处糟糕得多）
+  expect(result.todos.length).toBe(2)
+  const first = result.todos.find((x) => x.title === '整理 Q4 OKR 草稿')
+  expect(first?.assignee).toBe('陈放')
+  expect(first?.meeting_id).toBeTruthy()
+  expect(first?.transcript_span?.start_ms).toBe(0)
+  expect(first?.transcript_span?.end_ms).toBe(3000)
+  const second = result.todos.find((x) => x.title === '联系设计组对齐视觉')
+  expect(second).toBeTruthy()
+  expect(second?.transcript_span).toBeUndefined()
 })

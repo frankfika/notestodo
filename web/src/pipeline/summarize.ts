@@ -4,7 +4,11 @@ import { callLLM, type ChatMessage } from '../llm/client'
 import {
   DEFAULT_SUMMARY_SYSTEM,
   defaultVars,
+  parseTimeHint,
   renderTemplate,
+  scribbleBlock,
+  scribblesToMarkdown,
+  stripFence,
 } from '../llm/prompts'
 import { now } from '../lib/id'
 import type {
@@ -13,6 +17,7 @@ import type {
   Summary,
   SummaryTemplate,
   Todo,
+  Transcript,
 } from '../types'
 
 /**
@@ -47,6 +52,18 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
     return
   }
 
+  const scribbleMd = scribblesToMarkdown(
+    await db.scribbles.where('meeting_id').equals(meetingId).sortBy('created_at'),
+  )
+  if (transcript.segments.length === 0 && !scribbleMd.trim()) {
+    await db.meetings.update(meetingId, {
+      status: 'failed',
+      error: '没有识别到语音（音频太短或麦克风静音），也没有速记可整理',
+      updated_at: now(),
+    })
+    return
+  }
+
   // If a summary already exists, just mark and exit.
   const existing = await db.summaries
     .where('meeting_id')
@@ -69,7 +86,7 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
   const template = await resolveTemplate(meetingId)
   const settings = await getSettings()
   const vars = defaultVars(meeting, transcript)
-  const userPrompt = renderTemplate(template.prompt_md, vars)
+  const userPrompt = renderTemplate(template.prompt_md, vars) + scribbleBlock(scribbleMd)
 
   const messages: ChatMessage[] = [
     { role: 'system', content: DEFAULT_SUMMARY_SYSTEM },
@@ -77,7 +94,7 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
   ]
 
   const parsed = await callLlmWithRetry(meetingId, settings, messages, {
-    maxTokens: 2048,
+    maxTokens: 4096,
     temperature: 0.2,
   })
 
@@ -90,6 +107,10 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
   // Append decisions list to summary_md if present, so the markdown view
   // also surfaces them without forcing the user to dig into raw JSON.
   const summaryMd = composeSummaryMarkdown(parsed.summaryMd, parsed.decisions)
+  if (!summaryMd) {
+    await db.meetings.update(meetingId, { status: 'failed', error: '生成笔记失败：模型返回的笔记为空', updated_at: now() })
+    return
+  }
 
   const summary: Summary = {
     id: crypto.randomUUID(),
@@ -106,33 +127,49 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
   }
   await db.summaries.put(summary)
 
-  // Persist each todo.
+  // 同一份成果也写进会议笔记（Notes 页 / 会议页「笔记」读的都是它）；
+  // AI 给的标题只替换默认的「会议 · 日期」占位名，绝不覆盖用户/日历起的名字。
+  const aiTitle = parsed.title.trim()
+  const title = aiTitle && DEFAULT_TITLE_RE.test(meeting.title) ? aiTitle : meeting.title
+  const noteBody = summaryMd
+  if (meeting.note_id && (await db.notes.get(meeting.note_id))) {
+    await db.notes.update(meeting.note_id, { title, body_md: noteBody, updated_at: now() })
+  } else {
+    const noteId = crypto.randomUUID()
+    await db.notes.put({
+      id: noteId, title, body_md: noteBody, meeting_id: meetingId, todo_ids: [], pinned: false,
+      created_at: now(), updated_at: now(), deleted_at: null, sync_version: 0,
+    })
+    await db.meetings.update(meetingId, { note_id: noteId })
+  }
+  if (title !== meeting.title) await db.meetings.update(meetingId, { title })
+
+  // 重新生成时先清掉上一轮还没确认的待办，避免重复。
+  await db.todos
+    .where('meeting_id').equals(meetingId)
+    .and((t) => t.status === 'pending_review')
+    .delete()
+
+  // Persist each todo. 定位不到出处也要保留 —— 丢待办比缺出处糟糕得多。
   let sortOrder = 0
   for (const t of parsed.todos) {
     const title = (t.title ?? '').trim()
     if (!title) continue
-    const span = pickValidSpan(t.evidence_span, meeting.audio.duration_ms)
-    if (!span) {
-      // No valid transcript span → skip (UI has nothing to point at).
-      continue
-    }
+    const quote = (t.evidence_quote ?? '').trim()
+    const span = locateSpan(t, quote, transcript, meeting.audio.duration_ms)
     const todo: Todo = {
       id: crypto.randomUUID(),
       kind: 'task',
       scope: null,
       parent_id: null,
       title,
-      notes_md: '',
+      notes_md: !span && quote ? `> ${quote}` : '',
       status: 'pending_review',
       due_date: parseLooseDate(t.due_hint),
       assignee: (t.assignee_hint ?? '').trim() || undefined,
       source: 'meeting',
       meeting_id: meetingId,
-      transcript_span: {
-        start_ms: span[0],
-        end_ms: span[1],
-        quote: (t.evidence_quote ?? '').trim(),
-      },
+      transcript_span: span ? { start_ms: span[0], end_ms: span[1], quote } : undefined,
       sort_order: sortOrder++,
       created_at: now(),
       updated_at: now(),
@@ -146,6 +183,43 @@ export async function runSummarizePipeline(meetingId: string): Promise<void> {
     status: 'summarized',
     updated_at: now(),
   })
+}
+
+/** 录音时自动起的占位标题（「会议 · 2026-10-14 16:32」），AI 标题可以替换它。 */
+const DEFAULT_TITLE_RE = /^(会议|新会议|未命名会议)(\s*·\s*\d{4}-\d{2}-\d{2}.*)?$/
+
+/**
+ * 把待办落到转录里的某一段。优先级：模型给的时间（"mm:ss" / 毫秒区间）→ 引文在转录里的原句匹配。
+ * 都对不上返回 undefined（待办照常保留，只是没有跳转）。
+ */
+function locateSpan(
+  t: RawTodo,
+  quote: string,
+  transcript: Transcript,
+  meetingMs: number,
+): [number, number] | undefined {
+  const segs = transcript.segments
+  if (segs.length === 0) return undefined
+  const spanOf = (i: number): [number, number] => [segs[i]!.start_ms, Math.max(segs[i]!.end_ms, segs[i]!.start_ms + 1)]
+
+  if (t.evidence_span) {
+    const sp = pickValidSpan(t.evidence_span, meetingMs)
+    if (sp) return sp
+  }
+  const at = parseTimeHint(t.evidence_time)
+  if (at !== undefined) {
+    let best = 0
+    for (let i = 1; i < segs.length; i++) {
+      if (Math.abs(segs[i]!.start_ms - at) < Math.abs(segs[best]!.start_ms - at)) best = i
+    }
+    return spanOf(best)
+  }
+  const q = quote.replace(/\s+/g, '')
+  if (q.length >= 4) {
+    const i = segs.findIndex((sg) => sg.text.replace(/\s+/g, '').includes(q.slice(0, 16)))
+    if (i >= 0) return spanOf(i)
+  }
+  return undefined
 }
 
 // ── template resolution ───────────────────────────────────────────────────────
@@ -186,6 +260,7 @@ async function resolveTemplate(meetingId: string): Promise<SummaryTemplate> {
 
 interface LlmAttemptResult {
   raw: unknown
+  title: string
   summaryMd: string
   todos: RawTodo[]
   decisions?: string[]
@@ -197,6 +272,7 @@ interface RawTodo {
   due_hint?: string
   evidence_quote?: string
   evidence_span?: [number, number]
+  evidence_time?: string | number
 }
 
 async function callLlmWithRetry(
@@ -214,40 +290,24 @@ async function callLlmWithRetry(
     const parsed = parseLooseJson(raw)
     if (!parsed) throw new Error('LLM 输出无法解析为 JSON 对象')
     return normaliseResult(parsed, raw)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    if (meetingId) {
-      await db.meetings.update(meetingId, {
-        status: 'failed',
-        error: `纪要生成失败（首次）：${msg}`,
-        updated_at: now(),
-      })
-    }
+  } catch {
+    // 首次失败不闪「失败」状态 —— 静默重试一次，两次都失败才报错。
     // Retry once with a larger token budget to give the model room.
     try {
       const raw = await callLLM(settings, messages, {
         jsonMode: true,
-        maxTokens: Math.max(baseOpts.maxTokens * 2, 4096),
+        maxTokens: baseOpts.maxTokens * 2,
         temperature: baseOpts.temperature,
       })
       const parsed = parseLooseJson(raw)
       if (!parsed) throw new Error('重试输出仍无法解析为 JSON 对象')
-      if (meetingId) {
-        // Clear the failed marker so the caller can proceed to write the
-        // Summary row and flip status to 'summarized' normally.
-        await db.meetings.update(meetingId, {
-          status: 'summarizing',
-          error: undefined,
-          updated_at: now(),
-        })
-      }
       return normaliseResult(parsed, raw)
     } catch (e2) {
       const msg2 = e2 instanceof Error ? e2.message : String(e2)
       if (meetingId) {
         await db.meetings.update(meetingId, {
           status: 'failed',
-          error: `纪要生成失败（重试）：${msg2}`,
+          error: `生成笔记失败：${msg2}`,
           updated_at: now(),
         })
       }
@@ -292,8 +352,10 @@ function normaliseResult(parsed: unknown, raw: string): LlmAttemptResult {
     throw new Error('LLM 输出不是对象')
   }
   const obj = parsed as Record<string, unknown>
-  const summaryMd =
-    typeof obj.summary_md === 'string' ? obj.summary_md : ''
+  const summaryMd = stripFence(
+    typeof obj.summary_md === 'string' ? obj.summary_md : '',
+  )
+  const title = typeof obj.title === 'string' ? obj.title : ''
   const decisions = Array.isArray(obj.decisions)
     ? obj.decisions.filter((d): d is string => typeof d === 'string')
     : undefined
@@ -308,8 +370,12 @@ function normaliseResult(parsed: unknown, raw: string): LlmAttemptResult {
       evidence_quote:
         typeof t.evidence_quote === 'string' ? t.evidence_quote : undefined,
       evidence_span: pickSpanTuple(t.evidence_span),
+      evidence_time:
+        typeof t.evidence_time === 'string' || typeof t.evidence_time === 'number'
+          ? t.evidence_time
+          : undefined,
     }))
-  return { raw: parsed, summaryMd, todos, decisions }
+  return { raw: parsed, title, summaryMd, todos, decisions }
 }
 
 function pickSpanTuple(v: unknown): [number, number] | undefined {

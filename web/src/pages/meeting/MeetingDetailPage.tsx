@@ -8,7 +8,6 @@ import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
 import { runSummarizePipeline } from '../../pipeline/summarize'
-import { runPolish } from '../../pipeline/polish'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
 import { chunksInOrder } from '../../audio/merge'
@@ -26,7 +25,7 @@ import {
 import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 
 // Foresight 式：一场会一份笔记。速记 / 待办确认并入「笔记」，录音并入「转录」
-type Tab = 'notes' | 'summary' | 'transcript' | 'assist'
+type Tab = 'notes' | 'transcript' | 'assist'
 
 function statusLabel(s: MeetingStatus): string {
   switch (s) {
@@ -51,10 +50,11 @@ function statusTone(s: MeetingStatus): string {
 }
 
 /**
- * 会议详情：标题 + 状态 + Tab(笔记/纪要/转录/资料)
+ * 会议详情：标题 + 状态 + Tab(笔记/转录/资料)
  * - 录音中：全屏速记（LiveMeetingView）
- * - 散会后自动整理（pipeline/polish）：笔记 Tab 顶部是待确认待办，中间 AI 笔记，底部原始速记
- * - 深度总结：按模板重新生成纪要 + 待办提取
+ * - 散会后一次 AI 调用（pipeline/summarize）：速记 + 转录 → 标题 + 笔记 + 待办
+ *   笔记 Tab 顶部是待确认待办，中间 AI 笔记，底部原始速记
+ * - 重新整理 / 换模板：同一条管线重跑
  * - 转录 Tab 顶部是录音播放器，点时间戳跳播
  */
 export default function MeetingDetailPage(): JSX.Element {
@@ -124,7 +124,6 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   const isRecording = meeting.status === 'recording'
   const [tab, setTab] = useState<Tab>('notes')
   const [polishing, setPolishing] = useState(false)
-  const [polishErr, setPolishErr] = useState<string | null>(null)
   const [highlightStartMs, setHighlightStartMs] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [seekRequest, setSeekRequest] = useState<number | null>(null)
@@ -144,36 +143,20 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     setTab('transcript')
   }
 
-  // 阶段推导
   const hasTranscript = Boolean(transcript && transcript.segments.length > 0)
-  const hasSummary = meeting.status === 'summarized' || Boolean(summary)
-  const stepTranscriptDone = hasTranscript
-  const stepSummaryDone = hasSummary
-  const stepTodosDone = reviewTodos.every((t) => t.status !== 'pending_review')
   const inFlight = meeting.status === 'processing' || meeting.status === 'transcribed' || meeting.status === 'summarizing'
 
-  async function rerunWith(templateId: string): Promise<void> {
-    // 记录选中的模板到 KVK，触发重生成
-    await db.kv.put({ key: `meeting_template_${meeting.id}`, value: templateId })
-    // 删除已有 summary — 否则 runSummarizePipeline 的「idempotent: 已有 summary 直接 return」
-    // 会让「重生成」按钮完全无效。
-    await db.summaries.where('meeting_id').equals(meeting.id).delete()
-    // meeting 状态重置（与初次生成一致路径）
-    await db.meetings.update(meeting.id, { status: 'summarizing', error: undefined, updated_at: now() })
-    await runSummarizePipeline(meeting.id).catch((e) => {
-      console.error('重新生成失败', e)
-    })
-  }
-
-  async function polish(): Promise<void> {
+  /** 重新整理（可换模板）：同一条管线重跑；失败原因由管线写进 meeting.error */
+  async function regenerate(templateId?: string): Promise<void> {
     if (polishing) return
-    setPolishErr(null)
     setPolishing(true)
+    setTab('notes')
     try {
-      await runPolish(meeting.id)
-      setTab('notes')
-    } catch (e: unknown) {
-      setPolishErr(e instanceof Error ? e.message : String(e))
+      if (templateId) await db.kv.put({ key: `meeting_template_${meeting.id}`, value: templateId })
+      // 删掉旧 summary —— 否则管线「已有 summary 直接 return」，重跑无效
+      await db.summaries.where('meeting_id').equals(meeting.id).delete()
+      await db.meetings.update(meeting.id, { status: 'summarizing', error: undefined, updated_at: now() })
+      await runSummarizePipeline(meeting.id).catch((e) => console.error('重新整理失败', e))
     } finally {
       setPolishing(false)
     }
@@ -233,13 +216,13 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
         <div className="flex items-center gap-2 mt-3 mb-4">
           {!isRecording && (
             <button
-              onClick={() => void polish()}
-              disabled={polishing}
+              onClick={() => void regenerate()}
+              disabled={polishing || inFlight || !transcript}
               className="btn-primary text-xs h-8 px-3"
-              title="用转录把速记扩写成完整笔记（散会后会自动整理一次）"
-            >{polishing ? '整理中…' : note?.body_md ? '重新整理' : '整理笔记'}</button>
+              title="按最新速记 + 转录重新生成笔记与待办（散会后已自动整理一次）"
+            >{polishing || inFlight ? '整理中…' : note?.body_md ? '重新整理' : '整理笔记'}</button>
           )}
-          {!isRecording && <RerunDropdown templates={templates} onPick={(id) => { setTab('summary'); return rerunWith(id) }} />}
+          {!isRecording && <RerunDropdown templates={templates} onPick={(id) => regenerate(id)} />}
           <button
             onClick={() => setChatOpen((v) => !v)}
             className={`btn-ghost text-xs h-8 px-3 ${chatOpen ? 'text-accent' : ''}`}
@@ -248,14 +231,18 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             <OverflowMenu items={[{ label: '删除会议', danger: true, onClick: () => void deleteMeeting() }]} />
           </div>
         </div>
-        {polishErr && <div className="text-xs text-danger mb-3">整理失败：{polishErr}</div>}
+        {meeting.status === 'failed' && (
+          <div className="card p-3 mb-4 border-danger/30 flex items-center gap-3 text-xs">
+            <span className="text-danger flex-1 min-w-0">{meeting.error ?? '整理失败'}</span>
+            {transcript && <button onClick={() => void regenerate()} className="btn-outline text-xs h-7 px-3 shrink-0">重试</button>}
+          </div>
+        )}
 
         {/* Tab 栏 */}
         <div className="border-b border-line flex items-center gap-1 mb-6 text-sm">
           <TabBtn active={tab === 'notes'} onClick={() => setTab('notes')}>
             笔记{reviewTodos.length > 0 && <span className="ml-1 text-[11px] text-accent tabular-nums">· {reviewTodos.length} 待办</span>}
           </TabBtn>
-          <TabBtn active={tab === 'summary'} onClick={() => setTab('summary')}>纪要</TabBtn>
           <TabBtn active={tab === 'transcript'} onClick={() => setTab('transcript')}>转录</TabBtn>
           <TabBtn active={tab === 'assist'} onClick={() => setTab('assist')}>资料</TabBtn>
         </div>
@@ -274,23 +261,13 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
                   icon={inFlight || polishing ? '◌' : '✎'}
                   title={inFlight || polishing ? 'AI 正在整理笔记…' : '还没有整理过的笔记'}
                   hint={inFlight
-                    ? '转录完成后会自动把下面的速记扩写成完整笔记，待办会出现在这里等你确认。可以先离开。'
+                    ? `${hasTranscript ? '正在把速记 + 转录整理成笔记、提取待办' : '正在转录录音'}，完成后待办会出现在这里等你确认。可以先离开。`
                     : hasTranscript ? '点「整理笔记」：用转录把速记扩写成完整笔记。' : '录音转录完成后会自动整理。'}
                 />
               </div>
             )}
             <ScribbleEditor meeting={meeting} live={false} onSeek={seekToSegment} />
           </div>
-        )}
-        {tab === 'summary' && (
-          <SummaryTab
-            meeting={meeting}
-            transcript={transcript}
-            summary={summary}
-            stepTranscriptDone={stepTranscriptDone}
-            stepSummaryDone={stepSummaryDone}
-            stepTodosDone={stepTodosDone}
-          />
         )}
         {tab === 'transcript' && (
           <div className="space-y-4">
@@ -345,7 +322,7 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
   return (
     <div className="relative">
       <button onClick={() => setOpen((v) => !v)} className="btn-outline text-xs h-8">
-        深度总结 ▾
+        换模板 ▾
       </button>
       {open && (
         <>
@@ -357,7 +334,7 @@ function RerunDropdown({ templates, onPick }: { templates: SummaryTemplate[]; on
                   onClick={() => { setOpen(false); void onPick(t.id) }}
                   className="w-full text-left px-3 py-2 rounded-md hover:bg-bg-overlay text-text-1"
                 >
-                  {t.name}
+                  用「{t.name}」重新整理
                   {t.builtin && <span className="ml-1 text-[10px] uppercase tracking-wider text-text-3">内置</span>}
                 </button>
               </li>
@@ -607,76 +584,6 @@ function BulletRow({
         title="删除这条"
       >✕</button>
     </div>
-  )
-}
-
-// ── 纪要 Tab ──────────────────────────────────────────────────────
-function SummaryTab({
-  meeting, transcript, summary, stepTranscriptDone, stepSummaryDone, stepTodosDone,
-}: {
-  meeting: Meeting
-  transcript: { segments: { speaker_label: string; text: string }[] } | undefined
-  summary: { content_md: string } | undefined
-  stepTranscriptDone: boolean
-  stepSummaryDone: boolean
-  stepTodosDone: boolean
-}): JSX.Element {
-  const hasSummary = meeting.status === 'summarized' || Boolean(summary)
-
-  return (
-    <div>
-      {!hasSummary && (
-        <div className="card p-5 mb-6">
-          <div className="section-title mb-3">进度</div>
-          <ol className="space-y-2 text-sm">
-            <Step done={stepTranscriptDone} label="转录" />
-            <Step done={stepSummaryDone} label="总结" />
-            <Step done={stepTodosDone} label="待办提取" />
-          </ol>
-          {!stepTranscriptDone && (
-            <p className="mt-3 text-xs text-text-3">
-              音频分片已落本地（{meeting.audio.chunk_count} 片 · {fmtClock(meeting.audio.duration_ms)}），待联网后自动转录。
-            </p>
-          )}
-          {stepTranscriptDone && !stepSummaryDone && (
-            <p className="mt-3 text-xs text-text-3">
-              已转录 {transcript?.segments.length ?? 0} 段，正等待总结生成…
-            </p>
-          )}
-        </div>
-      )}
-
-      {hasSummary ? (
-        summary ? (
-          <MarkdownView source={summary.content_md} />
-        ) : (
-          <EmptyState icon="◌" title="未找到纪要" hint="状态显示为已完成但 Summary 行缺失——尝试重新生成。" />
-        )
-      ) : (
-        !transcript && (
-          <EmptyState
-            icon="◐"
-            title="还没有可显示的纪要"
-            hint="可在「转录」Tab 看是否有原文；或在「录音」Tab 回放原始音频。"
-          />
-        )
-      )}
-    </div>
-  )
-}
-
-function Step({ done, label }: { done: boolean; label: string }): JSX.Element {
-  return (
-    <li className="flex items-center gap-2">
-      <span
-        className={`h-5 w-5 rounded-full flex items-center justify-center text-[11px] ${
-          done ? 'bg-accent text-accent-contrast' : 'bg-bg-overlay text-text-3 border border-line'
-        }`}
-      >
-        {done ? '✓' : '⋯'}
-      </span>
-      <span className={done ? 'text-text-1' : 'text-text-3'}>{label}</span>
-    </li>
   )
 }
 

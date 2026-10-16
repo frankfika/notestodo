@@ -26,8 +26,10 @@ export default function RecordingBar() {
   const error = useRecorder((s) => s.error)
   const stop = useRecorder((s) => s.stop)
   const goMeeting = useUI((s) => s.goMeeting)
+  const onLivePage = useUI((s) => s.view === 'meeting-detail' && s.meetingId === meeting?.id)
 
   if (phase === 'idle') return null
+  // 在速记页本身已有计时/电平/结束按钮，不再重复一条顶栏（出错 / 麦克风中断时仍显示，否则会中看不到警示）
 
   const isError = phase === 'error'
   const accentClass = isError
@@ -47,6 +49,7 @@ export default function RecordingBar() {
 
   return (
     <div className="border-b border-line">
+      {(!onLivePage || isError || interrupted) && (
       <div className={`flex items-center gap-3 px-5 h-12 ${accentClass} text-sm`}>
         {isError ? (
           <>
@@ -89,6 +92,7 @@ export default function RecordingBar() {
           </>
         )}
       </div>
+      )}
       {showCaptureBanner && (
         <CaptureBanner mode={captureMode} note={captureModeNote} />
       )}

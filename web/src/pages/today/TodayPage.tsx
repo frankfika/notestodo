@@ -133,36 +133,6 @@ export default function TodayPage(): JSX.Element {
           </button>
         </div>
 
-        {/* 1. 正在录音 */}
-        {phase === 'recording' && (
-          <section className="card p-4 border-danger/25 bg-danger/5">
-            <div className="flex items-center gap-3">
-              <span className="rec-dot text-2xl text-danger">●</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-sm font-medium text-text-1">正在录音</span>
-                  <LevelMeter level={audioLevel} size={20} />
-                </div>
-                <div className="font-mono tabular-nums text-2xl text-text-1 mt-0.5">{fmtClock(elapsedMs)}</div>
-                {recorderMeeting && (
-                  <button
-                    onClick={() => goMeeting(recorderMeeting.id)}
-                    className="text-xs text-text-2 hover:text-text-1 truncate max-w-full block text-left mt-1"
-                  >
-                    · {recorderMeeting.title}
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => void stop()}
-                className="btn-danger h-10 px-4"
-              >
-                ■ 停止
-              </button>
-            </div>
-          </section>
-        )}
-
         {/* 2. 今日：到期 + Inbox */}
         <section className="card p-4">
           <div className="flex items-center mb-2 px-1">
@@ -240,7 +210,7 @@ export default function TodayPage(): JSX.Element {
                     {fmtDateTime(m.started_at).slice(6)}
                   </span>
                   <span className="flex-1 text-sm text-text-1 truncate">{m.title}</span>
-                  <span className="chip">{m.status}</span>
+                  <span className="chip">{STATUS_ZH[m.status] ?? m.status}</span>
                 </li>
               ))}
             </ul>
@@ -249,6 +219,10 @@ export default function TodayPage(): JSX.Element {
       </div>
     </div>
   )
+}
+
+const STATUS_ZH: Record<string, string> = {
+  recording: '录音中', processing: '转录中', transcribed: '整理中', summarizing: '整理中', summarized: '已完成', failed: '失败',
 }
 
 function TodayRow({ todo, hint, overdue, krs }: { todo: Todo; hint: string; overdue?: boolean; krs: Todo[] }): JSX.Element {
