@@ -1,3 +1,4 @@
+import { resolveLLMConfig } from '../../types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
@@ -430,7 +431,11 @@ function LiveCaptionPane({ meetingId }: { meetingId: string }): JSX.Element {
           <button onClick={() => toggle(false)} className="ml-auto text-[11px] text-text-3 hover:text-text-1">关闭</button>
         )}
       </div>
-      {status === 'unsupported' ? (
+      {status === 'blocked' ? (
+        <p className="text-[12px] text-text-3 leading-relaxed">
+          本地转录模式：浏览器字幕会把音频发到云端，已禁用。录音只存在本机，散会后由本地模型转录。
+        </p>
+      ) : status === 'unsupported' ? (
         <p className="text-[12px] text-text-3 leading-relaxed">
           当前浏览器不支持实时字幕（Chrome / Edge / Safari 支持）。录音照常进行，散会后用正式转录生成全文。
         </p>
@@ -1063,7 +1068,9 @@ function ChatPanel({
 
     try {
       const settings = await getSettings()
-      if (!settings.llm_api_key) {
+      // 本地模型（Ollama 等）无需 Key：按当前生效配置判断，而不是只看云端 Key
+      const llm = resolveLLMConfig(settings)
+      if (!llm.is_local && !llm.api_key) {
         throw new Error('请先在「设置」页填 LLM API Key')
       }
       const transcriptText = transcript?.segments

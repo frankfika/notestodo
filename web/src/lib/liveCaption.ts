@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { db } from '../db/db'
+import { getSettings } from '../db/settings'
 import type { TranscriptSegment } from '../types'
 
 /**
  * 会中实时字幕：浏览器自带 SpeechRecognition（Chrome / Safari / Edge）。
  * - 免费、无需 Key，边说边出字，填满会中「实时转录」栏。
- * - 隐私：Chrome/Edge 会把音频发给厂商云端识别 → 默认关闭，用户在会中页一键开启并记住偏好。
+ * - 隐私：Chrome/Edge（及部分 Safari）会把音频发给厂商云端识别 → 默认关闭，用户在会中页一键开启并记住偏好。
+ * - 合规：转录选了「本地」= 用户要求音频不出本机 → 一律禁用（blocked），偏好也不生效。
  * - 字幕逐句落 kv（live_caption_<meetingId>），散会后 ASR 没配 / 失败时作为兜底转录。
  * ponytail: 无说话人分离、精度不如正式 ASR；正式转录仍以 BYOK / 本地 ASR 为准。
  */
@@ -28,7 +30,8 @@ export const PREF_KEY = 'live_caption_enabled'
 export const captionKey = (meetingId: string): string => `live_caption_${meetingId}`
 
 interface CaptionStore {
-  status: 'off' | 'on' | 'unsupported' | 'error'
+  /** blocked = 本地转录模式下禁止走云端字幕 */
+  status: 'off' | 'on' | 'unsupported' | 'error' | 'blocked'
   error: string | null
   segments: TranscriptSegment[]
   interim: string
@@ -43,6 +46,7 @@ let current: { rec: SR; meetingId: string; startedAtMs: number; segStart: number
 export async function startLiveCaption(meetingId: string, startedAtMs: number): Promise<void> {
   stopLiveCaption()
   const Ctor = SRCtor()
+  if ((await getSettings()).asr_mode === 'local') { useCaption.setState({ status: 'blocked', segments: [], interim: '' }); return }
   if (!Ctor) { useCaption.setState({ status: 'unsupported', segments: [], interim: '' }); return }
   const pref = await db.kv.get(PREF_KEY)
   useCaption.setState({ segments: [], interim: '', error: null, status: 'off' })

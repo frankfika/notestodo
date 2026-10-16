@@ -1,3 +1,6 @@
+import { useLiveQuery } from 'dexie-react-hooks'
+import { PREF_KEY as CAPTION_PREF_KEY } from '../../lib/liveCaption'
+import { dataFlow, isLoopbackUrl } from '../../lib/dataFlow'
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AppSettings } from '../../types'
@@ -79,7 +82,9 @@ export default function SettingsPage(): JSX.Element {
           >保存修改</button>
         </div>
 
-        <Section title="AI Provider · LLM" desc="总结 / 待办提取都走它。切换 Cloud / Local 不会清空另一侧的字段。">
+        <DataFlowCard settings={settings} />
+
+        <Section title="AI Provider · LLM" desc="笔记 / 待办提取 / 对话都走它。切换 Cloud / Local 不会清空另一侧的字段。">
           <FieldRow label="模式">
             <ModeSegmented
               value={settings.ai_mode}
@@ -364,6 +369,9 @@ function LocalASRFields({
           onChange={(e) => patch({ local_asr_base_url: e.target.value })}
           placeholder="http://127.0.0.1:8080/v1"
         />
+        {settings.local_asr_base_url && !isLoopbackUrl(settings.local_asr_base_url) && (
+          <div className="text-[11px] text-warning mt-1">这不是本机地址，会议内容会发到 {settings.local_asr_base_url}，不算「本地」。</div>
+        )}
       </FieldRow>
       <FieldRow label="API Key" hint="留空即可（whisper.cpp 默认无鉴权）">
         <PasswordInput
@@ -436,6 +444,9 @@ function LocalLLMFields({
           onChange={(e) => patch({ local_llm_base_url: e.target.value })}
           placeholder="http://127.0.0.1:11434/v1"
         />
+        {settings.local_llm_base_url && !isLoopbackUrl(settings.local_llm_base_url) && (
+          <div className="text-[11px] text-warning mt-1">这不是本机地址，会议内容会发到 {settings.local_llm_base_url}，不算「本地」。</div>
+        )}
       </FieldRow>
       <FieldRow label="API Key" hint="留空即可（Ollama 默认无鉴权）">
         <PasswordInput
@@ -909,5 +920,33 @@ function KnowledgeFolderEditor({
           : '桌面版可用 tauri-plugin-fs 递归 walk 本地文件夹。'}
       </div>
     </div>
+  )
+}
+// ── 数据去向（合规自检）────────────────────────────────────────────
+// 实时反映当前（含未保存）配置：会议内容会被送到哪里。只有回环地址算「本机」。
+function DataFlowCard({ settings }: { settings: AppSettings }): JSX.Element {
+  const captionsOn = useLiveQuery(async () => (await db.kv.get(CAPTION_PREF_KEY))?.value === true, []) ?? false
+  const flow = dataFlow(settings, captionsOn)
+  const leaks = flow.filter((f) => f.where === 'remote')
+  return (
+    <section className={`card p-4 mb-6 ${leaks.length === 0 ? 'border-accent/30' : 'border-warning/40'}`} aria-label="数据去向">
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="text-sm font-semibold text-text-1">数据去向</h2>
+        <span className={`text-[11px] px-2 py-0.5 rounded-full ${leaks.length === 0 ? 'bg-accent/10 text-accent' : 'bg-warning/10 text-warning'}`}>
+          {leaks.length === 0 ? '✓ 会议内容全部留在本机' : `⚠ ${leaks.length} 项会离开本机`}
+        </span>
+      </div>
+      <ul className="text-[12.5px] space-y-1">
+        {flow.map((f) => (
+          <li key={f.what} className="flex items-center gap-2">
+            <span className="text-text-2 flex-1">{f.what}</span>
+            <span className={f.where === 'device' ? 'text-accent' : 'text-warning'}>{f.where === 'device' ? '本机' : `→ ${f.to}`}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-text-3 mt-2 leading-relaxed">
+        录音、速记、笔记、待办始终只存在本机（IndexedDB）。无遥测。日历 / 知识库只下载你配置的文件，不上传会议内容。
+      </p>
+    </section>
   )
 }

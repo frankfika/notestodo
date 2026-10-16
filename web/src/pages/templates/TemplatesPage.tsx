@@ -1,3 +1,4 @@
+import { resolveLLMConfig } from '../../types'
 import { useUI } from '../../state/ui'
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -157,7 +158,9 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
   async function tryRun(): Promise<void> {
     try {
       const settings = await getSettings()
-      if (!settings.llm_api_key) {
+      // 本地模型（Ollama 等）无需 Key：按当前生效配置判断，而不是只看云端 Key
+      const llm = resolveLLMConfig(settings)
+      if (!llm.is_local && !llm.api_key) {
         window.alert('请先在「设置」页填好 LLM API Key。')
         return
       }
@@ -227,7 +230,7 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
         <button onClick={() => void tryRun()} className="btn-outline text-sm h-9">
           ▶ 试运行
         </button>
-        <span className="text-[11px] text-text-3">用最近一次会议测试；需要先在设置里配好 LLM API Key。</span>
+        <span className="text-[11px] text-text-3">用最近一次会议测试；需要先在设置里配好模型（云端 Key 或本地模型）。</span>
       </div>
     </div>
   )
