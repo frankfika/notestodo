@@ -1,21 +1,25 @@
 import { create } from 'zustand'
 import { isTauri } from './tauri'
 import { invoke } from './tauriInvoke'
+import { getSettings } from '../db/settings'
 
 /**
- * 应用内置本地模型（Foresight 式）：模型文件由应用自己从 Hugging Face 下载到本机，
+ * 应用内置本地模型（Foresight 式）：模型文件由应用自己下载到本机（Hugging Face / hf-mirror / OpenCSG，国内优先国内源），
  * 推理在应用进程内完成（whisper.cpp 转录 + Gemma 4 生成），不依赖 Ollama 等外部服务。
  *
  * 前端只认这一组 Tauri 命令（Rust 端实现）：
  *   builtin_models_list()                      → BackendModel[]
- *   builtin_model_download({ id, url, file })  → 立即返回；进度走事件 'builtin_model:progress'
- *   builtin_model_cancel({ id }) / builtin_model_delete({ id })
+ *   builtin_model_download({ id, sources, file, bytes }) → 立即返回；进度走事件 'builtin_model:progress'
+ *   builtin_model_cancel({ id }) / builtin_model_delete({ file })
  *
  * 浏览器版没有这些能力 → builtinAvailable() = false，UI 如实提示「需要桌面版」。
  * DEV 下可用 localStorage.builtin_mock = '1' 打开模拟后端，走完整 UX（下载进度 / 使用 / 失败）。
  */
 
 export type ModelKind = 'asr' | 'llm'
+
+/** 模型在某个托管站点上的位置 */
+interface Hosted { repo: string; file: string }
 
 export interface CatalogModel {
   id: string
@@ -24,40 +28,79 @@ export interface CatalogModel {
   /** 一句话说明：适合什么场景 */
   blurb: string
   bytes: number
-  url: string
+  /** 本机保存的文件名 */
   file: string
+  /** Hugging Face 位置（hf-mirror.com 同路径） */
+  hf: Hosted
+  /** OpenCSG 位置（国内，阿里云存储）；没有可用镜像则缺省 */
+  opencsg?: Hosted
   recommended?: boolean
 }
 
-const HF = 'https://huggingface.co'
+const W = 'ggerganov/whisper.cpp'
+const gemma = (size: string): Hosted => ({ repo: `unsloth/gemma-4-${size}-it-qat-GGUF`, file: `gemma-4-${size}-it-qat-UD-Q4_K_XL.gguf` })
 
+// Gemma 用 Unsloth 的 QAT 量化：Hugging Face 与 OpenCSG 都有同名文件（OpenCSG 为稍早版本，元数据差 ~2KB，权重相同）。
+// whisper.cpp 在 OpenCSG 上的镜像文件缺失（实测 404），只走 Hugging Face / hf-mirror。
 export const CATALOG: CatalogModel[] = [
   {
     id: 'whisper-large-v3-turbo', kind: 'asr', name: 'Whisper Large v3 Turbo', recommended: true,
-    blurb: '中文准确率高，速度快，适合日常会议', bytes: 574_000_000,
-    url: `${HF}/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin`, file: 'ggml-large-v3-turbo-q5_0.bin',
+    blurb: '中文准确率高，速度快，适合日常会议', bytes: 574_041_195,
+    file: 'ggml-large-v3-turbo-q5_0.bin', hf: { repo: W, file: 'ggml-large-v3-turbo-q5_0.bin' },
   },
   {
     id: 'whisper-small', kind: 'asr', name: 'Whisper Small',
-    blurb: '体积小、转录更快，准确率略低', bytes: 190_000_000,
-    url: `${HF}/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin`, file: 'ggml-small-q5_1.bin',
+    blurb: '体积小、转录更快，准确率略低', bytes: 190_085_487,
+    file: 'ggml-small-q5_1.bin', hf: { repo: W, file: 'ggml-small-q5_1.bin' },
   },
   {
     id: 'gemma-4-e4b', kind: 'llm', name: 'Gemma 4 E4B', recommended: true,
-    blurb: '质量与速度平衡，16GB 内存推荐', bytes: 5_150_000_000,
-    url: `${HF}/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/main/gemma-4-E4B_q4_0-it.gguf`, file: 'gemma-4-E4B_q4_0-it.gguf',
+    blurb: '质量与速度平衡，16GB 内存推荐', bytes: 4_215_695_776,
+    file: gemma('E4B').file, hf: gemma('E4B'), opencsg: gemma('E4B'),
   },
   {
     id: 'gemma-4-e2b', kind: 'llm', name: 'Gemma 4 E2B',
-    blurb: '最轻量，8GB 内存也能跑，笔记略简单', bytes: 3_350_000_000,
-    url: `${HF}/google/gemma-4-E2B-it-qat-q4_0-gguf/resolve/main/gemma-4-E2B_q4_0-it.gguf`, file: 'gemma-4-E2B_q4_0-it.gguf',
+    blurb: '最轻量，8GB 内存也能跑，笔记略简单', bytes: 2_620_370_976,
+    file: gemma('E2B').file, hf: gemma('E2B'), opencsg: gemma('E2B'),
   },
   {
     id: 'gemma-4-12b', kind: 'llm', name: 'Gemma 4 12B',
-    blurb: '笔记质量最好，需要 16GB 以上内存，较慢', bytes: 6_980_000_000,
-    url: `${HF}/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/gemma-4-12b-it-qat-q4_0.gguf`, file: 'gemma-4-12b-it-qat-q4_0.gguf',
+    blurb: '笔记质量最好，需要 16GB 以上内存，较慢', bytes: 6_716_356_800,
+    file: gemma('12B').file, hf: gemma('12B'), opencsg: gemma('12B'),
   },
 ]
+
+// ── 下载源（国内用户优先国内源）──────────────────────────────────────
+
+export type ModelSource = 'auto' | 'huggingface' | 'hf-mirror' | 'opencsg'
+
+export const SOURCE_LABELS: Record<ModelSource, string> = {
+  auto: '自动（国内优先国内源）',
+  huggingface: 'Hugging Face',
+  'hf-mirror': 'HF 镜像 hf-mirror.com（国内）',
+  opencsg: 'OpenCSG（国内 · 阿里云）',
+}
+
+/** 粗判是否在中国大陆：时区或系统语言 */
+export function inMainlandChina(): boolean {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? ''
+  return ['Asia/Shanghai', 'Asia/Chongqing', 'Asia/Harbin', 'Asia/Urumqi'].includes(tz) || navigator.language === 'zh-CN'
+}
+
+export interface DownloadSource { url: string; family: 'hf' | 'opencsg'; key: Exclude<ModelSource, 'auto'> }
+
+/** 按偏好排好的候选下载源：首选失败自动换下一个 */
+export function sourcesFor(m: CatalogModel, pref: ModelSource, china = inMainlandChina()): DownloadSource[] {
+  const all: DownloadSource[] = [
+    { key: 'huggingface', family: 'hf', url: `https://huggingface.co/${m.hf.repo}/resolve/main/${m.hf.file}` },
+    { key: 'hf-mirror', family: 'hf', url: `https://hf-mirror.com/${m.hf.repo}/resolve/main/${m.hf.file}` },
+    ...(m.opencsg ? [{ key: 'opencsg' as const, family: 'opencsg' as const, url: `https://hub.opencsg.com/api/v1/models/${m.opencsg.repo}/resolve/${m.opencsg.file}?ref=main` }] : []),
+  ]
+  const order: DownloadSource['key'][] = pref === 'auto'
+    ? (china ? ['opencsg', 'hf-mirror', 'huggingface'] : ['huggingface', 'hf-mirror', 'opencsg'])
+    : [pref, ...(['hf-mirror', 'opencsg', 'huggingface'] as const).filter((k) => k !== pref)]
+  return order.map((k) => all.find((x) => x.key === k)).filter((x): x is DownloadSource => !!x)
+}
 
 export const DEFAULT_BUILTIN = { asr: 'whisper-large-v3-turbo', llm: 'gemma-4-e4b' } as const
 
@@ -88,7 +131,7 @@ export const onModelReady = (fn: (id: string) => void): void => { readyListeners
 
 interface Backend {
   list(): Promise<{ id: string; state: 'ready' | 'absent' | 'partial'; received?: number }[]>
-  download(m: CatalogModel): Promise<void>
+  download(m: CatalogModel, sources: DownloadSource[]): Promise<void>
   cancel(id: string): Promise<void>
   remove(id: string): Promise<void>
 }
@@ -111,7 +154,7 @@ function handleProgress(p: Progress): void {
 
 const tauriBackend: Backend = {
   list: () => invoke('builtin_models_list', { catalog: CATALOG.map(({ id, file, bytes }) => ({ id, file, bytes })) }),
-  download: (m) => invoke('builtin_model_download', { id: m.id, url: m.url, file: m.file, bytes: m.bytes }),
+  download: (m, sources) => invoke('builtin_model_download', { id: m.id, sources: sources.map(({ url, family }) => ({ url, family })), file: m.file, bytes: m.bytes }),
   cancel: (id) => invoke('builtin_model_cancel', { id }),
   remove: (id) => invoke('builtin_model_delete', { id, file: catalogById(id)?.file }),
 }
@@ -184,7 +227,7 @@ export async function downloadModel(id: string): Promise<void> {
   const prev = modelState(id)
   setModel(id, { state: 'downloading', received: prev.state === 'partial' ? prev.received : 0, total: m.bytes })
   try {
-    await backend().download(m)
+    await backend().download(m, sourcesFor(m, (await getSettings()).model_source))
   } catch (e) {
     setModel(id, { state: 'error', error: e instanceof Error ? e.message : String(e) })
   }

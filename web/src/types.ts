@@ -267,6 +267,10 @@ export interface AppSettings {
   // 应用内置模型（mode='builtin' 时生效）：lib/builtinModels.ts CATALOG 的 id
   builtin_llm_model: string
   builtin_asr_model: string
+  /** 内置模型下载源：auto = 国内优先 OpenCSG / hf-mirror，海外优先 Hugging Face */
+  model_source: 'auto' | 'huggingface' | 'hf-mirror' | 'opencsg'
+  /** 常用人名 / 术语（一行一个或逗号分隔）：转录时作为热词，提高专有名词准确率 */
+  hotwords: string
   // 隐私
   delete_remote_audio: boolean   // 转录完成后删除云端音频
   // 外观
@@ -296,6 +300,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   local_asr_model: 'whisper-1',
   builtin_llm_model: 'gemma-4-e4b',
   builtin_asr_model: 'whisper-large-v3-turbo',
+  model_source: 'auto',
+  hotwords: '',
   delete_remote_audio: true,
   theme: 'light',
   calendar_ics_urls: [],

@@ -7,6 +7,7 @@ import { oncePerMeeting } from './once'
 import { resolveASRConfig, type Meeting, type Transcript, type TranscriptSegment } from '../types'
 import { runSummarizePipeline } from './summarize'
 import { loadCaptions } from '../lib/liveCaption'
+import { collectHotwords } from '../lib/hotwords'
 
 /**
  * Transcription pipeline entry point.
@@ -94,6 +95,7 @@ export const runTranscribePipeline = oncePerMeeting(async (meetingId: string): P
       mimeType: merged.mimeType,
       durationMs: merged.durationMs || meeting.audio.duration_ms,
       settings,
+      hotwords: await collectHotwords(meetingId, settings.hotwords),
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

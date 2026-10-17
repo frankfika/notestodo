@@ -22,10 +22,24 @@ static MODEL: Mutex<Option<(String, LlamaModel)>> = Mutex::new(None);
 
 const N_BATCH: usize = 512;
 
+/// 退出前释放模型（否则 ggml Metal 在进程退出析构时断言崩溃：仍有 residency set 未释放）
+pub fn unload() {
+  if let Ok(mut g) = MODEL.lock() {
+    *g = None;
+  }
+}
+
 #[derive(Deserialize, Clone)]
 pub struct Msg {
   role: String,
   content: String,
+}
+
+impl Msg {
+  #[cfg(test)]
+  pub fn new(role: &str, content: &str) -> Self {
+    Self { role: role.into(), content: content.into() }
+  }
 }
 
 #[tauri::command]
@@ -56,7 +70,7 @@ fn backend() -> Result<&'static LlamaBackend, String> {
   Ok(BACKEND.get_or_init(|| b))
 }
 
-fn chat(path: &str, messages: &[Msg], max_tokens: u32, temperature: f32, json: bool) -> Result<String, String> {
+pub(crate) fn chat(path: &str, messages: &[Msg], max_tokens: u32, temperature: f32, json: bool) -> Result<String, String> {
   let backend = backend()?;
   let mut guard = MODEL.lock().map_err(|e| e.to_string())?;
   if guard.as_ref().map(|(p, _)| p.as_str()) != Some(path) {

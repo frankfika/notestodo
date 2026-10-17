@@ -21,6 +21,8 @@ export interface AsrProvider {
     durationMs: number
     settings: AppSettings
     language?: string
+    /** 人名 / 术语热词（支持的引擎用来提高专有名词准确率） */
+    hotwords?: string[]
   }): Promise<TranscriptSegment[]>
 }
 

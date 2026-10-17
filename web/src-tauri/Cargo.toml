@@ -43,7 +43,7 @@ objc_id = "0.1.1"
 
 # 应用内置本地模型（Foresight 式）：模型下载 + 进程内推理，不依赖 Ollama 等外部服务。
 # whisper-rs / llama-cpp-2 用 cmake 编 whisper.cpp / llama.cpp；Metal 内嵌着色器源码运行时编译，无需完整 Xcode。
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "http2"] }
 futures-util = "0.3"
 tokio = { version = "1", features = ["fs", "io-util"] }
 whisper-rs = { version = "0.16", features = ["metal"] }

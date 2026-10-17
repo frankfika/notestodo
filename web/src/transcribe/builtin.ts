@@ -11,7 +11,7 @@ import type { AsrProvider } from './types'
  */
 export const builtinAsrProvider: AsrProvider = {
   id: 'builtin',
-  transcribe: async ({ blob, settings }) => {
+  transcribe: async ({ blob, settings, hotwords }) => {
     const m = requireModel(resolveASRConfig(settings).model)
     if (!isTauri() && mockEnabled()) return mockSegments()
     const pcm = await decodeTo16kMono(blob)
@@ -19,7 +19,8 @@ export const builtinAsrProvider: AsrProvider = {
     const i16 = new Int16Array(pcm.length)
     for (let i = 0; i < pcm.length; i++) i16[i] = Math.max(-1, Math.min(1, pcm[i])) * 0x7fff
     return tauriInvoke<TranscriptSegment[]>('builtin_asr_transcribe', new Uint8Array(i16.buffer), {
-      headers: { 'x-model-file': m.file, 'x-language': 'zh' },
+      // 请求头只能是 ASCII：热词 encodeURIComponent，Rust 端解码
+      headers: { 'x-model-file': m.file, 'x-language': 'zh', 'x-hotwords': encodeURIComponent((hotwords ?? []).join('\n')) },
     })
   },
 }

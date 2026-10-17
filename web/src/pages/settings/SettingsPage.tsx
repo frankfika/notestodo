@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AiMode, type AppSettings } from '../../types'
 import { EngineChooser, ModelPicker, useMissingBuiltin } from '../../components/BuiltinModels'
-import { builtinAvailable, downloadModel, fmtGB, modelState, useBuiltinModels } from '../../lib/builtinModels'
+import { SOURCE_LABELS, builtinAvailable, downloadModel, fmtGB, inMainlandChina, modelState, useBuiltinModels } from '../../lib/builtinModels'
 import { getSettings, saveSettings } from '../../db/settings'
 import { applyTheme } from '../../state/ui'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
@@ -99,7 +99,32 @@ export default function SettingsPage(): JSX.Element {
 
         <Section title="AI 运行在哪里" desc="决定录音转录和笔记 / 待办 / 对话由谁来做。选择立即生效。">
           <EngineChooser settings={settings} onPick={(m) => void pickEngine(m)} />
-          {(settings.ai_mode === 'builtin' || settings.asr_mode === 'builtin') && <BuiltinQuickStart settings={settings} />}
+          {(settings.ai_mode === 'builtin' || settings.asr_mode === 'builtin') && (
+            <>
+              <BuiltinQuickStart settings={settings} />
+              <FieldRow label="模型下载源">
+                <select
+                  className="input"
+                  aria-label="模型下载源"
+                  value={settings.model_source}
+                  onChange={(e) => {
+                    const v = e.target.value as AppSettings['model_source']
+                    setSettings((cur) => ({ ...cur, model_source: v }))
+                    void saveSettings({ model_source: v })
+                  }}
+                >
+                  {(Object.keys(SOURCE_LABELS) as AppSettings['model_source'][]).map((k) => (
+                    <option key={k} value={k}>{SOURCE_LABELS[k]}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-text-3 mt-1">
+                  {settings.model_source === 'auto'
+                    ? `已按${inMainlandChina() ? '国内' : '海外'}网络排序：${inMainlandChina() ? 'OpenCSG → hf-mirror → Hugging Face' : 'Hugging Face → hf-mirror → OpenCSG'}；一个源失败自动换下一个，断点续传。`
+                    : '首选这个源，失败时自动换其它源。'}
+                </p>
+              </FieldRow>
+            </>
+          )}
         </Section>
 
         <DataFlowCard settings={settings} />
@@ -163,6 +188,17 @@ export default function SettingsPage(): JSX.Element {
         </Section>
 
         <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。可与上面的笔记模型分开选。">
+          <FieldRow label="常用人名 / 术语">
+            <textarea
+              className="input text-sm"
+              rows={2}
+              aria-label="常用人名 / 术语"
+              value={settings.hotwords}
+              onChange={(e) => patch({ hotwords: e.target.value })}
+              placeholder="张三、李四、PoC、OKR、飞书…（逗号 / 顿号 / 换行分隔）"
+            />
+            <p className="text-[11px] text-text-3 mt-1">转录时当作热词，人名和专有名词更准。待办里出现过的负责人、本场速记里的短词会自动加入。</p>
+          </FieldRow>
           <FieldRow label="模式">
             <ModeSegmented
               value={settings.asr_mode}
@@ -973,7 +1009,7 @@ function DataFlowCard({ settings }: { settings: AppSettings }): JSX.Element {
         ))}
       </ul>
       <p className="text-[11px] text-text-3 mt-2 leading-relaxed">
-        录音、速记、笔记、待办始终只存在本机（IndexedDB）。无遥测。日历 / 知识库 / 内置模型文件（huggingface.co）只下载，不上传会议内容。
+        录音、速记、笔记、待办始终只存在本机（IndexedDB）。无遥测。日历 / 知识库 / 内置模型文件（Hugging Face / hf-mirror / OpenCSG）只下载，不上传会议内容。
       </p>
     </section>
   )
@@ -1000,7 +1036,7 @@ function BuiltinQuickStart({ settings }: { settings: AppSettings }): JSX.Element
     <div className="rounded-xl border border-accent/30 bg-accent/5 p-3 flex flex-wrap items-center gap-3">
       <div className="flex-1 min-w-[220px]">
         <div className="text-sm text-text-1 font-medium">还需要下载 {missing.map((m) => m.name).join(' + ')}</div>
-        <p className="text-[11.5px] text-text-3 mt-0.5">共 {fmtGB(total)}，只需一次；模型文件从 huggingface.co 下载，不上传任何内容。下载期间可以照常录音，下好后会自动整理。</p>
+        <p className="text-[11.5px] text-text-3 mt-0.5">共 {fmtGB(total)}，只需一次；国内自动走 OpenCSG / hf-mirror，只下载、不上传任何内容。下载期间可以照常录音，下好后会自动整理。</p>
       </div>
       <button type="button" onClick={() => missing.forEach((m) => void downloadModel(m.id))} className="btn-primary text-xs h-8 px-3">
         下载（{fmtGB(total)}）

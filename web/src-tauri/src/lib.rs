@@ -145,6 +145,12 @@ pub fn run() {
       builtin::asr::builtin_asr_transcribe,
       builtin::llm::builtin_llm_chat,
     ])
-    .run(tauri::generate_context!())
-    .expect("error while building tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|_app, event| {
+      // 退出前释放内置模型：否则 ggml Metal 析构时断言崩溃（每次退出都会出崩溃报告）
+      if let tauri::RunEvent::Exit = event {
+        builtin::unload_all();
+      }
+    });
 }

@@ -56,7 +56,7 @@ test('本机内置：选择即生效 → 录完再下模型 → 下载完成自�
   await page.getByRole('button', { name: '去下载模型' }).click()
 
   // 3) 一键下载（显示总大小）→ 进度 → 完成后会议自动整理
-  await page.getByRole('button', { name: /^下载（5\.7 GB）$/ }).click()
+  await page.getByRole('button', { name: /^下载（[\d.]+ GB）$/ }).click()
   await expect(page.getByText('下载本地模型')).toBeVisible() // 侧栏进度
   await expect(page.getByText('✓ 本地模型已就绪，可以离线使用。')).toBeVisible({ timeout: 15_000 })
 
