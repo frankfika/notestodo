@@ -51,3 +51,5 @@ llama-cpp-2 = { version = "0.1.160", features = ["metal"] }
 # 渲染模型自带的 Jinja chat 模板（Gemma 4 等新格式）
 minijinja = "2"
 minijinja-contrib = { version = "2", features = ["pycompat"] }
+# 说话人区分：pyannote 分段 + 3D-Speaker 声纹（静态链接预编译库；离线构建可设 SHERPA_ONNX_ARCHIVE_DIR）
+sherpa-onnx = "1.13.8"

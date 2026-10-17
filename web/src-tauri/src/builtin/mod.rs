@@ -1,11 +1,13 @@
 // 应用内置本地模型（Foresight 式）：模型文件管理 + whisper.cpp 转录 + Gemma 4 笔记，全部在本机进程内完成。
 pub mod asr;
+pub mod diarize;
 pub mod llm;
 pub mod models;
 
 /// 应用退出时调用：先释放 whisper / llama 模型，再让 ggml 的 Metal 设备析构
 pub fn unload_all() {
   asr::unload();
+  diarize::unload();
   llm::unload();
 }
 
@@ -84,7 +86,11 @@ mod e2e {
     let asr_model = models().join("ggml-large-v3-turbo-q5_0.bin");
     // 热词：模拟应用从待办负责人 / 速记 / 常用词里收集到的人名和术语
     let hotwords: Vec<String> = ["张三", "李四", "PoC", "方案B", "法务"].iter().map(|s| s.to_string()).collect();
-    let segs = asr::transcribe(asr_model.to_str().unwrap(), "zh", &pcm, &hotwords).expect("转录失败");
+    let diar = (
+      models().join("sherpa-pyannote-segmentation-3-0.int8.onnx").to_string_lossy().into_owned(),
+      models().join("3dspeaker_campplus_sv_zh-cn_16k-common.onnx").to_string_lossy().into_owned(),
+    );
+    let segs = asr::transcribe(asr_model.to_str().unwrap(), "zh", &pcm, &hotwords, Some(&diar)).expect("转录失败");
     println!("── 转录 {:.1}s，{} 段", t.elapsed().as_secs_f32(), segs.len());
     let transcript: String = segs
       .iter()
@@ -93,11 +99,15 @@ mod e2e {
       .join("\n");
     println!("{transcript}");
     assert!(!segs.is_empty());
+    // 测试音频是两个不同的声音（Eddy / Flo）交替发言：应区分出 2 位说话人，且第 1、2 段不是同一人
+    let speakers: std::collections::BTreeSet<_> = segs.iter().map(|s| s.speaker_label.clone()).collect();
+    assert_eq!(speakers.len(), 2, "应区分出 2 位说话人：{speakers:?}");
+    assert_ne!(segs[0].speaker_label, segs[1].speaker_label);
     assert!(transcript.contains("方案"), "转录应包含关键词");
     assert!(!transcript.contains("會議") && !transcript.contains("預算"), "应为简体：{transcript}");
 
     let t = Instant::now();
-    let llm_model = models().join(std::env::var("E2E_LLM_FILE").unwrap_or("gemma-4-E4B_q4_0-it.gguf".into()));
+    let llm_model = models().join(std::env::var("E2E_LLM_FILE").unwrap_or("gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf".into()));
     let msgs = vec![
       llm::Msg::new("system", SYSTEM),
       llm::Msg::new("user", &format!("会议：产品评审会\n\n<transcript>\n{transcript}\n</transcript>")),

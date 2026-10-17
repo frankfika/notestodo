@@ -1,4 +1,4 @@
-import { mockEnabled } from '../lib/builtinModels'
+import { DIAR_IDS, catalogById, isReady, mockEnabled } from '../lib/builtinModels'
 import { isTauri } from '../lib/tauri'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { requireModel } from '../llm/builtin'
@@ -20,7 +20,11 @@ export const builtinAsrProvider: AsrProvider = {
     for (let i = 0; i < pcm.length; i++) i16[i] = Math.max(-1, Math.min(1, pcm[i])) * 0x7fff
     return tauriInvoke<TranscriptSegment[]>('builtin_asr_transcribe', new Uint8Array(i16.buffer), {
       // 请求头只能是 ASCII：热词 encodeURIComponent，Rust 端解码
-      headers: { 'x-model-file': m.file, 'x-language': 'zh', 'x-hotwords': encodeURIComponent((hotwords ?? []).join('\n')) },
+      headers: {
+        'x-model-file': m.file, 'x-language': 'zh', 'x-hotwords': encodeURIComponent((hotwords ?? []).join('\n')),
+        // 说话人区分：两个模型都已下载才带上（否则只转录，不区分说话人）
+        ...(DIAR_IDS.every(isReady) ? { 'x-diar-seg': catalogById(DIAR_IDS[0])!.file, 'x-diar-emb': catalogById(DIAR_IDS[1])!.file } : {}),
+      },
     })
   },
 }

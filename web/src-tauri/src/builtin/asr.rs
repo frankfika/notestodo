@@ -56,12 +56,26 @@ pub async fn builtin_asr_transcribe(app: AppHandle, request: tauri::ipc::Request
   // i16 LE → f32 [-1, 1]
   let pcm: Vec<f32> = bytes.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0).collect();
 
-  tauri::async_runtime::spawn_blocking(move || transcribe(&path.to_string_lossy(), &lang, &pcm, &hotwords))
+  // 说话人区分模型（可选）：两个文件都在才启用
+  let diar = match (header(&request, "x-diar-seg"), header(&request, "x-diar-emb")) {
+    (Ok(seg), Ok(emb)) => {
+      let (seg, emb) = (model_path(&app, seg)?, model_path(&app, emb)?);
+      (seg.exists() && emb.exists()).then(|| (seg.to_string_lossy().into_owned(), emb.to_string_lossy().into_owned()))
+    }
+    _ => None,
+  };
+  tauri::async_runtime::spawn_blocking(move || transcribe(&path.to_string_lossy(), &lang, &pcm, &hotwords, diar.as_ref()))
     .await
     .map_err(|e| e.to_string())?
 }
 
-pub(crate) fn transcribe(path: &str, lang: &str, pcm: &[f32], hotwords: &[String]) -> Result<Vec<Segment>, String> {
+pub(crate) fn transcribe(
+  path: &str,
+  lang: &str,
+  pcm: &[f32],
+  hotwords: &[String],
+  diar: Option<&(String, String)>,
+) -> Result<Vec<Segment>, String> {
   let mut guard = CTX.lock().map_err(|e| e.to_string())?;
   if guard.as_ref().map(|(p, _)| p.as_str()) != Some(path) {
     *guard = None; // 先释放旧模型的显存
@@ -87,7 +101,7 @@ pub(crate) fn transcribe(path: &str, lang: &str, pcm: &[f32], hotwords: &[String
 
   state.full(params, pcm).map_err(|e| format!("转录失败：{e}"))?;
 
-  Ok(state
+  let mut segs: Vec<Segment> = state
     .as_iter()
     .filter_map(|seg| {
       let raw = seg.to_str_lossy().ok()?;
@@ -103,7 +117,24 @@ pub(crate) fn transcribe(path: &str, lang: &str, pcm: &[f32], hotwords: &[String
         text,
       })
     })
-    .collect())
+    .collect();
+  drop(state);
+  drop(guard); // 先放开 whisper，再跑说话人区分
+
+  // 谁说的：尽力而为，失败只记日志，转录照常返回
+  if let Some((seg_model, emb_model)) = diar {
+    match super::diarize::diarize(seg_model, emb_model, pcm) {
+      Ok(turns) if !turns.is_empty() => {
+        let spans: Vec<(i64, i64)> = segs.iter().map(|s| (s.start_ms, s.end_ms)).collect();
+        for (s, label) in segs.iter_mut().zip(super::diarize::assign_speakers(&spans, &turns)) {
+          s.speaker_label = label;
+        }
+      }
+      Ok(_) => {}
+      Err(e) => log::warn!("说话人区分失败，按单人处理：{e}"),
+    }
+  }
+  Ok(segs)
 }
 
 /// 初始提示 = 语言提示 + 热词。whisper 的 prompt 上限约 224 token，热词按字数截断。

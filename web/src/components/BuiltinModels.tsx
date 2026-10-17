@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import {
-  CATALOG, builtinAvailable, cancelDownload, deleteModel, downloadModel, fmtGB,
+  CATALOG, DIAR_IDS, builtinAvailable, cancelDownload, deleteModel, downloadModel, fmtGB,
   refreshBuiltinModels, useBuiltinModels, type CatalogModel, type ModelKind, type ModelState,
 } from '../lib/builtinModels'
 import type { AiMode, AppSettings } from '../types'
@@ -174,10 +174,38 @@ export function useMissingBuiltin(settings: Pick<AppSettings, 'ai_mode' | 'asr_m
   const models = useBuiltinModels((s) => s.models)
   if (!settings) return []
   const need: string[] = []
-  if (settings.asr_mode === 'builtin') need.push(settings.builtin_asr_model)
+  if (settings.asr_mode === 'builtin') need.push(settings.builtin_asr_model, ...DIAR_IDS)
   if (settings.ai_mode === 'builtin') need.push(settings.builtin_llm_model)
   return need
     .filter((id) => models[id]?.state !== 'ready')
     .map((id) => CATALOG.find((m) => m.id === id))
     .filter((m): m is CatalogModel => !!m)
+}
+
+/** 说话人区分附加模型：一行展示两个小模型的合并状态 */
+export function DiarizationRow(): JSX.Element {
+  const models = useBuiltinModels((s) => s.models)
+  const parts = DIAR_IDS.map((id) => CATALOG.find((m) => m.id === id)!)
+  const states = parts.map((m) => models[m.id] ?? { state: 'absent' as const })
+  const ready = states.every((st) => st.state === 'ready')
+  const busy = states.some((st) => st.state === 'downloading')
+  const bytes = parts.reduce((a, m) => a + m.bytes, 0)
+  return (
+    <div className="rounded-xl border border-line px-3 py-2.5 flex items-center gap-2" data-model="diarization">
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-text-1 font-medium">说话人区分 <span className="text-[11px] text-text-3 font-normal tabular-nums">{fmtGB(bytes)}</span></div>
+        <p className="text-[11.5px] text-text-3 mt-0.5">转录里标出「说话人 1 / 2 / …」。3D-Speaker（阿里达摩院，中文训练），随转录模型自动下载。</p>
+      </div>
+      {ready ? <span className="text-[11px] text-accent shrink-0">✓ 已下载</span>
+        : busy ? <span className="text-[11px] text-text-3 shrink-0">下载中…</span>
+        : <button type="button" onClick={() => parts.forEach((m) => void downloadModel(m.id))} className="btn-outline text-[11px] h-7 px-2.5 shrink-0">下载</button>}
+    </div>
+  )
+}
+
+/** 列给用户看的缺失模型名：两个说话人区分小模型合并成一项 */
+export function missingNames(list: CatalogModel[]): string {
+  const names = list.filter((m) => m.kind !== 'diar').map((m) => m.name)
+  if (list.some((m) => m.kind === 'diar')) names.push('说话人区分')
+  return names.join(' + ')
 }

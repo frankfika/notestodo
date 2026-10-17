@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from '../types'
 import { saveSettings } from '../db/settings'
 import { useUI } from '../state/ui'
 import { mod } from '../lib/id'
-import { EngineChooser, useMissingBuiltin } from './BuiltinModels'
+import { EngineChooser, useMissingBuiltin, missingNames } from './BuiltinModels'
 import { downloadModel, fmtGB } from '../lib/builtinModels'
 
 /**
@@ -125,7 +125,7 @@ export default function Onboarding(): JSX.Element | null {
 
           {draft.ai_mode === 'builtin' && draft.asr_mode === 'builtin' && (
             <p className="text-[11.5px] text-text-2 mt-3 leading-relaxed">
-              将下载 {builtinNeed.map((m) => m.name).join(' + ')}（共 {fmtGB(builtinNeed.reduce((a, m) => a + m.bytes, 0))}），
+              将下载 {missingNames(builtinNeed)}（共 {fmtGB(builtinNeed.reduce((a, m) => a + m.bytes, 0))}），
               只需一次，之后完全离线（国内自动走 OpenCSG / hf-mirror 加速）。下载在后台进行，期间可以照常录音，下好后自动整理。
             </p>
           )}

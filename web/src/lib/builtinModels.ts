@@ -16,7 +16,8 @@ import { getSettings } from '../db/settings'
  * DEV 下可用 localStorage.builtin_mock = '1' 打开模拟后端，走完整 UX（下载进度 / 使用 / 失败）。
  */
 
-export type ModelKind = 'asr' | 'llm'
+/** diar = 说话人区分（随内置转录自动下载，不单独选择） */
+export type ModelKind = 'asr' | 'llm' | 'diar'
 
 /** 模型在某个托管站点上的位置 */
 interface Hosted { repo: string; file: string }
@@ -52,6 +53,17 @@ export const CATALOG: CatalogModel[] = [
     id: 'whisper-small', kind: 'asr', name: 'Whisper Small',
     blurb: '体积小、转录更快，准确率略低', bytes: 190_085_487,
     file: 'ggml-small-q5_1.bin', hf: { repo: W, file: 'ggml-small-q5_1.bin' },
+  },
+  // 说话人区分（谁说的）：sherpa-onnx = pyannote 分段 + 3D-Speaker CAM++（阿里达摩院，中文训练），合计约 30MB
+  {
+    id: 'diar-segmentation', kind: 'diar', name: '说话人分段（pyannote 3.0）',
+    blurb: '找出每个人说话的时间段', bytes: 1_540_506,
+    file: 'sherpa-pyannote-segmentation-3-0.int8.onnx', hf: { repo: 'csukuangfj/sherpa-onnx-pyannote-segmentation-3-0', file: 'model.int8.onnx' },
+  },
+  {
+    id: 'diar-embedding', kind: 'diar', name: '声纹（3D-Speaker CAM++ 中文）',
+    blurb: '区分不同说话人的声音', bytes: 28_281_138,
+    file: '3dspeaker_campplus_sv_zh-cn_16k-common.onnx', hf: { repo: 'csukuangfj/speaker-embedding-models', file: '3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx' },
   },
   {
     id: 'gemma-4-e4b', kind: 'llm', name: 'Gemma 4 E4B', recommended: true,
@@ -103,6 +115,9 @@ export function sourcesFor(m: CatalogModel, pref: ModelSource, china = inMainlan
 }
 
 export const DEFAULT_BUILTIN = { asr: 'whisper-large-v3-turbo', llm: 'gemma-4-e4b' } as const
+
+/** 说话人区分的两个模型（随内置转录一起下载） */
+export const DIAR_IDS = ['diar-segmentation', 'diar-embedding'] as const
 
 export const catalogById = (id: string): CatalogModel | undefined => CATALOG.find((m) => m.id === id)
 

@@ -17,7 +17,7 @@ import { levelLabel, suggestKr } from '../../lib/okr'
 import { attachTask, discardTask } from '../../lib/todoActions'
 import { MODEL_MISSING } from '../../llm/builtin'
 import { displayStatus, statusText, type DisplayStatus } from '../../lib/meetingStatus'
-import { useMissingBuiltin } from '../../components/BuiltinModels'
+import { useMissingBuiltin, missingNames } from '../../components/BuiltinModels'
 import { useSettings } from '../../db/settings'
 import { useRecorder } from '../../state/recorder'
 import { setLiveCaptionEnabled, useCaption } from '../../lib/liveCaption'
@@ -397,7 +397,7 @@ function LiveMeetingView({
       </div>
       {missing.length > 0 && (
         <div className="px-6 py-2 text-xs bg-warning/8 border-b border-warning/30 flex items-center gap-3 shrink-0">
-          <span className="text-text-2 flex-1">本地模型（{missing.map((m) => m.name).join('、')}）还没下载完 —— 录音照常保存在本机，下好后自动转录整理。</span>
+          <span className="text-text-2 flex-1">本地模型（{missingNames(missing)}）还没下载完 —— 录音照常保存在本机，下好后自动转录整理。</span>
           <button onClick={() => useUI.getState().goSettings()} className="btn-outline text-xs h-7 px-3">去下载</button>
         </div>
       )}

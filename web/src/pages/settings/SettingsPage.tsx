@@ -4,7 +4,7 @@ import { dataFlow, isLoopbackUrl } from '../../lib/dataFlow'
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AiMode, type AppSettings } from '../../types'
-import { EngineChooser, ModelPicker, useMissingBuiltin } from '../../components/BuiltinModels'
+import { DiarizationRow, EngineChooser, ModelPicker, useMissingBuiltin, missingNames } from '../../components/BuiltinModels'
 import { SOURCE_LABELS, builtinAvailable, downloadModel, fmtGB, inMainlandChina, modelState, useBuiltinModels } from '../../lib/builtinModels'
 import { getSettings, saveSettings } from '../../db/settings'
 import { applyTheme } from '../../state/ui'
@@ -213,7 +213,10 @@ export default function SettingsPage(): JSX.Element {
           </FieldRow>
 
           {settings.asr_mode === 'builtin' ? (
-            <ModelPicker kind="asr" selected={settings.builtin_asr_model} onSelect={(id) => void pickBuiltin({ builtin_asr_model: id })} />
+            <>
+              <ModelPicker kind="asr" selected={settings.builtin_asr_model} onSelect={(id) => void pickBuiltin({ builtin_asr_model: id })} />
+              <DiarizationRow />
+            </>
           ) : settings.asr_mode === 'cloud' ? (
             <>
               <FieldRow label="Provider">
@@ -1028,14 +1031,14 @@ function BuiltinQuickStart({ settings }: { settings: AppSettings }): JSX.Element
     const got = downloading.reduce((a, x) => a + (x.state === 'downloading' ? x.received : 0), 0)
     return (
       <p className="text-[12px] text-text-2">
-        正在下载 {missing.map((m) => m.name).join(' + ')} · {fmtGB(got)} / {fmtGB(total)}（可离开此页，后台继续；期间可以照常录音）
+        正在下载 {missingNames(missing)} · {fmtGB(got)} / {fmtGB(total)}（可离开此页，后台继续；期间可以照常录音）
       </p>
     )
   }
   return (
     <div className="rounded-xl border border-accent/30 bg-accent/5 p-3 flex flex-wrap items-center gap-3">
       <div className="flex-1 min-w-[220px]">
-        <div className="text-sm text-text-1 font-medium">还需要下载 {missing.map((m) => m.name).join(' + ')}</div>
+        <div className="text-sm text-text-1 font-medium">还需要下载 {missingNames(missing)}</div>
         <p className="text-[11.5px] text-text-3 mt-0.5">共 {fmtGB(total)}，只需一次；国内自动走 OpenCSG / hf-mirror，只下载、不上传任何内容。下载期间可以照常录音，下好后会自动整理。</p>
       </div>
       <button type="button" onClick={() => missing.forEach((m) => void downloadModel(m.id))} className="btn-primary text-xs h-8 px-3">
