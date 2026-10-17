@@ -107,7 +107,11 @@ export const runSummarizePipeline = oncePerMeeting(async (meetingId: string): Pr
 
   // Append decisions list to summary_md if present, so the markdown view
   // also surfaces them without forcing the user to dig into raw JSON.
-  const summaryMd = composeSummaryMarkdown(parsed.summaryMd, parsed.decisions)
+  // Then scrub any stray "[]" / "{}" lines the model emitted for empty
+  // sections — those should read "无" instead (system prompt insists on it).
+  const summaryMd = tidyEmptySections(
+    composeSummaryMarkdown(parsed.summaryMd, parsed.decisions),
+  )
   if (!summaryMd) {
     await db.meetings.update(meetingId, { status: 'failed', error: '生成笔记失败：模型返回的笔记为空', updated_at: now() })
     return
@@ -440,4 +444,22 @@ function parseLooseDate(hint?: string): string | undefined {
   }
   // 相对日期留给 UI 处理（"下周三" / "周五之前" 等 — LLM 输出语义不明确）
   return undefined
+}
+
+/**
+ * 把模型偶尔输出的 "[]" / "{}" 空标记替换为「无」。
+ * 模型按 system prompt 应该对空小节写「无」，但实际输出里仍偶现空 JSON 标记；
+ * 这里做最后一道兜底，保证落库的笔记里不再有孤零零的 [] / {} 行。
+ * 纯函数：只替换整行 trimmed 后恰好为 "[]" / "{}"（允许前缀 "- " 或 "* "）的输入。
+ */
+export function tidyEmptySections(md: string): string {
+  return md
+    .split(/\r?\n/)
+    .map((line) => {
+      const t = line.trim()
+      if (t === '[]' || t === '{}') return '无'
+      if ((t === '- []' || t === '* []' || t === '- {}' || t === '* {}')) return '无'
+      return line
+    })
+    .join('\n')
 }

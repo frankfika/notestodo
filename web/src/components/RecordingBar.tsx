@@ -50,7 +50,10 @@ export default function RecordingBar() {
   return (
     <div className="border-b border-line">
       {(!onLivePage || isError || interrupted) && (
-      <div className={`flex items-center gap-3 px-5 h-12 ${accentClass} text-sm`}>
+      <div
+        {...(isTauri() ? { 'data-tauri-drag-region': true } : {})}
+        className={`flex items-center gap-3 px-5 h-12 ${accentClass} text-sm`}
+      >
         {isError ? (
           <>
             <span className="text-danger">⨯</span>
@@ -117,7 +120,10 @@ function CaptureBanner({
     ? '浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。'
     : note ?? '系统音频采集暂不可用（macOS 桌面版 + 屏幕录制权限）。'
   return (
-    <div className="px-5 py-1.5 bg-bg-overlay border-t border-line text-[11.5px] text-text-3 flex items-center gap-2">
+    <div
+      {...(isTauri() ? { 'data-tauri-drag-region': true } : {})}
+      className="px-5 py-1.5 bg-bg-overlay border-t border-line text-[11.5px] text-text-3 flex items-center gap-2"
+    >
       <span className="text-warning" aria-hidden="true">▣</span>
       <span className="truncate" title={text}>{text}</span>
       {!isWeb && (

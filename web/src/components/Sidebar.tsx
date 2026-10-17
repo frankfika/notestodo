@@ -3,6 +3,7 @@ import { useRecorder } from '../state/recorder'
 import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { isTauri } from '../lib/tauri'
 import { DownloadIndicator } from './BuiltinModels'
 
 // 只留 4 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
@@ -37,8 +38,14 @@ export default function Sidebar() {
     return () => clearInterval(t)
   }, [])
 
+  // 只数「任务」(排除 OKR 的 O / KR)，并剔除已软删条目 — 任务 tab 徽章语义对齐
   const openTodos = useLiveQuery(
-    () => db.todos.where('status').anyOf('open', 'pending_review').count(),
+    () =>
+      db.todos
+        .where('status')
+        .anyOf('open', 'pending_review')
+        .filter((t) => t.kind === 'task' && t.deleted_at === null)
+        .count(),
     [],
   )
 
@@ -50,7 +57,9 @@ export default function Sidebar() {
       hidden md:flex                          /* 移动端隐藏（由 BottomTabBar 接管） */
       w-[208px] shrink-0 flex-col border-r border-line bg-bg-sidebar
     ">
-      {/* 品牌 */}
+      {/* 桌面版留出的 macOS 红绿灯区域：仅 Tauri 时变成拖拽区，不挡按钮点击 */}
+      {isTauri() && <div data-tauri-drag-region aria-hidden className="h-5 shrink-0" />}
+      {/* 品牌行 */}
       <div className="flex items-center gap-2 px-4 h-14">
         <span className={`h-2 w-2 rounded-full ${phase === 'recording' ? 'bg-danger rec-dot' : 'bg-accent'}`} />
         <span className="font-semibold tracking-tight text-text-1">NotesToGO</span>
@@ -119,8 +128,14 @@ export function BottomTabBar() {
   const goTasks = useUI((s) => s.goTaskMode)
   const taskMode = useUI((s) => s.taskMode)
   const phase = useRecorder((s) => s.phase)
+  // 只数「任务」(排除 OKR 的 O / KR)，并剔除已软删条目 — 任务 tab 徽章语义对齐
   const openTodos = useLiveQuery(
-    () => db.todos.where('status').anyOf('open', 'pending_review').count(),
+    () =>
+      db.todos
+        .where('status')
+        .anyOf('open', 'pending_review')
+        .filter((t) => t.kind === 'task' && t.deleted_at === null)
+        .count(),
     [],
   )
 

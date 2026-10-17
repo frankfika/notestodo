@@ -93,6 +93,8 @@ pub(crate) fn transcribe(
   params.set_print_progress(false);
   params.set_print_realtime(false);
   params.set_print_timestamps(false);
+  // 静音 / 噪声上少编字：压掉非语音 token
+  params.set_suppress_nst(true);
   // 初始提示：zh 拉回简体；热词让人名 / 术语按正确写法出现（「李四」而不是「理事」）
   let prompt = initial_prompt(lang, hotwords);
   if !prompt.is_empty() {
@@ -106,6 +108,10 @@ pub(crate) fn transcribe(
     .filter_map(|seg| {
       let raw = seg.to_str_lossy().ok()?;
       let text = if lang == "zh" { zh_punct(raw.trim()) } else { raw.trim().to_string() };
+      let (t0, t1) = (seg.start_timestamp() * 10, seg.end_timestamp() * 10);
+      if !keep_segment(&text, seg.no_speech_probability(), rms(pcm, t0, t1)) {
+        return None;
+      }
       if text.is_empty() {
         return None;
       }
@@ -213,7 +219,52 @@ mod tests {
   }
 
   #[test]
+  fn drops_silence_hallucinations() {
+    assert!(keep_segment("方案B基本确定了。", 0.05, 0.08));
+    assert!(!keep_segment("好", 0.9, 0.08), "whisper 自己判为非语音");
+    assert!(!keep_segment("滚", 0.1, 0.001), "几乎无声");
+    assert!(!keep_segment("请不吝点赞 订阅 转发 打赏支持明镜与点点栏目", 0.1, 0.05));
+    assert!(!keep_segment("字幕由Amara.org社区提供", 0.2, 0.05));
+  }
+
+  #[test]
+  fn rms_of_window() {
+    let pcm = vec![0.5f32; 16_000]; // 1 秒、幅度 0.5
+    assert!((rms(&pcm, 0, 1000) - 0.5).abs() < 1e-6);
+    assert_eq!(rms(&pcm, 2000, 3000), 0.0, "越界窗口为 0");
+  }
+
+  #[test]
   fn decodes_percent_encoded_header() {
     assert_eq!(percent_decode("%E6%9D%8E%E5%9B%9B%0APoC"), "李四\nPoC");
   }
+}
+
+/// 片段对应音频的均方根能量（16kHz）
+pub(crate) fn rms(pcm: &[f32], start_ms: i64, end_ms: i64) -> f32 {
+  let a = ((start_ms.max(0) as usize) * 16).min(pcm.len());
+  let b = ((end_ms.max(0) as usize) * 16).min(pcm.len()).max(a);
+  if b == a {
+    return 0.0;
+  }
+  (pcm[a..b].iter().map(|x| x * x).sum::<f32>() / (b - a) as f32).sqrt()
+}
+
+/// whisper 在静音 / 噪声上常见的「幻听」中文字幕套话
+const HALLUCINATIONS: &[&str] = &[
+  "字幕由", "Amara.org", "请不吝点赞", "订阅 转发", "打赏支持", "明镜与点点", "点点栏目",
+  "谢谢观看", "感谢观看", "下集再见", "字幕志愿者", "中文字幕",
+];
+
+/// 是否保留这一段：whisper 判为非语音、音频几乎无声、或是常见幻听套话 → 丢弃。
+/// 实测：外放声音被回声消除吃掉后，近乎静音的录音被转成「好」「滚」「Goo」「tanto」。
+pub(crate) fn keep_segment(text: &str, no_speech_prob: f32, rms: f32) -> bool {
+  if text.trim().is_empty() || no_speech_prob > 0.6 {
+    return false;
+  }
+  // ≈ -49 dBFS：正常说话（含远处小声）都远高于这个值
+  if rms < 0.0035 {
+    return false;
+  }
+  !HALLUCINATIONS.iter().any(|h| text.contains(h))
 }

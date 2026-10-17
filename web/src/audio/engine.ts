@@ -5,6 +5,7 @@ import { useUI } from '../state/ui'
 import { runTranscribePipeline } from '../pipeline/transcribe'
 import { startLiveCaption, stopLiveCaption } from '../lib/liveCaption'
 import { chunksInOrder } from './merge'
+import { isWebKit } from './playable'
 import { isTauri } from '../lib/tauri'
 import { systemAudioStatus, startSystemAudio, stopSystemAudio } from '../lib/tauriSystemAudio'
 import { startSystemMix, type SystemMix } from './systemMix'
@@ -360,8 +361,12 @@ export async function stopRecorder(): Promise<string | null> {
 async function acquireStream(): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({
     audio: {
-      echoCancellation: true,
+      // 会议录音必须关回声消除：它会把本机扬声器放出的声音（线上会议里对方的发言）当回声消掉，
+      // 没开屏录权限（只录麦克风）时就只剩自己的声音。实测：外放的会议音频几乎全被消掉。
+      echoCancellation: false,
       noiseSuppression: true,
+      // 麦克风输入音量常被调得很低（实测 30%），自动增益让远处 / 小声的发言也能录清楚
+      autoGainControl: true,
       sampleRate: 48000,
     },
   })
@@ -378,7 +383,11 @@ const MIME_CANDIDATES = [
 
 function pickMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return ''
-  for (const cand of MIME_CANDIDATES) {
+  // WebKit（Safari / 桌面版 WKWebView）能录 WebM 却不一定能播 → 优先 MP4/AAC
+  const order = isWebKit()
+    ? [...MIME_CANDIDATES.filter((c) => c.startsWith('audio/mp4')), ...MIME_CANDIDATES.filter((c) => !c.startsWith('audio/mp4'))]
+    : MIME_CANDIDATES
+  for (const cand of order) {
     if (MediaRecorder.isTypeSupported(cand)) return cand
   }
   return ''

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import { useUI } from '../state/ui'
+import { useRecorder } from '../state/recorder'
 import { isTauri } from '../lib/tauri'
 import {
   openScreenRecordingSettings,
@@ -10,6 +11,9 @@ import {
 } from '../lib/tauriSystemAudio'
 
 const DISMISS_KEY = 'perm_guide_dismissed_v1'
+/** 「稍后」snooze：写入到该时间（ms）之前都不自动弹，但手动打开（setPermGuideOpen(true)）照常 */
+const SNOOZE_KEY = 'perm_guide_snooze_until'
+const SNOOZE_MS = 24 * 60 * 60 * 1000 // 24h
 
 /**
  * 屏幕录制授权向导（仅 Tauri macOS）。
@@ -19,29 +23,40 @@ const DISMISS_KEY = 'perm_guide_dismissed_v1'
  *   ② 打开设置  → 直达「屏幕录制」页，只需拨开关
  *   ③ 重启生效  → macOS 不会即时刷新已运行进程，一键重启
  * 授权状态每 1.5s 轮询，授权成功自动切到完成态。
- * 首次启动未授权会自动弹出一次；「稍后」只关本次，「不再提醒」写入 kv。
+ *
+ * 启动策略（v2）：不再在 app 启动时自动弹；只在录音真的开始（phase → recording）
+ * 且未授权 + 未选「不再提醒」 + 未在 24h snooze 内时才弹。手动入口（Settings /
+ * RecordingBanner 的「一键开启」）始终有效。
  */
 export default function PermissionGuide(): JSX.Element | null {
   const open = useUI((s) => s.permGuideOpen)
   const setOpen = useUI((s) => s.setPermGuideOpen)
+  const phase = useRecorder((s) => s.phase)
   const [granted, setGranted] = useState(false)
   const [touched, setTouched] = useState(false) // 已弹过授权框或开过设置页
   const [err, setErr] = useState<string | null>(null)
 
-  // 启动时：Tauri + macOS 支持 + 未授权 + 未选“不再提醒” → 自动弹一次
+  // 录音真正开始时才考虑弹向导；isTauri + 未授权 + 未永久 dismiss + 未 snooze
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isTauri() || phase !== 'recording' || open) return
     let alive = true
     void (async () => {
-      const row = await db.kv.get(DISMISS_KEY).catch(() => undefined)
-      if (!alive || row?.value === true) return
+      // 手动打开（setPermGuideOpen(true)）走另一路径，不受这些持久化 flag 阻挡
+      const [dismissed, snoozed] = await Promise.all([
+        db.kv.get(DISMISS_KEY).catch(() => undefined),
+        db.kv.get(SNOOZE_KEY).catch(() => undefined),
+      ])
+      if (!alive) return
+      if (dismissed?.value === true) return
+      const until = typeof snoozed?.value === 'number' ? snoozed.value : 0
+      if (until > Date.now()) return // 24h 内已点过「稍后」
       const st = await systemAudioStatus()
       if (alive && st.supported && !st.permission_granted) setOpen(true)
     })()
     return () => {
       alive = false
     }
-  }, [setOpen])
+  }, [phase, open, setOpen])
 
   // 打开期间轮询授权状态
   useEffect(() => {
@@ -81,6 +96,11 @@ export default function PermissionGuide(): JSX.Element | null {
     await db.kv.put({ key: DISMISS_KEY, value: true })
     setOpen(false)
   }
+  /** 「稍后」：snooze 24h 后才会再自动弹；该段时间内手动入口仍可开 */
+  async function snooze(): Promise<void> {
+    await db.kv.put({ key: SNOOZE_KEY, value: Date.now() + SNOOZE_MS })
+    setOpen(false)
+  }
 
   return (
     <div
@@ -89,7 +109,7 @@ export default function PermissionGuide(): JSX.Element | null {
       aria-modal="true"
       aria-label="开启系统声音录制"
     >
-      <div className="w-full max-w-md rounded-xl border border-line bg-bg-raised shadow-xl p-5 space-y-4">
+      <div className="w-full max-w-md rounded-xl border border-line bg-bg-raise shadow-xl p-5 space-y-4">
         <div>
           <h2 className="text-base font-semibold text-text-1">
             {granted ? '✓ 系统声音已就绪' : '开启系统声音录制'}
@@ -129,7 +149,7 @@ export default function PermissionGuide(): JSX.Element | null {
         {!granted && (
           <div className="flex items-center gap-3 text-xs text-text-3 pt-1 border-t border-line">
             <span className="pt-2">不授权也能用：只录麦克风。</span>
-            <button className="pt-2 ml-auto hover:text-text-1" onClick={() => setOpen(false)}>稍后</button>
+            <button className="pt-2 ml-auto hover:text-text-1" onClick={() => void snooze()}>稍后</button>
             <button className="pt-2 hover:text-text-1" onClick={() => void neverRemind()}>不再提醒</button>
           </div>
         )}

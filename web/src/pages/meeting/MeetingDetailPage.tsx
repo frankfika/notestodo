@@ -8,10 +8,12 @@ import type { ChatMessage, Meeting, MeetingStatus, Scribble, SummaryTemplate, To
 import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
+import LevelMeter from '../../components/LevelMeter'
 import { runSummarizePipeline } from '../../pipeline/summarize'
 import { callLLM } from '../../llm/client'
 import { getSettings } from '../../db/settings'
 import { chunksInOrder } from '../../audio/merge'
+import { canPlayNatively, toWav } from '../../audio/playable'
 import { scribblesToMarkdown } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { attachTask, discardTask } from '../../lib/todoActions'
@@ -376,17 +378,36 @@ function LiveMeetingView({
   transcriptText: string | undefined
 }): JSX.Element {
   const captureMode = useRecorder((s) => s.captureMode)
+  const audioLevel = useRecorder((s) => s.audioLevel)
   const missing = useMissingBuiltin(useSettings())
+  // 'unsupported' 只代表系统音频（屏录）不可用，麦克风仍在录，绝不能误导成「音频不可用」。
   const captureLabel = captureMode === 'mic+system' ? '麦克风 + 系统音频'
-    : captureMode === 'mic-only' ? '仅麦克风' : '音频不可用'
+    : captureMode === 'mic-only' ? '仅麦克风'
+    : '仅麦克风（系统声音未授权）'
+
+  // 5 秒持续低于 0.02 → 提示检查输入设备；电平上来立刻收起。
+  // 用定时检查而不是只依赖 audioLevel 变化：完全静音时电平恒为 0，store 不会通知，effect 不会再跑。
+  const [micSilent, setMicSilent] = useState(false)
+  const lastLoudRef = useRef(Date.now())
+  if (audioLevel >= 0.02) lastLoudRef.current = Date.now()
+  useEffect(() => {
+    const t = setInterval(() => setMicSilent(Date.now() - lastLoudRef.current >= 5000), 500)
+    return () => clearInterval(t)
+  }, [])
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Live 头部 */}
       <div className="flex items-center gap-3 px-6 h-14 border-b border-line shrink-0">
         <LiveClock meetingId={meeting.id} />
+        <LevelMeter level={audioLevel} />
         <h1 className="text-base font-semibold text-text-1 truncate">{meeting.title}</h1>
         <span className="text-[11px] text-text-3 hidden sm:inline">{captureLabel}</span>
+        {micSilent && (
+          <span className="text-[11px] text-warning hidden md:inline" role="status">
+            没有听到声音？检查麦克风或系统输入设备
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[11px] text-text-3 hidden md:inline">散会后自动整理成笔记</span>
           <button
@@ -766,7 +787,10 @@ function AudioTab({
     [meetingId],
   ) ?? []
 
+  // 分片本身不记时长（恒为 0），以会议挂钟时长为准
+  const durationMs = useLiveQuery(async () => (await db.meetings.get(meetingId))?.audio.duration_ms, [meetingId])
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [forceWav, setForceWav] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -776,6 +800,7 @@ function AudioTab({
       return
     }
     let url: string | null = null
+    let cancelled = false
     try {
       // 与 mergeAudioChunks 共享同一排序规则 — 用户播放听到的就是转录用的音频
       const ordered = chunksInOrder(chunks).filter((c) => c.blob && c.blob.size > 0)
@@ -785,17 +810,42 @@ function AudioTab({
         return
       }
       const blob = new Blob(ordered.map((c) => c.blob), { type: ordered[0].blob.type || 'audio/webm' })
-      url = URL.createObjectURL(blob)
-      setAudioUrl(url)
-      setErr(null)
+      // 桌面版 WKWebView 播不了 WebM blob（转圈、时长 --:--）→ 解码后转 WAV 再播
+      if (canPlayNatively(blob.type) && !forceWav) {
+        url = URL.createObjectURL(blob)
+        setAudioUrl(url)
+        setErr(null)
+      } else {
+        setErr('正在准备回放…')
+        void toWav(blob)
+          .then((wav) => {
+            if (cancelled) return
+            url = URL.createObjectURL(wav)
+            setAudioUrl(url)
+            setErr(null)
+          })
+          .catch((e: unknown) => { if (!cancelled) setErr(`这段录音无法回放：${e instanceof Error ? e.message : String(e)}`) })
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setErr(msg)
     }
     return () => {
+      cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [chunks])
+  }, [chunks, forceWav])
+
+  // canPlayType 可能对 WebM 回答 "maybe" 却播不了：出错或 4 秒还没加载出时长 → 改走 WAV
+  const [metaLoaded, setMetaLoaded] = useState(false)
+  useEffect(() => {
+    if (!audioUrl || forceWav) return
+    setMetaLoaded(false)
+    const t = setTimeout(() => setForceWav((f) => f || !metaLoadedRef.current), 4000)
+    return () => clearTimeout(t)
+  }, [audioUrl, forceWav])
+  const metaLoadedRef = useRef(false)
+  metaLoadedRef.current = metaLoaded
 
   // 处理来自转录的 seek 请求：跳转到指定毫秒并自动播放
   useEffect(() => {
@@ -814,7 +864,7 @@ function AudioTab({
     <div className="card p-5 space-y-3">
       <div className="section-title">录音回放</div>
       <div className="text-xs text-text-3">
-        {chunks.length} 片 · 总时长 {fmtClock(chunks.reduce((a, c) => a + c.duration_ms, 0))}
+        {chunks.length} 片 · 总时长 {fmtClock(durationMs ?? chunks.reduce((a, c) => a + c.duration_ms, 0))}
         {seekRequest != null && (
           <span className="ml-2 text-accent">· 跳到 {fmtClock(seekRequest)}</span>
         )}
@@ -826,6 +876,8 @@ function AudioTab({
           src={audioUrl}
           className="w-full mt-2"
           preload="metadata"
+          onLoadedMetadata={() => setMetaLoaded(true)}
+          onError={() => setForceWav(true)}
           onTimeUpdate={(e) => {
             const t = (e.target as HTMLAudioElement).currentTime
             onPlayheadUpdate(Math.round(t * 1000))
