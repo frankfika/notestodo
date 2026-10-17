@@ -49,8 +49,9 @@ test('Tag 创建：TodoRow TagPicker 输入 → 新 tag + 绑定', async ({ page
   await todoRow.scrollIntoViewIfNeeded()
   await todoRow.hover()
   await page.waitForTimeout(400)
-  const editBtn = todoRow.locator('button[aria-label="编辑"]').first()
-  await editBtn.click({ timeout: 8_000 })
+  // ⋯ 菜单 → 编辑
+  await todoRow.locator('button[aria-label="更多操作"]').first().click({ timeout: 8_000 })
+  await page.getByRole('menuitem', { name: '编辑' }).click()
   await page.waitForTimeout(1000)
 
   // 2) TagPicker input 出现（onboarding 卡片可能短暂遮挡，用 attached 而非 visible）

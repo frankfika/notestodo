@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { create } from 'zustand'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { now, today as todayIso, uid } from '../../lib/id'
@@ -9,6 +10,7 @@ import TagPicker from '../../components/TagPicker'
 import TaskModeSwitch from '../../components/TaskModeSwitch'
 import QuickAddBar from '../../components/QuickAddBar'
 import { attachTask } from '../../lib/todoActions'
+import { dropPlan, levelOf, nudge, pathOf, reparent, validParents, type Patch } from '../../lib/okrMove'
 import {
   LEVELS, canParent, childLevels, childrenIndex, currentPeriod, inheritedScope,
   levelLabel, periodOf, periodRange, rollupProgress, shiftPeriod, subtreeIds, suggestKr, type Level,
@@ -46,7 +48,7 @@ interface Ctx {
  * OKR 页（嵌套：战略 → 季度 → 项目 → Task）。三种模式：
  *   Focus    —— 默认。Inbox + 本季度未完成 Task（+ 逾期），平铺，一键完成，无树
  *   Quarter  —— 选定季度的 季度 O → KR → 项目 O/KR → Task
- *   Strategy —— 全树；⋯ 里改父节点（规则见 lib/okr.ts），进度逐级汇总
+ *   Strategy —— 全树；拖拽 / ⋯「移动到…」换位置（规则见 lib/okrMove.ts），进度逐级汇总
  */
 export default function TodosPage(): JSX.Element {
   const raw = useLiveQuery(() => db.todos.toArray(), []) ?? []
@@ -113,8 +115,9 @@ export default function TodosPage(): JSX.Element {
             <div className="section-title">任务 · OKR</div>
             <h1 className="text-2xl font-semibold tracking-tight text-text-1 mt-1">目标与待办</h1>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <TaskModeSwitch />
+          {/* 手机上单独占一行：视角切换可横滑，「新建」不换行 */}
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2 min-w-0">
+            <div className="flex-1 min-w-0 sm:flex-none"><TaskModeSwitch /></div>
             <AddMenu levels={MODE_LEVELS[mode]} ctx={ctx} />
           </div>
         </div>
@@ -297,11 +300,12 @@ function QuarterView({ ctx, setPeriod }: { ctx: Ctx; setPeriod: (p: string) => v
         )}
         {otherCount > 0 && <span className="ml-auto text-[11px] text-text-3">其它季度 {otherCount} 个 O 已收起</span>}
       </div>
+      <InboxStrip ctx={ctx} />
       {roots.length === 0 ? (
         <div className="card">
           <EmptyState
             title={`${ctx.period} 还没有季度目标`}
-            hint="季度 O 挂在某个战略 KR 下：用右上「+」选「季度 O」，或在 Strategy 模式里从战略 KR 往下拆。"
+            hint="季度 O 挂在某个战略 KR 下：用右上「+ 新建」选「季度 O」，或在「战略」视图里从战略 KR 的 ＋ 往下拆。"
           />
         </div>
       ) : (
@@ -324,6 +328,7 @@ function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
   const [adding, setAdding] = useState(false)
   return (
     <div>
+      <InboxStrip ctx={ctx} />
       {roots.length === 0 ? (
         <div className="card">
           <EmptyState
@@ -349,49 +354,112 @@ function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
 function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }): JSX.Element {
   const [open, setOpen] = useState(true)
   const [adding, setAdding] = useState<Level | null>(null)
-  const children = (ctx.kids.get(node.id) ?? []).filter((c) => c.kind !== 'task' || matchesTag(c, ctx))
+  const [zone, setZone] = useState<DropZone | null>(null)
+  const children = [...(ctx.kids.get(node.id) ?? [])]
+    .filter((c) => c.kind !== 'task' || matchesTag(c, ctx))
+    .sort((x, y) => x.sort_order - y.sort_order)
   const options = node.kind === 'task' ? [] : childLevels(node)
   const isRoot = depth === 0
+  const dragging = useDrag((st) => st.id)
 
-  const body = (
-    <>
-      <div className="flex items-start gap-1">
-        {node.kind !== 'task' && (
+  // 拖拽：上 1/4 放前面、下 1/4 放后面、中间挂进来（只有 O/KR 能挂）；非法落点不高亮、不接收
+  function zoneAt(e: React.DragEvent): DropZone {
+    const r = e.currentTarget.getBoundingClientRect()
+    const y = (e.clientY - r.top) / r.height
+    if (node.kind === 'task') return y < 0.5 ? 'before' : 'after'
+    return y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'inside'
+  }
+  function planFor(z: DropZone): Patch[] | null {
+    const dragged = dragging ? ctx.byId.get(dragging) : undefined
+    if (!dragged || dragged.id === node.id) return null
+    const plan = dropPlan(dragged, node, z, ctx.all)
+    return 'error' in plan ? null : plan
+  }
+  const zoneClass = zone === 'before' ? 'shadow-[inset_0_2px_0_var(--accent)]'
+    : zone === 'after' ? 'shadow-[inset_0_-2px_0_var(--accent)]'
+    : zone === 'inside' ? 'bg-accent/10 ring-1 ring-accent/40' : ''
+
+  const startAdd = (l: Level): void => { setOpen(true); setAdding(l) }
+
+  return (
+    <div data-todo-id={node.id} className={isRoot ? 'card px-2 md:px-3 py-1.5' : ''}>
+      <div
+        draggable
+        onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', node.id); e.dataTransfer.effectAllowed = 'move'; useDrag.setState({ id: node.id }) }}
+        onDragEnd={() => { useDrag.setState({ id: null }); setZone(null) }}
+        onDragOver={(e) => {
+          e.stopPropagation()
+          const z = zoneAt(e)
+          if (planFor(z)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (z !== zone) setZone(z) } else if (zone) setZone(null)
+        }}
+        onDragLeave={() => setZone(null)}
+        onDrop={(e) => {
+          e.preventDefault(); e.stopPropagation()
+          const z = zoneAt(e)
+          const plan = planFor(z)
+          setZone(null); useDrag.setState({ id: null })
+          if (plan) void applyPatches(plan, ctx.all).then(() => { if (z === 'inside') setOpen(true) })
+        }}
+        className={`flex items-start gap-1 rounded-md transition-colors ${zoneClass} ${dragging === node.id ? 'opacity-40' : ''}`}
+      >
+        {node.kind !== 'task' ? (
           <button
             onClick={() => setOpen((v) => !v)}
-            className={`mt-2 h-4 w-4 shrink-0 text-[10px] text-text-3 hover:text-text-1 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+            className="mt-1 h-6 w-5 shrink-0 flex items-center justify-center text-[11px] text-text-3 hover:text-text-1"
             aria-label={open ? '收起' : '展开'}
-          >▸</button>
-        )}
-        <div className="flex-1 min-w-0"><TodoLine todo={node} ctx={ctx} /></div>
+            aria-expanded={open}
+          ><span className={`inline-block transition-transform duration-150 ${open ? 'rotate-90' : ''}`}>▸</span></button>
+        ) : <span className="w-5 shrink-0" />}
+        <div className="flex-1 min-w-0"><TodoLine todo={node} ctx={ctx} addOptions={options} onAdd={startAdd} /></div>
       </div>
-      {open && (children.length > 0 || options.length > 0) && (
-        <div className="ml-5 pl-3 border-l border-line space-y-0.5">
-          {children.map((c) => <div key={c.id}><OkrNode node={c} ctx={ctx} depth={depth + 1} /></div>)}
-          {adding ? (
-            <InlineAdd
-              placeholder={`${levelLabel(adding)} 标题，回车创建`}
-              onDone={() => setAdding(null)}
-              onSubmit={(title) => createNode(adding, node, title)}
-            />
-          ) : options.length > 0 && (
-            <div className="flex items-center gap-1 py-0.5">
-              {options.map((l) => (
-                <button
-                  key={`${l.kind}:${l.scope}`}
-                  onClick={() => setAdding(l)}
-                  className="text-[11px] text-text-3 hover:text-accent px-1.5 h-6 rounded hover:bg-bg-overlay transition-colors"
-                >+ {levelLabel(l)}</button>
-              ))}
+      {open && (children.length > 0 || adding) && (
+        <div className="ml-2.5 md:ml-4 pl-1.5 md:pl-3 border-l border-line">
+          {children.map((c) => <OkrNode key={c.id} node={c} ctx={ctx} depth={depth + 1} />)}
+          {adding && (
+            <div className="pl-6">
+              <InlineAdd
+                placeholder={`${levelLabel(adding)} 标题，回车创建`}
+                onDone={() => setAdding(null)}
+                onSubmit={(title) => createNode(adding, node, title)}
+              />
             </div>
           )}
         </div>
       )}
-    </>
+    </div>
   )
+}
 
+/** Inbox（未挂 KR 的任务）放进树视图顶部：可以直接拖到 KR 上；把树里的任务拖回这里 = 取消挂载 */
+function InboxStrip({ ctx }: { ctx: Ctx }): JSX.Element | null {
+  const inbox = ctx.all
+    .filter((t) => t.kind === 'task' && t.parent_id === null && (t.status === 'open' || t.status === 'pending_review') && matchesTag(t, ctx))
+    .sort((a, b) => a.sort_order - b.sort_order)
+  const dragging = useDrag((st) => st.id)
+  const [over, setOver] = useState(false)
+  const dragged = dragging ? ctx.byId.get(dragging) : undefined
+  const canDrop = !!dragged && dragged.kind === 'task' && dragged.parent_id !== null
+  if (inbox.length === 0 && !canDrop) return null
   return (
-    <div data-todo-id={node.id} className={isRoot ? 'card px-3 py-2' : ''}>{body}</div>
+    <section
+      onDragOver={(e) => { if (canDrop) { e.preventDefault(); setOver(true) } }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault(); setOver(false); useDrag.setState({ id: null })
+        if (!dragged || !canDrop) return
+        const r = reparent(dragged, null, ctx.all)
+        if (!('error' in r)) void applyPatches([r], ctx.all)
+      }}
+      className={`card px-2 md:px-3 py-2 mb-3 transition-colors ${over ? 'ring-1 ring-accent/50 bg-accent/5' : ''}`}
+    >
+      <div className="flex items-baseline gap-2 px-1 mb-1">
+        <span className="section-title">Inbox</span>
+        <span className="text-[11px] text-text-3 tabular-nums">{inbox.length}</span>
+        <span className="text-[11px] text-text-3 ml-auto hidden sm:inline">拖到下面的 KR 上即可归位 · 或用 ⋯ →「移动到…」</span>
+      </div>
+      {inbox.length === 0 ? <p className="text-[12px] text-text-3 px-1 py-1">放到这里 = 移出 KR，回到 Inbox</p>
+        : inbox.map((t) => <OkrNode key={t.id} node={t} ctx={ctx} depth={1} />)}
+    </section>
   )
 }
 
@@ -462,7 +530,7 @@ function AddMenu({ levels, ctx }: { levels: Level[]; ctx: Ctx }): JSX.Element {
     <div className="relative">
       <button
         onClick={() => (levels.length === 1 && !open ? (setOpen(true), pick(levels[0])) : setOpen((v) => !v))}
-        className="btn-primary text-sm h-8 px-3"
+        className="btn-primary text-sm h-8 px-3 whitespace-nowrap shrink-0"
       >+ 新建</button>
       {open && (
         <>
@@ -537,8 +605,16 @@ function ProgressBar({ value }: { value: number }): JSX.Element {
   )
 }
 
-function TodoLine({ todo, ctx, showParent }: { todo: Todo; ctx: Ctx; showParent?: boolean }): JSX.Element {
+function TodoLine({ todo, ctx, showParent, addOptions = [], onAdd }: {
+  todo: Todo
+  ctx: Ctx
+  showParent?: boolean
+  /** 树视图里：可新增的子层级（＋ 按钮） */
+  addOptions?: Level[]
+  onAdd?: (l: Level) => void
+}): JSX.Element {
   const [editing, setEditing] = useState(false)
+  const [moving, setMoving] = useState(false)
   const isDone = todo.status === 'done'
   const isTask = todo.kind === 'task'
   const goMeeting = useUI((s) => s.goMeeting)
@@ -621,19 +697,35 @@ function TodoLine({ todo, ctx, showParent }: { todo: Todo; ctx: Ctx; showParent?
               </button>
             ))}
           </div>
-          {!isTask && (ctx.kids.get(todo.id)?.length ?? 0) > 0 && <ProgressBar value={progress} />}
+          {!isTask && progress > 0 && <ProgressBar value={progress} />}
         </div>
-        {!isTask && (ctx.kids.get(todo.id)?.length ?? 0) > 0 && (
-          <span className="mt-[3px] text-[11px] text-text-3 tabular-nums">{Math.round(progress * 100)}%</span>
+        {!isTask && progress > 0 && (
+          <span className="mt-[3px] text-[11px] text-text-3 tabular-nums shrink-0">{Math.round(progress * 100)}%</span>
         )}
-        <button
-          onClick={() => setEditing((v) => !v)}
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity icon-btn !h-7 !w-7"
-          aria-label="编辑"
-          title="编辑"
-        >⋯</button>
+        {/* 行操作：桌面悬停出现，触屏常驻 */}
+        <div className="flex items-center shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
+          {onAdd && addOptions.length > 0 && (
+            <RowMenu
+              label="＋"
+              title="新增下级"
+              items={addOptions.map((l) => ({ label: `新增${levelLabel(l)}`, run: () => onAdd(l) }))}
+            />
+          )}
+          <RowMenu
+            label="⋯"
+            title="更多操作"
+            items={[
+              { label: '编辑', run: () => setEditing(true) },
+              { label: '移动到…', run: () => setMoving(true) },
+              { label: '上移', run: () => void applyPatches(nudge(siblingsOf(todo, ctx), todo.id, -1), ctx.all) },
+              { label: '下移', run: () => void applyPatches(nudge(siblingsOf(todo, ctx), todo.id, 1), ctx.all) },
+              { label: '删除', danger: true, run: () => void removeNode(todo, ctx.all) },
+            ]}
+          />
+        </div>
       </div>
       {editing && <EditPopover todo={todo} ctx={ctx} onClose={() => setEditing(false)} />}
+      {moving && <MovePicker todo={todo} ctx={ctx} onClose={() => setMoving(false)} />}
     </div>
   )
 }
@@ -642,42 +734,26 @@ function EditPopover({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: ()
   const [title, setTitle] = useState(todo.title)
   const [due, setDue] = useState(todo.due_date ?? '')
   const [assignee, setAssignee] = useState(todo.assignee ?? '')
-  const [parentId, setParentId] = useState<string>(todo.parent_id ?? '')
   const [period, setPeriod] = useState(todo.period ?? '')
   const [weight, setWeight] = useState(todo.weight != null ? String(todo.weight) : '')
   const [err, setErr] = useState<string | null>(null)
-
-  const level: Level = { kind: todo.kind, scope: todo.kind === 'task' ? null : todo.scope }
-  const parentOptions = useMemo(() => {
-    const own = subtreeIds(todo.id, ctx.all)
-    return ctx.all.filter((t) => !own.has(t.id) && t.status !== 'cancelled' && canParent(level, t))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todo.id, ctx.all])
-  const rootOk = canParent(level, null)
-  const parentWeighted = todo.parent_id !== null
+  const level = levelOf(todo)
 
   async function save(): Promise<void> {
-    const parent = parentId ? ctx.byId.get(parentId) ?? null : null
-    if (!canParent(level, parent)) {
-      setErr(`${levelLabel(level)} 不能挂在 ${parent ? levelLabel(parent) : '根'} 下`)
-      return
-    }
-    if (todo.scope === 'quarterly' && !/^\d{4}-Q[1-4]$/.test(period)) {
-      setErr('季度节点需要 period，格式如 2026-Q4')
+    if (todo.scope === 'quarterly' && todo.kind !== 'task' && !/^\d{4}-Q[1-4]$/.test(period)) {
+      setErr('季度格式如 2026-Q4')
       return
     }
     const w = weight.trim() === '' ? undefined : Number(weight)
     if (w !== undefined && !(w >= 0 && w <= 1)) {
-      setErr('权重需在 0–1 之间')
+      setErr('占比需在 0–1 之间（如 0.5 表示占一半）')
       return
     }
     await db.todos.update(todo.id, {
       title: title.trim() || todo.title,
       due_date: due || undefined,
       assignee: assignee.trim(),
-      parent_id: parent?.id ?? null,
-      scope: inheritedScope(level, parent),
-      period: todo.scope === 'quarterly' ? period : todo.period,
+      period: todo.scope === 'quarterly' && todo.kind !== 'task' ? period : todo.period,
       weight: w,
       updated_at: now(),
       sync_version: todo.sync_version + 1,
@@ -685,42 +761,25 @@ function EditPopover({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: ()
     onClose()
   }
 
-  async function remove(): Promise<void> {
-    const ids = [...subtreeIds(todo.id, ctx.all)]
-    const extra = ids.length - 1
-    if (!window.confirm(`删除「${todo.title}」${extra > 0 ? `及其下 ${extra} 项` : ''}？`)) return
-    const ts = now()
-    await db.transaction('rw', db.todos, db.tagBindings, async () => {
-      for (const id of ids) {
-        await db.todos.update(id, { deleted_at: ts, updated_at: ts, status: 'cancelled' })
-      }
-      // 同步软删除 tagBindings —— 否则 tag 计数虚高
-      const bindings = await db.tagBindings
-        .where('target_type').equals('todo')
-        .and((b) => ids.includes(b.target_id) && b.deleted_at === null)
-        .toArray()
-      for (const b of bindings) {
-        await db.tagBindings.update(b.id, { deleted_at: ts, updated_at: ts })
-      }
-    })
-    onClose()
-  }
-
   return (
-    <div className="ml-6 mb-3 mt-1 rounded-xl border border-line bg-bg-overlay p-3 space-y-3 text-sm">
+    <div
+      className="ml-0 md:ml-6 mb-3 mt-1 rounded-xl border border-line bg-bg-overlay p-3 space-y-3 text-sm"
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void save() }}
+    >
       <div className="flex flex-col gap-1">
         <label className="label">标题 · {levelLabel(level)}</label>
-        <input className="input h-8" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        <input className="input h-8" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void save() }} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <label className="label">截止日期</label>
           <input type="date" className="input h-8" value={due} onChange={(e) => setDue(e.target.value)} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="label">负责人</label>
-          <input className="input h-8" placeholder="@姓名" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
+          <input className="input h-8" placeholder="姓名" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
         </div>
         {todo.scope === 'quarterly' && todo.kind !== 'task' && (
           <div className="flex flex-col gap-1">
@@ -728,37 +787,176 @@ function EditPopover({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: ()
             <input className="input h-8" placeholder="2026-Q4" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </div>
         )}
-        {parentWeighted && (
-          <div className="flex flex-col gap-1">
-            <label className="label">汇总权重（0–1，默认 1）</label>
-            <input className="input h-8" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
-          </div>
-        )}
       </div>
-
-      {(parentOptions.length > 0 || !rootOk) && (
-        <div className="flex flex-col gap-1">
-          <label className="label">父节点</label>
-          <select className="input h-8" value={parentId} onChange={(e) => setParentId(e.target.value)}>
-            {rootOk && <option value="">{todo.kind === 'task' ? 'Inbox（不挂 KR）' : '（根）'}</option>}
-            {!rootOk && !parentId && <option value="">（请选择）</option>}
-            {parentOptions.map((o) => (
-              <option key={o.id} value={o.id}>{levelLabel(o)} · {o.title}{o.period ? ` (${o.period})` : ''}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       <div>
         <label className="label">标签</label>
         <TagPicker targetType="todo" targetId={todo.id} />
       </div>
 
+      {todo.parent_id !== null && (
+        <details className="text-[12px]">
+          <summary className="cursor-pointer text-text-3">高级</summary>
+          <div className="flex flex-col gap-1 mt-2 max-w-[240px]">
+            <label className="label">在上级进度中的占比（0–1，默认 1）</label>
+            <input className="input h-8" inputMode="decimal" placeholder="1" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </div>
+        </details>
+      )}
+
       {err && <div className="text-[11px] text-danger">{err}</div>}
       <div className="flex items-center gap-2 pt-1">
         <button onClick={() => void save()} className="btn-primary text-xs h-8 px-3">保存</button>
         <button onClick={onClose} className="btn-ghost text-xs h-8 px-3">取消</button>
-        <button onClick={() => void remove()} className="btn-danger text-xs h-8 px-3 ml-auto">删除</button>
+        <span className="text-[11px] text-text-3 ml-auto hidden sm:inline">换位置：⋯ →「移动到…」或直接拖动</span>
+      </div>
+    </div>
+  )
+}
+
+// ── 移动 / 排序 / 删除（所有写操作走 lib/okrMove 校验）───────────────────
+
+type DropZone = 'before' | 'after' | 'inside'
+
+/** 正在拖动的节点（树里任意层级都能读到） */
+const useDrag = create<{ id: string | null }>(() => ({ id: null }))
+
+async function applyPatches(patches: Patch[], all: Todo[]): Promise<void> {
+  if (patches.length === 0) return
+  const ts = now()
+  await db.transaction('rw', db.todos, async () => {
+    for (const p of patches) {
+      const cur = all.find((t) => t.id === p.id)
+      await db.todos.update(p.id, { ...p.changes, updated_at: ts, sync_version: (cur?.sync_version ?? 0) + 1 })
+    }
+  })
+}
+
+function siblingsOf(todo: Todo, ctx: Ctx): Todo[] {
+  return (ctx.kids.get(todo.parent_id) ?? []).filter((t) => t.deleted_at === null && (todo.kind === 'task') === (t.kind === 'task'))
+}
+
+async function removeNode(todo: Todo, all: Todo[]): Promise<void> {
+  const ids = [...subtreeIds(todo.id, all)]
+  const extra = ids.length - 1
+  if (!window.confirm(`删除「${todo.title}」${extra > 0 ? `及其下 ${extra} 项` : ''}？`)) return
+  const ts = now()
+  await db.transaction('rw', db.todos, db.tagBindings, async () => {
+    for (const id of ids) {
+      await db.todos.update(id, { deleted_at: ts, updated_at: ts, status: 'cancelled' })
+    }
+    // 同步软删除 tagBindings —— 否则 tag 计数虚高
+    const bindings = await db.tagBindings
+      .where('target_type').equals('todo')
+      .and((b) => ids.includes(b.target_id) && b.deleted_at === null)
+      .toArray()
+    for (const b of bindings) {
+      await db.tagBindings.update(b.id, { deleted_at: ts, updated_at: ts })
+    }
+  })
+}
+
+/** 小下拉菜单（＋ 新增下级 / ⋯ 更多） */
+function RowMenu({ label, title, items }: {
+  label: string
+  title: string
+  items: { label: string; run: () => void; danger?: boolean }[]
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+        className="icon-btn !h-7 !w-7 text-[13px]"
+        aria-label={title}
+        title={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >{label}</button>
+      {open && (
+        <>
+          {/* 菜单要压过右下角的引导卡片等浮层（z-40） */}
+          <div className="fixed inset-0 z-[44]" onClick={() => setOpen(false)} />
+          <ul role="menu" className="absolute right-0 z-[45] mt-1 min-w-[132px] card p-1 shadow-lg text-[13px]">
+            {items.map((it) => (
+              <li key={it.label}>
+                <button
+                  role="menuitem"
+                  onClick={() => { setOpen(false); it.run() }}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-md hover:bg-bg-overlay ${it.danger ? 'text-danger' : 'text-text-1'}`}
+                >{it.label}</button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** 「移动到…」：只列合法的目标（带完整路径），可搜索、键盘上下选、回车确认 */
+function MovePicker({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: () => void }): JSX.Element {
+  const [q, setQ] = useState('')
+  const [idx, setIdx] = useState(0)
+  const [err, setErr] = useState<string | null>(null)
+  const { parents, rootOk } = useMemo(() => validParents(todo, ctx.all), [todo, ctx.all])
+  const options = useMemo(() => {
+    const rows: { id: string | null; title: string; badge: string; path: string }[] = []
+    if (rootOk) rows.push({ id: null, title: todo.kind === 'task' ? 'Inbox（不挂 KR）' : '最外层', badge: '', path: '' })
+    for (const p of parents) rows.push({ id: p.id, title: p.title, badge: levelLabel(levelOf(p)), path: pathOf(p, ctx.byId).join(' › ') })
+    const k = q.trim().toLowerCase()
+    return k ? rows.filter((r) => `${r.title} ${r.path}`.toLowerCase().includes(k)) : rows
+  }, [parents, rootOk, q, todo.kind, ctx.byId])
+
+  async function choose(id: string | null): Promise<void> {
+    const parent = id ? ctx.byId.get(id) ?? null : null
+    const r = reparent(todo, parent, ctx.all)
+    if ('error' in r) { setErr(r.error); return }
+    // 放到新位置的末尾
+    const last = Math.max(0, ...(ctx.kids.get(id) ?? []).map((t) => t.sort_order))
+    await applyPatches([{ id: todo.id, changes: { ...r.changes, sort_order: last + 10 } }], ctx.all)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[12vh]" onClick={onClose}>
+      <div className="w-full max-w-md card p-0 overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="移动到">
+        <div className="px-4 pt-3 pb-2 border-b border-line">
+          <div className="text-[11px] text-text-3 truncate">移动「{todo.title}」到…</div>
+          <input
+            autoFocus
+            className="input h-9 mt-2"
+            placeholder="搜索 KR / 目标"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setIdx(0) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onClose()
+              if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, options.length - 1)) }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)) }
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && options[idx]) void choose(options[idx].id)
+            }}
+          />
+        </div>
+        <ul className="max-h-[50vh] overflow-y-auto p-1">
+          {options.length === 0 && <li className="px-3 py-6 text-center text-[12px] text-text-3">没有可以放的位置</li>}
+          {options.map((o, i) => (
+            <li key={o.id ?? 'root'}>
+              <button
+                onClick={() => void choose(o.id)}
+                onMouseEnter={() => setIdx(i)}
+                className={`w-full text-left px-3 py-2 rounded-md ${i === idx ? 'bg-bg-overlay' : ''} ${o.id === todo.parent_id ? 'opacity-50' : ''}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {o.badge && <span className="shrink-0 text-[10px] font-semibold px-1.5 h-4 leading-4 rounded bg-bg-overlay text-text-2">{o.badge}</span>}
+                  <span className="text-sm text-text-1 truncate">{o.title}</span>
+                  {o.id === todo.parent_id && <span className="text-[11px] text-text-3 shrink-0">当前</span>}
+                </div>
+                {o.path && <div className="text-[11px] text-text-3 truncate mt-0.5">{o.path}</div>}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {err && <div className="px-4 pb-3 text-[12px] text-danger">{err}</div>}
       </div>
     </div>
   )

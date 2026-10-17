@@ -72,16 +72,13 @@ test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', asy
   let chipText = await page.locator('button:has-text("#counted")').first().innerText()
   expect(chipText).toMatch(/2/) // bug 状态下应见 2
 
-  // 2) 打开「将被删除的任务」的 edit popover → 点删除按钮
+  // 2) 「将被删除的任务」的 ⋯ 菜单 → 删除
   const todoRow = page.locator('div.group:has-text("将被删除的任务")').first()
   await todoRow.scrollIntoViewIfNeeded()
   await todoRow.hover()
   await page.waitForTimeout(300)
-  await todoRow.locator('button[aria-label="编辑"]').first().click({ timeout: 8_000 })
-  await page.waitForTimeout(800)
-  // popover 里的「删除」按钮（btn-danger，最后一个，ml-auto）—— 用 JS click
-  // 避开 onboarding 卡片可能短暂遮挡的视觉检测
-  await page.locator('.btn-danger:has-text("删除")').last().dispatchEvent('click')
+  await todoRow.locator('button[aria-label="更多操作"]').first().click({ timeout: 8_000 })
+  await page.getByRole('menuitem', { name: '删除' }).click()
   await page.waitForTimeout(1500)
 
   // 3) 修复后：chip 应显示 #counted 1
