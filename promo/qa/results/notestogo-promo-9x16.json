@@ -1,0 +1,166 @@
+{
+  "target": "promo/build/out/notestogo-promo-9x16.mp4",
+  "spec": "sync",
+  "worst": "PASS",
+  "meta": {
+    "srt": "promo/script/subtitles-zh-9x16.srt",
+    "vo_dir": "promo/audio/vo",
+    "vo_filtered_by_timeline": [
+      "vo-01",
+      "vo-03",
+      "vo-04",
+      "vo-06",
+      "vo-08",
+      "vo-10"
+    ],
+    "vo_files": [
+      "promo/audio/vo/vo-01.wav",
+      "promo/audio/vo/vo-03.wav",
+      "promo/audio/vo/vo-04.wav",
+      "promo/audio/vo/vo-06.wav",
+      "promo/audio/vo/vo-08.wav",
+      "promo/audio/vo/vo-10.wav"
+    ],
+    "video_audio_samples_16k": 983381,
+    "vo_locations": [
+      {
+        "ok": true,
+        "lag_s": 0.4,
+        "ncc": 0.9810773593207089,
+        "vo_onset_in_file_s": 0.2,
+        "vo_speech_start_in_video_s": 0.6,
+        "search_range_s": 55.955,
+        "vo_id": "vo-01"
+      },
+      {
+        "ok": true,
+        "lag_s": 5.926,
+        "ncc": 0.9774191392494487,
+        "vo_onset_in_file_s": 0.135,
+        "vo_speech_start_in_video_s": 6.061,
+        "search_range_s": 49.669625,
+        "vo_id": "vo-03"
+      },
+      {
+        "ok": true,
+        "lag_s": 17.837,
+        "ncc": 0.9728299555566948,
+        "vo_onset_in_file_s": 0.16,
+        "vo_speech_start_in_video_s": 17.997,
+        "search_range_s": 49.2185625,
+        "vo_id": "vo-04"
+      },
+      {
+        "ok": true,
+        "lag_s": 30.2,
+        "ncc": 0.9691196572404931,
+        "vo_onset_in_file_s": 0.18,
+        "vo_speech_start_in_video_s": 30.38,
+        "search_range_s": 49.7968125,
+        "vo_id": "vo-06"
+      },
+      {
+        "ok": true,
+        "lag_s": 41.986,
+        "ncc": 0.9774355557208927,
+        "vo_onset_in_file_s": 0.14,
+        "vo_speech_start_in_video_s": 42.126,
+        "search_range_s": 48.762125,
+        "vo_id": "vo-08"
+      },
+      {
+        "ok": true,
+        "lag_s": 54.805,
+        "ncc": 0.9622649084609127,
+        "vo_onset_in_file_s": 0.135,
+        "vo_speech_start_in_video_s": 54.94,
+        "search_range_s": 55.0344375,
+        "vo_id": "vo-10"
+      }
+    ],
+    "pairs": [
+      {
+        "vo_id": "vo-01",
+        "measured_vo_start_s": 0.6,
+        "ncc": 0.981,
+        "srt_start_s": 0.47,
+        "srt_text": "开会时，你在讨论，还是在抄笔记？",
+        "declared_vo_start_s": 0.0,
+        "delta_srt_vs_measured_s": -0.13,
+        "delta_declared_vs_measured_s": -0.6
+      },
+      {
+        "vo_id": "vo-03",
+        "measured_vo_start_s": 6.061,
+        "ncc": 0.977,
+        "srt_start_s": 5.996,
+        "srt_text": "⌘⇧R 一键开录 · 会中只记关键词，回车即存",
+        "declared_vo_start_s": 5.526,
+        "delta_srt_vs_measured_s": -0.065,
+        "delta_declared_vs_measured_s": -0.535
+      },
+      {
+        "vo_id": "vo-04",
+        "measured_vo_start_s": 17.997,
+        "ncc": 0.973,
+        "srt_start_s": 17.908,
+        "srt_text": "一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用",
+        "declared_vo_start_s": 17.438,
+        "delta_srt_vs_measured_s": -0.089,
+        "delta_declared_vs_measured_s": -0.559
+      },
+      {
+        "vo_id": "vo-06",
+        "measured_vo_start_s": 30.38,
+        "ncc": 0.969,
+        "srt_start_s": 30.271,
+        "srt_text": "嵌套 OKR · 战略 → 季度 → 项目 → 任务",
+        "declared_vo_start_s": 29.801,
+        "delta_srt_vs_measured_s": -0.109,
+        "delta_declared_vs_measured_s": -0.579
+      },
+      {
+        "vo_id": "vo-08",
+        "measured_vo_start_s": 42.126,
+        "ncc": 0.977,
+        "srt_start_s": 42.056,
+        "srt_text": "桌面版内置模型 · 断网可用 · 数据去向如实自检",
+        "declared_vo_start_s": 41.586,
+        "delta_srt_vs_measured_s": -0.07,
+        "delta_declared_vs_measured_s": -0.54
+      },
+      {
+        "vo_id": "vo-10",
+        "measured_vo_start_s": 54.94,
+        "ncc": 0.962,
+        "srt_start_s": 54.875,
+        "srt_text": "github.com/frankfika/notestodo · 本地优先 · 开源",
+        "declared_vo_start_s": 54.405,
+        "delta_srt_vs_measured_s": -0.065,
+        "delta_declared_vs_measured_s": -0.535
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "S6.4",
+      "title": "解析字幕文件",
+      "status": "PASS",
+      "detail": "",
+      "expected": "≥1 条字幕",
+      "actual": "6 条",
+      "command": "python3 -c \"parse_srt('promo/script/subtitles-zh-9x16.srt')\"",
+      "evidence": "[\n {\n  \"index\": \"1\",\n  \"start_s\": 0.47,\n  \"end_s\": 5.776,\n  \"text\": \"开会时，你在讨论，还是在抄笔记？\"\n },\n {\n  \"index\": \"2\",\n  \"start_s\": 5.996,\n  \"end_s\": 17.588,\n  \"text\": \"⌘⇧R 一键开录 · 会中只记关键词，回车即存\"\n },\n {\n  \"index\": \"3\",\n  \"start_s\": 17.908,\n  \"end_s\": 29.951,\n  \"text\": \"一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用\"\n }\n]"
+    },
+    {
+      "id": "S6.5",
+      "title": "字幕起点 vs 成片中 VO 起点（互相关实测）",
+      "status": "PASS",
+      "detail": "全部条目互相关置信度 ≥0.15",
+      "expected": "每条 |偏差| < 300 ms（标称 -80 ms = 字幕领先人声）",
+      "actual": "最大 |偏差| 130 ms（6 条）；与标称口径最大偏离 50 ms",
+      "command": "/opt/homebrew/bin/ffmpeg … -f f32le -  # 解码混音与各 VO，归一化互相关定位",
+      "evidence": "[\n {\n  \"vo_id\": \"vo-01\",\n  \"measured_vo_start_s\": 0.6,\n  \"ncc\": 0.981,\n  \"srt_start_s\": 0.47,\n  \"srt_text\": \"开会时，你在讨论，还是在抄笔记？\",\n  \"declared_vo_start_s\": 0.0,\n  \"delta_srt_vs_measured_s\": -0.13,\n  \"delta_declared_vs_measured_s\": -0.6\n },\n {\n  \"vo_id\": \"vo-03\",\n  \"measured_vo_start_s\": 6.061,\n  \"ncc\": 0.977,\n  \"srt_start_s\": 5.996,\n  \"srt_text\": \"⌘⇧R 一键开录 · 会中只记关键词，回车即存\",\n  \"declared_vo_start_s\": 5.526,\n  \"delta_srt_vs_measured_s\": -0.065,\n  \"delta_declared_vs_measured_s\": -0.535\n },\n {\n  \"vo_id\": \"vo-04\",\n  \"measured_vo_start_s\": 17.997,\n  \"ncc\": 0.973,\n  \"srt_start_s\": 17.908,\n  \"srt_text\": \"一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用\",\n  \"declared_vo_start_s\": 17.438,\n  \"delta_srt_vs_measured_s\": -0.089,\n  \"delta_declared_vs_measured_s\": -0.559\n },\n {\n  \"vo_id\": \"vo-06\",\n  \"measured_vo_start_s\": 30.38,\n  \"ncc\": 0.969,\n  \"srt_start_s\": 30.271,\n  \"srt_text\": \"嵌套 OKR · 战略 → 季度 → 项目 → 任务\",\n  \"declared_vo_start_s\": 29.801,\n  \"delta_srt_vs_measured_s\": -0.109,\n  \"delta_declared_vs_measured_s\": -0.579\n },\n {\n  \"vo_id\": \"vo-08\",\n  \"measured_vo_start_s\": 42.126,\n  \"ncc\": 0.977,\n  \"srt_start_s\": 42.056,\n  \"srt_text\": \"桌面版内置模型 · 断网可用 · 数据去向如实自检\",\n  \"declared_vo_start_s\": 41.586,\n  \"delta_srt_vs_measured_s\": -0.07,\n  \"delta_declared_vs_measured_s\": -0.54\n },\n {\n  \"vo_id\": \"vo-10\",\n  \"measured_vo_start_s\": 54.94,\n  \"ncc\": 0.962,\n  \"srt_start_s\": 54.875,\n  \"srt_text\": \"github.com/frankfika/notestodo · 本地优先 · 开源\",\n  \"declared_vo_start_s\": 54.405,\n  \"delta_srt_vs_measured_s\": -0.065,\n  \"delta_declared_vs_measured_s\": -0.535\n }\n]"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "ke-1",
+    "folder": "/Users/fangchen/Documents/拾贝知识库",
+    "path": "/Users/fangchen/Documents/拾贝知识库/竞品调研-会议笔记类产品.md",
+    "title": "竞品调研：会议笔记类产品",
+    "snippet": "一次成稿、原文引用、本地优先是三条被反复提到的差异点。",
+    "fullText": "一次成稿：散会后一次调用完成标题、纪要、行动项。原文引用：行动项必须能跳回转录原句。本地优先：录音与纪要默认不出本机。说话人区分：中文场景必须可用。周报自动化：数据都在库里，不该让用户手写。",
+    "mtime": 1792238221433,
+    "size_bytes": 95,
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "ke-2",
+    "folder": "/Users/fangchen/Documents/拾贝知识库",
+    "path": "/Users/fangchen/Documents/拾贝知识库/术语表-拾贝产品词条.md",
+    "title": "术语表：拾贝产品词条",
+    "snippet": "拾贝、一次成稿、嵌套 OKR、重新整理、数据去向。",
+    "fullText": "拾贝 NotesToGO：本产品。一次成稿：散会后一次 LLM 调用产出标题 + 纪要 + 行动项。重新整理：用最新速记与转录重跑纪要管线。嵌套 OKR：战略 → 季度 → 项目 → 任务。数据去向：如实标出会议内容会去哪里。热词表：提高专有名词识别率。",
+    "mtime": 1792238221433,
+    "size_bytes": 127,
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "ke-3",
+    "folder": "/Users/fangchen/Documents/拾贝知识库",
+    "path": "/Users/fangchen/Documents/拾贝知识库/Q3-复盘-中文转录质量.md",
+    "title": "Q3 复盘：中文转录质量",
+    "snippet": "专有名词识别率是纪要可信度的上限，热词表投入产出最高。",
+    "fullText": "Q3 复盘：中文会议转录的主要错误集中在专有名词（产品名、人名、缩写）。热词表 hotwords 接入后，专有名词错误率下降明显。周报与纪要的信任度取决于转录质量。",
+    "mtime": 1792238221433,
+    "size_bytes": 82,
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "ke-4",
+    "folder": "/Users/fangchen/Documents/拾贝知识库",
+    "path": "/Users/fangchen/Documents/拾贝知识库/客户访谈-会议记录习惯.md",
+    "title": "客户访谈：会议记录习惯",
+    "snippet": "会中只记关键词，散会后靠转录补全；最怕纪要找不到出处。",
+    "fullText": "受访者普遍表示：会中记全反而漏听讨论。散会后最在意的是「这条待办是谁说的」，即原文引用与时间戳。周报希望一键复制到飞书。",
+    "mtime": 1792238221433,
+    "size_bytes": 60,
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  }
+]

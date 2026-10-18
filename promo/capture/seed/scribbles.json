@@ -1,0 +1,51 @@
+[
+  {
+    "id": "sc-q4-0",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 12000,
+    "text": "Q4 优先级：转录质量 > 一次成稿 > 周报",
+    "created_at": "2026-10-17T11:57:12.000Z"
+  },
+  {
+    "id": "sc-q4-1",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 95000,
+    "text": "问题：拾贝 → 十倍，纪要跟着错",
+    "created_at": "2026-10-17T11:58:35.000Z"
+  },
+  {
+    "id": "sc-q4-2",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 130000,
+    "text": "热词表 周三前进测试",
+    "created_at": "2026-10-17T11:59:10.000Z"
+  },
+  {
+    "id": "sc-q4-3",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 300000,
+    "text": "散会后一次调用：标题 + 纪要 + 行动项",
+    "created_at": "2026-10-17T12:02:00.000Z"
+  },
+  {
+    "id": "sc-q4-4",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 360000,
+    "text": "行动项必须带原文引用",
+    "created_at": "2026-10-17T12:03:00.000Z"
+  },
+  {
+    "id": "sc-q4-5",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 520000,
+    "text": "周报 = 可复制 Markdown，不做 PDF",
+    "created_at": "2026-10-17T12:05:40.000Z"
+  },
+  {
+    "id": "sc-q4-6",
+    "meeting_id": "m-q4-plan",
+    "t_ms": 600000,
+    "text": "数据去向：局域网不能算「本机」",
+    "created_at": "2026-10-17T12:07:00.000Z"
+  }
+]

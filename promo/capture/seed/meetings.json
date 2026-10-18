@@ -1,0 +1,126 @@
+[
+  {
+    "id": "m-q4-plan",
+    "title": "Q4 产品路线评审",
+    "source": "manual",
+    "status": "summarized",
+    "started_at": "2026-10-17T06:00:00.000Z",
+    "ended_at": "2026-10-17T06:12:00.000Z",
+    "audio": {
+      "format": "audio/webm",
+      "codec": "opus",
+      "duration_ms": 1104000,
+      "chunk_count": 4,
+      "size_bytes": 5078400,
+      "gaps": []
+    },
+    "note_id": "n-q4-plan",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "m-onboarding",
+    "title": "新用户引导改版评审",
+    "source": "manual",
+    "status": "summarized",
+    "started_at": "2026-10-15T06:00:00.000Z",
+    "ended_at": "2026-10-15T06:12:00.000Z",
+    "audio": {
+      "format": "audio/webm",
+      "codec": "opus",
+      "duration_ms": 960000,
+      "chunk_count": 3,
+      "size_bytes": 4416000,
+      "gaps": []
+    },
+    "note_id": "n-onboarding",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "m-1on1",
+    "title": "1on1 · 张三",
+    "source": "manual",
+    "status": "summarized",
+    "started_at": "2026-10-13T06:00:00.000Z",
+    "ended_at": "2026-10-13T06:12:00.000Z",
+    "audio": {
+      "format": "audio/webm",
+      "codec": "opus",
+      "duration_ms": 720000,
+      "chunk_count": 2,
+      "size_bytes": 3312000,
+      "gaps": []
+    },
+    "note_id": "n-1on1",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "m-infra",
+    "title": "转录服务稳定性复盘",
+    "source": "manual",
+    "status": "summarized",
+    "started_at": "2026-10-12T06:00:00.000Z",
+    "ended_at": "2026-10-12T06:12:00.000Z",
+    "audio": {
+      "format": "audio/webm",
+      "codec": "opus",
+      "duration_ms": 1320000,
+      "chunk_count": 4,
+      "size_bytes": 6072000,
+      "gaps": []
+    },
+    "note_id": "n-infra",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "m-upcoming-1",
+    "title": "Q4 OKR 对齐会",
+    "source": "manual",
+    "status": "summarized",
+    "started_at": "2026-10-20T02:00:00.000Z",
+    "audio": {
+      "format": "audio/webm",
+      "codec": "opus",
+      "duration_ms": 0,
+      "chunk_count": 0,
+      "size_bytes": 0,
+      "gaps": []
+    },
+    "note_id": "n-upcoming-1",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "m-upcoming-2",
+    "title": "设计走查 · 看板与周报",
+    "source": "manual",
+    "status": "summarized",
+    "started_at": "2026-10-22T06:30:00.000Z",
+    "audio": {
+      "format": "audio/webm",
+      "codec": "opus",
+      "duration_ms": 0,
+      "chunk_count": 0,
+      "size_bytes": 0,
+      "gaps": []
+    },
+    "note_id": "n-upcoming-2",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  }
+]

@@ -1,0 +1,113 @@
+{
+  "target": "promo/build/timeline-16x9.json",
+  "spec": "caps",
+  "worst": "PASS",
+  "meta": {
+    "contract_caps": {
+      "SH-01": "开会时，你在讨论，还是在**抄笔记**？",
+      "SH-02": "**NotesToGO** 拾贝 · 会中只记关键词，散会后一键成稿",
+      "SH-03": "**⌘⇧R** 一键开录 · 会中只记关键词，回车即存",
+      "SH-04": "一次调用 = 标题 + 纪要 + 待办 · 每条带**原文引用**",
+      "SH-05": "转录带**说话人区分** · 谁在什么时候说了什么",
+      "SH-06": "**嵌套 OKR** · 战略 → 季度 → 项目 → 任务",
+      "SH-07": "看板拖拽换列 · **自动周报**一键复制",
+      "SH-08": "**桌面版**内置模型 · 断网可用 · 数据去向如实自检",
+      "SH-09": "PWA 可安装（iPhone / iPad / Mac）· 一键导出 **.zip**",
+      "SH-10": "**github.com/frankfika/notestodo** · 本地优先 · 开源"
+    },
+    "cap_rows": [
+      {
+        "id": "SH-01",
+        "timeline_cap": "开会时，你在讨论，还是在抄笔记？",
+        "contract_cap": "开会时，你在讨论，还是在抄笔记？",
+        "match": true
+      },
+      {
+        "id": "SH-02",
+        "timeline_cap": "NotesToGO 拾贝 · 会中只记关键词，散会后一键成稿",
+        "contract_cap": "NotesToGO 拾贝 · 会中只记关键词，散会后一键成稿",
+        "match": true
+      },
+      {
+        "id": "SH-03",
+        "timeline_cap": "⌘⇧R 一键开录 · 会中只记关键词，回车即存",
+        "contract_cap": "⌘⇧R 一键开录 · 会中只记关键词，回车即存",
+        "match": true
+      },
+      {
+        "id": "SH-04",
+        "timeline_cap": "一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用",
+        "contract_cap": "一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用",
+        "match": true
+      },
+      {
+        "id": "SH-05",
+        "timeline_cap": "转录带说话人区分 · 谁在什么时候说了什么",
+        "contract_cap": "转录带说话人区分 · 谁在什么时候说了什么",
+        "match": true
+      },
+      {
+        "id": "SH-06",
+        "timeline_cap": "嵌套 OKR · 战略 → 季度 → 项目 → 任务",
+        "contract_cap": "嵌套 OKR · 战略 → 季度 → 项目 → 任务",
+        "match": true
+      },
+      {
+        "id": "SH-07",
+        "timeline_cap": "看板拖拽换列 · 自动周报一键复制",
+        "contract_cap": "看板拖拽换列 · 自动周报一键复制",
+        "match": true
+      },
+      {
+        "id": "SH-08",
+        "timeline_cap": "桌面版内置模型 · 断网可用 · 数据去向如实自检",
+        "contract_cap": "桌面版内置模型 · 断网可用 · 数据去向如实自检",
+        "match": true
+      },
+      {
+        "id": "SH-09",
+        "timeline_cap": "PWA 可安装（iPhone / iPad / Mac）· 一键导出 .zip",
+        "contract_cap": "PWA 可安装（iPhone / iPad / Mac）· 一键导出 .zip",
+        "match": true
+      },
+      {
+        "id": "SH-10",
+        "timeline_cap": "github.com/frankfika/notestodo · 本地优先 · 开源",
+        "contract_cap": "github.com/frankfika/notestodo · 本地优先 · 开源",
+        "match": true
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "S7.1",
+      "title": "timeline 字幕 ⊆ 契约分镜",
+      "status": "PASS",
+      "detail": "",
+      "expected": "timeline 里每个分镜都能在契约 §3 找到同名 CAP",
+      "actual": "10 个分镜全部有契约对应",
+      "command": "python3 promo/qa/check_spec.py caps --timeline \"promo/build/timeline-16x9.json\"",
+      "evidence": ""
+    },
+    {
+      "id": "S7.2",
+      "title": "分镜覆盖（主片应覆盖契约全部 10 个分镜）",
+      "status": "PASS",
+      "detail": "竖版为 6 分镜子集（render.py VERTICAL_IDS），--layout 9x16 时不判 FAIL",
+      "expected": "契约 §3 的 10 个分镜全部出现在时间轴",
+      "actual": "全部 10/10 覆盖",
+      "command": "",
+      "evidence": ""
+    },
+    {
+      "id": "S7.3",
+      "title": "字幕文案与契约逐字一致",
+      "status": "PASS",
+      "detail": "契约 §3 自称「全队唯一契约…文案以此为准」，文案漂移须由 Lead 收敛到其中一侧",
+      "expected": "normalize（去 ** 加粗标记与空白）后完全一致",
+      "actual": "10/10 全部一致",
+      "command": "python3 promo/qa/check_spec.py caps --timeline \"promo/build/timeline-16x9.json\"",
+      "evidence": "[]"
+    }
+  ]
+}

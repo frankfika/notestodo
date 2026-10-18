@@ -1,0 +1,276 @@
+[
+  {
+    "id": "t-q4-plan",
+    "meeting_id": "m-q4-plan",
+    "language": "zh-CN",
+    "engine": "minimax-asr",
+    "engine_meta": {
+      "diarization": true
+    },
+    "segments": [
+      {
+        "start_ms": 15000,
+        "end_ms": 48000,
+        "speaker_label": "说话人 1",
+        "text": "今天主要定 Q4 的路线优先级，先过一遍手上的候选，然后决定砍掉哪些。"
+      },
+      {
+        "start_ms": 48000,
+        "end_ms": 82000,
+        "speaker_label": "说话人 2",
+        "text": "我这边最担心的是中文转录质量。上周那场客户访谈，转录把「拾贝」识别成了「十倍」，纪要跟着一起错。"
+      },
+      {
+        "start_ms": 82000,
+        "end_ms": 120000,
+        "speaker_label": "说话人 3",
+        "text": "热词表已经在做了，把产品名、人名、专有名词塞进去，转录请求里带上 hotwords，能救回来一大半。"
+      },
+      {
+        "start_ms": 120000,
+        "end_ms": 158000,
+        "speaker_label": "说话人 1",
+        "text": "那转录这条就按「先热词、再说话人区分」排。热词表本周能进测试吗？"
+      },
+      {
+        "start_ms": 158000,
+        "end_ms": 176000,
+        "speaker_label": "说话人 3",
+        "text": "能，周三之前我把它接进转录请求，先拿 50 场历史录音跑回归。"
+      },
+      {
+        "start_ms": 221000,
+        "end_ms": 265000,
+        "speaker_label": "说话人 2",
+        "text": "我再提一个更前置的：散会后出纪要这一步，现在还得人工点「整理笔记」，而且模板给的结构不稳定。"
+      },
+      {
+        "start_ms": 265000,
+        "end_ms": 310000,
+        "speaker_label": "说话人 1",
+        "text": "一次成稿是这季度最重要的一件事。散会后一次调用就把标题、完整纪要和行动项一起给出来，不要让用户点第二下。"
+      },
+      {
+        "start_ms": 310000,
+        "end_ms": 352000,
+        "speaker_label": "说话人 2",
+        "text": "那重新整理这条管线要补三块：行动项的原文引用、模板切换，还有标题的生成。"
+      },
+      {
+        "start_ms": 352000,
+        "end_ms": 376000,
+        "speaker_label": "说话人 1",
+        "text": "行动项必须带原文引用，用户看到「张三说过」才敢确认。实在找不到出处的也别丢，标一下就行。"
+      },
+      {
+        "start_ms": 376000,
+        "end_ms": 422000,
+        "speaker_label": "说话人 3",
+        "text": "说话人区分我接了 3D-Speaker 的中文声纹，两个模型一共 30MB，能标出说话人 1、2、3；改名之后回写转录。"
+      },
+      {
+        "start_ms": 422000,
+        "end_ms": 456000,
+        "speaker_label": "说话人 1",
+        "text": "好。周报这边呢？上周大家反馈还是得手写。"
+      },
+      {
+        "start_ms": 500000,
+        "end_ms": 545000,
+        "speaker_label": "说话人 2",
+        "text": "周报的数据其实都在库里：本周完成的卡片、开过的会、还有 KR 进度。我把它拼成 Markdown 草稿，补上风险和下周计划，复制就能贴飞书。"
+      },
+      {
+        "start_ms": 545000,
+        "end_ms": 590000,
+        "speaker_label": "说话人 1",
+        "text": "那就定：周报草稿直接给可复制的 Markdown，不做 PDF 导出。"
+      },
+      {
+        "start_ms": 590000,
+        "end_ms": 626000,
+        "speaker_label": "说话人 3",
+        "text": "数据去向那块我想补一句。局域网地址现在会被当成「本机」，这是错的，得如实标成离开本机。"
+      },
+      {
+        "start_ms": 700000,
+        "end_ms": 734000,
+        "speaker_label": "说话人 1",
+        "text": "对，合规上不能含糊。内置模型下载也加上断点续传，别让用户重下一遍。"
+      },
+      {
+        "start_ms": 734000,
+        "end_ms": 768000,
+        "speaker_label": "说话人 2",
+        "text": "断点续传我这周一起做了，顺便把下载源自动切换补上。"
+      },
+      {
+        "start_ms": 870000,
+        "end_ms": 906000,
+        "speaker_label": "说话人 1",
+        "text": "还有一个：今天页现在只放 Inbox 和今天到期的，太多了反而看不清重点。"
+      },
+      {
+        "start_ms": 1010000,
+        "end_ms": 1050000,
+        "speaker_label": "说话人 1",
+        "text": "今天就到这儿。行动项我让纪要自动提，大家明天在任务页确认一下。"
+      }
+    ],
+    "speaker_names": {},
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "t-onboarding",
+    "meeting_id": "m-onboarding",
+    "language": "zh-CN",
+    "engine": "minimax-asr",
+    "engine_meta": {
+      "diarization": true
+    },
+    "segments": [
+      {
+        "start_ms": 8000,
+        "end_ms": 42000,
+        "speaker_label": "说话人 1",
+        "text": "现在首次打开要先选 AI 运行在哪里，用户还不知道产品能干什么，就被要求做技术决策。"
+      },
+      {
+        "start_ms": 42000,
+        "end_ms": 88000,
+        "speaker_label": "说话人 2",
+        "text": "流失就集中在这一步。引导面板改成右下角气泡，不拦截主界面。"
+      },
+      {
+        "start_ms": 88000,
+        "end_ms": 130000,
+        "speaker_label": "说话人 1",
+        "text": "第一次录音结束后自动整理出纪要，比任何文案都有说服力。"
+      },
+      {
+        "start_ms": 130000,
+        "end_ms": 176000,
+        "speaker_label": "说话人 2",
+        "text": "那引导控制在三步以内，只讲价值，不讲架构。"
+      },
+      {
+        "start_ms": 176000,
+        "end_ms": 220000,
+        "speaker_label": "说话人 1",
+        "text": "首次录音的默认模板用「标准会议纪要」，别用头脑风暴。"
+      },
+      {
+        "start_ms": 240000,
+        "end_ms": 286000,
+        "speaker_label": "说话人 2",
+        "text": "文案我来重写，技术名词全部去掉。"
+      }
+    ],
+    "speaker_names": {},
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "t-1on1",
+    "meeting_id": "m-1on1",
+    "language": "zh-CN",
+    "engine": "minimax-asr",
+    "engine_meta": {
+      "diarization": true
+    },
+    "segments": [
+      {
+        "start_ms": 10000,
+        "end_ms": 52000,
+        "speaker_label": "说话人 1",
+        "text": "你这个季度手上的活太散了，三件事都没做完。"
+      },
+      {
+        "start_ms": 52000,
+        "end_ms": 96000,
+        "speaker_label": "说话人 2",
+        "text": "确实。一次成稿这条线离用户最近，我想只做它。"
+      },
+      {
+        "start_ms": 96000,
+        "end_ms": 140000,
+        "speaker_label": "说话人 1",
+        "text": "那就这么定：Q4 你只对一次成稿负责，每周五同步一次进度。"
+      },
+      {
+        "start_ms": 140000,
+        "end_ms": 182000,
+        "speaker_label": "说话人 2",
+        "text": "会议模板的维护我交给王五。"
+      },
+      {
+        "start_ms": 182000,
+        "end_ms": 220000,
+        "speaker_label": "说话人 1",
+        "text": "可以。"
+      }
+    ],
+    "speaker_names": {},
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "t-infra",
+    "meeting_id": "m-infra",
+    "language": "zh-CN",
+    "engine": "minimax-asr",
+    "engine_meta": {
+      "diarization": true
+    },
+    "segments": [
+      {
+        "start_ms": 12000,
+        "end_ms": 58000,
+        "speaker_label": "说话人 1",
+        "text": "上周转录服务超时两次，都是 45 分钟以上的会议。"
+      },
+      {
+        "start_ms": 58000,
+        "end_ms": 104000,
+        "speaker_label": "说话人 2",
+        "text": "单请求体太大了，一次性上传被网关拦掉。"
+      },
+      {
+        "start_ms": 104000,
+        "end_ms": 150000,
+        "speaker_label": "说话人 1",
+        "text": "改成分片上传之后呢？"
+      },
+      {
+        "start_ms": 150000,
+        "end_ms": 196000,
+        "speaker_label": "说话人 2",
+        "text": "按 5 分钟切片，50 场回归全部成功，没有复现。"
+      },
+      {
+        "start_ms": 196000,
+        "end_ms": 240000,
+        "speaker_label": "说话人 1",
+        "text": "重试要带幂等键，别重复计费。"
+      },
+      {
+        "start_ms": 240000,
+        "end_ms": 288000,
+        "speaker_label": "说话人 2",
+        "text": "好，这条我一起补回归用例。"
+      }
+    ],
+    "speaker_names": {},
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  }
+]

@@ -1,0 +1,389 @@
+{
+  "target": "promo/build/out/notestogo-promo-16x9-novo.mp4",
+  "spec": "novo",
+  "worst": "PASS",
+  "meta": {
+    "size_bytes": 21641272,
+    "duration_s": 90.0,
+    "n_audio_streams": 1,
+    "n_video_streams": 1,
+    "astats_overall": {
+      "DC offset": "0.000167",
+      "Min level": "-0.397283",
+      "Max level": "0.349239",
+      "Peak level dB": "-8.017999",
+      "RMS level dB": "-18.850654",
+      "RMS peak dB": "-15.887794",
+      "RMS through dB": "-86.764445",
+      "Flat factor": "0.000000",
+      "Peak count": "2.000000",
+      "Abs Peak count": "1.000000",
+      "Noise floor dB": "-75.963135",
+      "Noise floor count": "375.500000",
+      "Entropy": "0.839381",
+      "Bit depth": "30/32/32/32",
+      "Number of samples": "4319232",
+      "Number of NaNs": "0.000000",
+      "Number of Infs": "0.000000"
+    },
+    "loudnorm": {
+      "input_i": "-18.00",
+      "input_tp": "-8.02",
+      "input_lra": "1.60",
+      "input_thresh": "-28.04",
+      "output_i": "-23.71",
+      "output_tp": "-13.84",
+      "output_lra": "1.70",
+      "output_thresh": "-33.74",
+      "normalization_type": "dynamic",
+      "target_offset": "-0.29"
+    },
+    "ebur128": {
+      "integrated_lufs": -18.0,
+      "true_peak_dbfs": -8.0
+    },
+    "brand_frames": [
+      {
+        "file": "000_t0000.00s_every5s.png",
+        "t_s": 0.0,
+        "tag": "every5s",
+        "accent_%": 0.0039,
+        "paper_%": 79.22
+      },
+      {
+        "file": "001_t0004.00s_SH-01.png",
+        "t_s": 4.0,
+        "tag": "SH-01",
+        "accent_%": 0.713,
+        "paper_%": 71.19
+      },
+      {
+        "file": "002_t0005.00s_every5s.png",
+        "t_s": 5.0,
+        "tag": "every5s",
+        "accent_%": 0.8164,
+        "paper_%": 69.86
+      },
+      {
+        "file": "003_t0010.00s_every5s.png",
+        "t_s": 10.0,
+        "tag": "every5s",
+        "accent_%": 0.2037,
+        "paper_%": 72.44
+      },
+      {
+        "file": "004_t0011.50s_SH-02.png",
+        "t_s": 11.5,
+        "tag": "SH-02",
+        "accent_%": 0.2014,
+        "paper_%": 72.25
+      },
+      {
+        "file": "005_t0015.00s_every5s.png",
+        "t_s": 15.0,
+        "tag": "every5s",
+        "accent_%": 7.5725,
+        "paper_%": 75.32
+      },
+      {
+        "file": "006_t0020.00s_every5s.png",
+        "t_s": 20.0,
+        "tag": "every5s",
+        "accent_%": 7.1836,
+        "paper_%": 73.35
+      },
+      {
+        "file": "007_t0021.50s_SH-03.png",
+        "t_s": 21.5,
+        "tag": "SH-03",
+        "accent_%": 7.3117,
+        "paper_%": 72.64
+      },
+      {
+        "file": "008_t0025.00s_every5s.png",
+        "t_s": 25.0,
+        "tag": "every5s",
+        "accent_%": 7.0926,
+        "paper_%": 78.18
+      },
+      {
+        "file": "009_t0030.00s_every5s.png",
+        "t_s": 30.0,
+        "tag": "every5s",
+        "accent_%": 7.3819,
+        "paper_%": 61.74
+      },
+      {
+        "file": "010_t0035.00s_every5s.png",
+        "t_s": 35.0,
+        "tag": "every5s",
+        "accent_%": 7.1721,
+        "paper_%": 61.48
+      },
+      {
+        "file": "011_t0035.00s_SH-04.png",
+        "t_s": 35.0,
+        "tag": "SH-04",
+        "accent_%": 7.1721,
+        "paper_%": 61.48
+      },
+      {
+        "file": "012_t0040.00s_every5s.png",
+        "t_s": 40.0,
+        "tag": "every5s",
+        "accent_%": 7.2986,
+        "paper_%": 70.19
+      },
+      {
+        "file": "013_t0045.00s_every5s.png",
+        "t_s": 45.0,
+        "tag": "every5s",
+        "accent_%": 7.1836,
+        "paper_%": 73.89
+      },
+      {
+        "file": "014_t0045.50s_SH-05.png",
+        "t_s": 45.5,
+        "tag": "SH-05",
+        "accent_%": 6.6119,
+        "paper_%": 70.48
+      },
+      {
+        "file": "015_t0050.00s_every5s.png",
+        "t_s": 50.0,
+        "tag": "every5s",
+        "accent_%": 4.7492,
+        "paper_%": 69.51
+      },
+      {
+        "file": "016_t0055.00s_every5s.png",
+        "t_s": 55.0,
+        "tag": "every5s",
+        "accent_%": 11.2346,
+        "paper_%": 31.1
+      },
+      {
+        "file": "017_t0056.00s_SH-06.png",
+        "t_s": 56.0,
+        "tag": "SH-06",
+        "accent_%": 10.8264,
+        "paper_%": 34.5
+      },
+      {
+        "file": "018_t0060.00s_every5s.png",
+        "t_s": 60.0,
+        "tag": "every5s",
+        "accent_%": 7.4012,
+        "paper_%": 72.81
+      },
+      {
+        "file": "019_t0065.00s_every5s.png",
+        "t_s": 65.0,
+        "tag": "every5s",
+        "accent_%": 7.7099,
+        "paper_%": 74.95
+      },
+      {
+        "file": "020_t0068.50s_SH-07.png",
+        "t_s": 68.5,
+        "tag": "SH-07",
+        "accent_%": 5.4591,
+        "paper_%": 74.74
+      },
+      {
+        "file": "021_t0070.00s_every5s.png",
+        "t_s": 70.0,
+        "tag": "every5s",
+        "accent_%": 5.6906,
+        "paper_%": 74.77
+      },
+      {
+        "file": "022_t0075.00s_every5s.png",
+        "t_s": 75.0,
+        "tag": "every5s",
+        "accent_%": 5.6559,
+        "paper_%": 59.84
+      },
+      {
+        "file": "023_t0079.50s_SH-08.png",
+        "t_s": 79.5,
+        "tag": "SH-08",
+        "accent_%": 1.2708,
+        "paper_%": 52.38
+      },
+      {
+        "file": "024_t0080.00s_every5s.png",
+        "t_s": 80.0,
+        "tag": "every5s",
+        "accent_%": 1.341,
+        "paper_%": 52.23
+      },
+      {
+        "file": "025_t0085.00s_every5s.png",
+        "t_s": 85.0,
+        "tag": "every5s",
+        "accent_%": 0.152,
+        "paper_%": 75.85
+      },
+      {
+        "file": "026_t0088.50s_SH-09.png",
+        "t_s": 88.5,
+        "tag": "SH-09",
+        "accent_%": 0.135,
+        "paper_%": 75.99
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "S1.1",
+      "title": "分辨率",
+      "status": "PASS",
+      "detail": "",
+      "expected": "1920x1080",
+      "actual": "1920x1080",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": "{\"codec_name\": \"h264\", \"profile\": \"High\", \"width\": 1920, \"height\": 1080, \"pix_fmt\": \"yuv420p\", \"r_frame_rate\": \"30/1\", \"avg_frame_rate\": \"30/1\", \"nb_frames\": \"2700\", \"bit_rate\": \"1722448\"}"
+    },
+    {
+      "id": "S1.2",
+      "title": "帧率",
+      "status": "PASS",
+      "detail": "",
+      "expected": "30.0 fps (r_frame_rate=avg_frame_rate)",
+      "actual": "r_frame_rate=30/1 (30.000) avg_frame_rate=30/1 (30.000)",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": ""
+    },
+    {
+      "id": "S1.3",
+      "title": "像素格式",
+      "status": "PASS",
+      "detail": "",
+      "expected": "yuv420p",
+      "actual": "yuv420p",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": ""
+    },
+    {
+      "id": "S1.4",
+      "title": "视频编码 / profile",
+      "status": "PASS",
+      "detail": "derived(): CRF 无法从成片反查，请用 `check_spec.py renderflags` 核对渲染脚本",
+      "expected": "h264 / profile=High",
+      "actual": "h264 / profile=High",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": ""
+    },
+    {
+      "id": "S1.5",
+      "title": "has_audio",
+      "status": "PASS",
+      "detail": "",
+      "expected": "存在 audio stream",
+      "actual": "存在 (1 条)",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": ""
+    },
+    {
+      "id": "S1.6",
+      "title": "音频编码 / 采样率 / 声道",
+      "status": "PASS",
+      "detail": "",
+      "expected": "aac 48000Hz 2ch",
+      "actual": "aac 48000Hz 2ch",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": "{\"codec_name\": \"aac\", \"profile\": \"LC\", \"sample_rate\": \"48000\", \"channels\": 2, \"channel_layout\": \"stereo\", \"bit_rate\": \"192354\"}"
+    },
+    {
+      "id": "S1.7",
+      "title": "时长",
+      "status": "PASS",
+      "detail": "与目标偏差 +0.000s",
+      "expected": "90.0s ± 3s → [87.0, 93.0]s",
+      "actual": "90.000s",
+      "command": "/opt/homebrew/bin/ffprobe -v error -print_format json -show_format -show_streams \"promo/build/out/notestogo-promo-16x9-novo.mp4\"",
+      "evidence": ""
+    },
+    {
+      "id": "S2.1",
+      "title": "faststart (moov 在文件头)",
+      "status": "PASS",
+      "detail": "moov 占文件 0.5%；顶层 box 顺序 = ftyp → moov → free → mdat",
+      "expected": "moov 偏移 < mdat 偏移",
+      "actual": "moov @ 32 bytes (idx 1), mdat @ 99596 bytes (idx 3)",
+      "command": "python3 -c \"…top_level_boxes('promo/build/out/notestogo-promo-16x9-novo.mp4')…\"   # 纯 Python 解析 mp4 顶层 box",
+      "evidence": "[{\"type\": \"ftyp\", \"offset\": 0, \"size\": 32}, {\"type\": \"moov\", \"offset\": 32, \"size\": 99556}, {\"type\": \"free\", \"offset\": 99588, \"size\": 8}, {\"type\": \"mdat\", \"offset\": 99596, \"size\": 21541676}]"
+    },
+    {
+      "id": "S6.1",
+      "title": "真峰值 true peak < -1.0 dBTP",
+      "status": "PASS",
+      "detail": "",
+      "expected": "< -1.0 dBTP",
+      "actual": "-8.00 dBTP (来源 ebur128.Peak)；loudnorm.input_tp=-8.02，ebur128.Peak=-8.00",
+      "command": "/opt/homebrew/bin/ffmpeg -hide_banner -nostats -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -map 0:a:0 -af loudnorm=print_format=json -f null -\n/opt/homebrew/bin/ffmpeg -hide_banner -nostats -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -map 0:a:0 -af ebur128=peak=true -f null -",
+      "evidence": "{\"input_i\": \"-18.00\", \"input_tp\": \"-8.02\", \"input_lra\": \"1.60\", \"input_thresh\": \"-28.04\", \"output_i\": \"-23.71\", \"output_tp\": \"-13.84\", \"output_lra\": \"1.70\", \"output_thresh\": \"-33.74\", \"normalization_type\": \"dynamic\", \"target_offset\": \"-0.29\"}\n---\n11.3 -11.1 dBFS  TPK:  -8.0  -8.3 dBFS\n[Parsed_ebur128_0 @ 0x765ec24a80] t: 89.699979  TARGET:-23 LUFS    M: -16.9 S: -18.4     I: -18.0 LUFS       LRA:   1.5 LU  FTPK: -12.3 -11.9 dBFS  TPK:  -8.0  -8.3 dBFS\n[Parsed_ebur128_0 @ 0x765ec24a80] t: 89.799979  TARGET:-23 LUFS    M: -17.5 S: -18.5     I: -18.0 LUFS       LRA:   1.5 LU  FTPK: -12.5 -12.5 dBFS  TPK:  -8.0  -8.3 dBFS\n[Parsed_ebur128_0 @ 0x765ec24a80] t: 89.899979  TARGET:-23 LUFS    M: -18.2 S: -18.6     I: -18.0 LUFS       LRA:   1.5 LU  FTPK: -14.0 -13.7 dBFS  TPK:  -8.0  -8.3 dBFS\n    I:         -18.0 LUFS\n    Peak:       -8.0 dBFS"
+    },
+    {
+      "id": "S6.2",
+      "title": "采样峰值 (astats)",
+      "status": "INFO",
+      "detail": "",
+      "expected": "参考值（真峰值见 S6.1）",
+      "actual": "Peak level dB = -8.017999",
+      "command": "/opt/homebrew/bin/ffmpeg -hide_banner -nostats -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -map 0:a:0 -af astats=metadata=1:reset=0 -f null -",
+      "evidence": "DC offset: 0.000167\nMin level: -0.397283\nMax level: 0.349239\nPeak level dB: -8.017999\nRMS level dB: -18.850654\nRMS peak dB: -15.887794\nRMS through dB: -86.764445\nFlat factor: 0.000000\nPeak count: 2.000000\nAbs Peak count: 1.000000\nNoise floor dB: -75.963135\nNoise floor count: 375.500000\nEntropy: 0.839381\nBit depth: 30/32/32/32\nNumber of samples: 4319232\nNumber of NaNs: 0.000000\nNumber of Infs: 0.000000"
+    },
+    {
+      "id": "S6.3",
+      "title": "削波指示 (astats Peak count / Flat factor)",
+      "status": "INFO",
+      "detail": "",
+      "expected": "Peak count 反映触顶采样数；Flat factor 显著 >0 提示削波",
+      "actual": "Peak count = 2.000000, Abs Peak count = 1.000000, Flat factor = 0.000000",
+      "command": "/opt/homebrew/bin/ffmpeg -hide_banner -nostats -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -map 0:a:0 -af astats=metadata=1:reset=0 -f null -",
+      "evidence": "DC offset: 0.000167\nMin level: -0.397283\nMax level: 0.349239\nPeak level dB: -8.017999\nRMS level dB: -18.850654\nRMS peak dB: -15.887794\nRMS through dB: -86.764445\nFlat factor: 0.000000\nPeak count: 2.000000\nAbs Peak count: 1.000000\nNoise floor dB: -75.963135\nNoise floor count: 375.500000\nEntropy: 0.839381\nBit depth: 30/32/32/32\nNumber of samples: 4319232\nNumber of NaNs: 0.000000\nNumber of Infs: 0.000000"
+    },
+    {
+      "id": "S1.8",
+      "title": "整合响度 (integrated loudness)",
+      "status": "PASS",
+      "detail": "derived(): STORYBOARD §1 只写目标 -16 LUFS，未给容差；此处取 ±2 LU，超过 ±3 LU 记 FAIL",
+      "expected": "-16.0 LUFS ± 2.0 LU",
+      "actual": "-18.00 LUFS（偏差 -2.00 LU）；ebur128=-18.0 LUFS",
+      "command": "/opt/homebrew/bin/ffmpeg -hide_banner -nostats -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -map 0:a:0 -af loudnorm=print_format=json -f null -\n/opt/homebrew/bin/ffmpeg -hide_banner -nostats -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -map 0:a:0 -af ebur128=peak=true -f null -",
+      "evidence": "{\"input_i\": \"-18.00\", \"input_tp\": \"-8.02\", \"input_lra\": \"1.60\", \"input_thresh\": \"-28.04\", \"output_i\": \"-23.71\", \"output_tp\": \"-13.84\", \"output_lra\": \"1.70\", \"output_thresh\": \"-33.74\", \"normalization_type\": \"dynamic\", \"target_offset\": \"-0.29\"}"
+    },
+    {
+      "id": "S3.0",
+      "title": "抽帧到 promo/qa/frames/notestogo-promo-16x9-novo/",
+      "status": "PASS",
+      "detail": "",
+      "expected": "全部帧写入成功（每 5s 一帧，+ 10 个分镜中点位）",
+      "actual": "27/27 帧成功；目录 promo/qa/frames/notestogo-promo-16x9-novo",
+      "command": "/opt/homebrew/bin/ffmpeg -ss <t> -i \"promo/build/out/notestogo-promo-16x9-novo.mp4\" -frames:v 1 -q:v 2 <out>.png  # 逐帧",
+      "evidence": "[\n {\n  \"i\": 0,\n  \"t_s\": 0.0,\n  \"tag\": \"every5s\",\n  \"file\": \"promo/qa/frames/notestogo-promo-16x9-novo/000_t0000.00s_every5s.png\",\n  \"ok\": true\n },\n {\n  \"i\": 1,\n  \"t_s\": 4.0,\n  \"tag\": \"SH-01\",\n  \"file\": \"promo/qa/frames/notestogo-promo-16x9-novo/001_t0004.00s_SH-01.png\",\n  \"ok\": true\n },\n {\n  \"i\": 2,\n  \"t_s\": 5.0,\n  \"tag\": \"every5s\",\n  \"file\": \"promo/qa/frames/notestogo-promo-16x9-novo/002_t0005.00s_every5s.png\",\n  \"ok\": true\n },\n {\n  \"i\": 3,\n  \"t_s\": 10.0,\n  \"tag\": \"every5s\",\n  \"file\": \"promo/qa/frames/notestogo-promo-16x9-novo/003_t0010.00s_every5s.png\",\n  \"ok\": true\n },\n {\n  \"i\": 4,\n  \"t_s\": 11.5,\n  \"tag\": \"SH-02\",\n  \"file\": \"promo/qa/frames/notestogo-promo-16x9-novo/004_t0011.50s_SH-02.png\",\n  \"ok\": true\n },\n {\n  \"i\": 5,\n  \"t_s\": 15.0,\n  \"tag\": \"every5s\",\n  \"file\": \"promo/qa/frames/notestogo-promo-16x9-novo/005_t0015.00s_every5s.png\",\n  \"ok\": true\n }\n]"
+    },
+    {
+      "id": "S5.1",
+      "title": "品牌橘 #C0571E 出现率",
+      "status": "INFO",
+      "detail": "derived(): 契约未给数值门槛；默认只做 INFO 记录，--strict-brand 时要求 ≥50% 帧检出",
+      "expected": "品牌橘在画面中有可测占比（≥0.01% 像素）",
+      "actual": "26/27 帧检出（96%）",
+      "command": "",
+      "evidence": "[\n {\n  \"file\": \"000_t0000.00s_every5s.png\",\n  \"t_s\": 0.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 0.0039,\n  \"paper_%\": 79.22\n },\n {\n  \"file\": \"001_t0004.00s_SH-01.png\",\n  \"t_s\": 4.0,\n  \"tag\": \"SH-01\",\n  \"accent_%\": 0.713,\n  \"paper_%\": 71.19\n },\n {\n  \"file\": \"002_t0005.00s_every5s.png\",\n  \"t_s\": 5.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 0.8164,\n  \"paper_%\": 69.86\n },\n {\n  \"file\": \"003_t0010.00s_every5s.png\",\n  \"t_s\": 10.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 0.2037,\n  \"paper_%\": 72.44\n },\n {\n  \"file\": \"004_t0011.50s_SH-02.png\",\n  \"t_s\": 11.5,\n  \"tag\": \"SH-02\",\n  \"accent_%\": 0.2014,\n  \"paper_%\": 72.25\n },\n {\n  \"file\": \"005_t0015.00s_every5s.png\",\n  \"t_s\": 15.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.5725,\n  \"paper_%\": 75.32\n },\n {\n  \"file\": \"006_t0020.00s_every5s.png\",\n  \"t_s\": 20.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.1836,\n  \"paper_%\": 73.35\n },\n {\n  \"file\": \"007_t0021.50s_SH-03.png\",\n  \"t_s\": 21.5,\n  \"tag\": \"SH-03\",\n  \"accent_%\": 7.3117,\n  \"paper_%\": 72.64\n },\n {\n  \"file\": \"008_t0025.00s_every5s.png\",\n  \"t_s\": 25.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.0926,\n  \"paper_%\": 78.18\n },\n {\n  \"file\": \"009_t0030.00s_every5s.png\",\n  \"t_s\": 30.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.3819,\n  \"paper_%\": 61.74\n },\n {\n  \"file\": \"010_t0035.00s_every5s.png\",\n  \"t_s\": 35.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.1721,\n  \"paper_%\": 61.48\n },\n {\n  \"file\": \"011_t0035.00s_SH-04.png\",\n  \"t_s\": 35.0,\n  \"tag\": \"SH-04\",\n  \"accent_%\": 7.1721,\n  \"paper_%\": 61.48\n },\n {\n  \"file\": \"012_t0040.00s_every5s.png\",\n  \"t_s\": 40."
+    },
+    {
+      "id": "S5.2",
+      "title": "纸色底 #FBF8F2 出现率",
+      "status": "INFO",
+      "detail": "屏幕录制分镜（SH-03…08）为真实 UI，纸色占比可能偏低，需人工结合分镜判断",
+      "expected": "纸色为画面主色之一（≥1% 像素）",
+      "actual": "27/27 帧检出（100%）",
+      "command": "",
+      "evidence": "[\n {\n  \"file\": \"000_t0000.00s_every5s.png\",\n  \"t_s\": 0.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 0.0039,\n  \"paper_%\": 79.22\n },\n {\n  \"file\": \"001_t0004.00s_SH-01.png\",\n  \"t_s\": 4.0,\n  \"tag\": \"SH-01\",\n  \"accent_%\": 0.713,\n  \"paper_%\": 71.19\n },\n {\n  \"file\": \"002_t0005.00s_every5s.png\",\n  \"t_s\": 5.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 0.8164,\n  \"paper_%\": 69.86\n },\n {\n  \"file\": \"003_t0010.00s_every5s.png\",\n  \"t_s\": 10.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 0.2037,\n  \"paper_%\": 72.44\n },\n {\n  \"file\": \"004_t0011.50s_SH-02.png\",\n  \"t_s\": 11.5,\n  \"tag\": \"SH-02\",\n  \"accent_%\": 0.2014,\n  \"paper_%\": 72.25\n },\n {\n  \"file\": \"005_t0015.00s_every5s.png\",\n  \"t_s\": 15.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.5725,\n  \"paper_%\": 75.32\n },\n {\n  \"file\": \"006_t0020.00s_every5s.png\",\n  \"t_s\": 20.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.1836,\n  \"paper_%\": 73.35\n },\n {\n  \"file\": \"007_t0021.50s_SH-03.png\",\n  \"t_s\": 21.5,\n  \"tag\": \"SH-03\",\n  \"accent_%\": 7.3117,\n  \"paper_%\": 72.64\n },\n {\n  \"file\": \"008_t0025.00s_every5s.png\",\n  \"t_s\": 25.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.0926,\n  \"paper_%\": 78.18\n },\n {\n  \"file\": \"009_t0030.00s_every5s.png\",\n  \"t_s\": 30.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.3819,\n  \"paper_%\": 61.74\n },\n {\n  \"file\": \"010_t0035.00s_every5s.png\",\n  \"t_s\": 35.0,\n  \"tag\": \"every5s\",\n  \"accent_%\": 7.1721,\n  \"paper_%\": 61.48\n },\n {\n  \"file\": \"011_t0035.00s_SH-04.png\",\n  \"t_s\": 35.0,\n  \"tag\": \"SH-04\",\n  \"accent_%\": 7.1721,\n  \"paper_%\": 61.48\n },\n {\n  \"file\": \"012_t0040.00s_every5s.png\",\n  \"t_s\": 40."
+    }
+  ]
+}

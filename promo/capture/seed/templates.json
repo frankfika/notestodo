@@ -1,0 +1,50 @@
+[
+  {
+    "id": "builtin-standard",
+    "name": "标准会议纪要",
+    "icon": "📋",
+    "is_default": true,
+    "builtin": true,
+    "prompt_md": "你是一位专业的会议纪要秘书。请根据以下会议转录生成纪要。\n\n## 会议信息\n- 会议：{{meeting.title}}\n- 日期：{{meeting.date}}\n- 时长：{{meeting.duration}}\n- 参会人：{{transcript.speakers}}\n\n## 输出要求\n按以下结构输出 Markdown 纪要：\n1. ## 一句话结论\n2. ## 讨论要点（按议题分组，保留发言人姓名）\n3. ## 决定（Decisions）\n4. ## 行动项（提取为结构化列表，每个行动项包含：任务、负责人、截止日期、出处原话）\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "builtin-action",
+    "name": "行动项优先",
+    "icon": "✅",
+    "is_default": false,
+    "builtin": true,
+    "prompt_md": "你是一位以行动为导向的会议秘书。这份纪要只关心「接下来谁要做什么」。\n\n## 输出要求\n1. ## 一句话结论\n2. ## 决定\n3. ## 行动项清单（穷尽所有行动项；每条：任务、负责人、截止日期、出处原话）\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "builtin-brainstorm",
+    "name": "头脑风暴",
+    "icon": "💡",
+    "is_default": false,
+    "builtin": true,
+    "prompt_md": "你是一位善于提炼创意的会议记录者。\n\n## 输出要求\n1. ## 核心洞察\n2. ## 创意清单\n3. ## 争议与未决问题\n4. ## 后续行动\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  },
+  {
+    "id": "tpl-customer",
+    "name": "客户访谈纪要",
+    "icon": "◇",
+    "is_default": false,
+    "builtin": false,
+    "prompt_md": "你是一位用户研究员。请把这次客户访谈整理成访谈纪要。\n\n## 输出要求\n1. ## 受访者画像\n2. ## 原话摘录（保留口语，标注时间戳）\n3. ## 痛点清单（按出现频次排序）\n4. ## 可验证的假设\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+    "created_at": "2026-10-18T11:57:01.433Z",
+    "updated_at": "2026-10-18T11:57:01.433Z",
+    "deleted_at": null,
+    "sync_version": 0
+  }
+]
