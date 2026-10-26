@@ -12,6 +12,7 @@
 
 use serde::Serialize;
 
+mod api_server;
 mod builtin;
 mod system_audio;
 
@@ -115,6 +116,7 @@ pub fn run() {
   tauri::Builder::default()
     .manage(system_audio::Sessions::default())
     .manage(builtin::models::Downloads::default())
+    .manage(api_server::shared())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -144,6 +146,9 @@ pub fn run() {
       builtin::models::builtin_model_delete,
       builtin::asr::builtin_asr_transcribe,
       builtin::llm::builtin_llm_chat,
+      api_server::api_server_start,
+      api_server::api_server_stop,
+      api_server::api_respond,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application")

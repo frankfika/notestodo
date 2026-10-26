@@ -29,6 +29,7 @@ tauri-plugin-log = "2"
 # the OS security-scoped resource tracker, not via static scope widening.
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
+tiny_http = "0.12.0"
 
 # Phase-3 Gap 1: macOS-only ScreenCaptureKit audio capture.
 # screencapturekit-sys pulls in block / dispatch / objc / objc-foundation /

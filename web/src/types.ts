@@ -279,6 +279,11 @@ export interface AppSettings {
   calendar_ics_urls: string[]
   // 知识库（Phase-2 item 5）— 字符串路径列表，AI 索引用的本地文件夹
   knowledge_folders: string[]
+  // 开放 API（仅桌面版）：本机 HTTP 服务，Raycast / 快捷指令 / 脚本读写任务和笔记
+  api_enabled: boolean
+  api_port: number
+  /** Bearer token；空 = 首次启用时自动生成 */
+  api_token: string
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -306,6 +311,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   calendar_ics_urls: [],
   knowledge_folders: [],
+  api_enabled: false,
+  api_port: 17893,
+  api_token: '',
 }
 
 /** Phase-2: 解析当前模式下的有效 LLM 配置。 */
