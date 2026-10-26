@@ -16,6 +16,7 @@ import FieldRow from '../../components/FieldRow'
 import { useUI } from '../../state/ui'
 import { isTauri } from '../../lib/tauri'
 import { invoke } from '../../lib/tauriInvoke'
+import { setApiEnabled } from '../../api/localApi'
 import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
 import { reindexKnowledge } from '../../lib/knowledge'
 
@@ -60,6 +61,12 @@ export default function SettingsPage(): JSX.Element {
     setSettings((cur) => ({ ...cur, ai_mode: mode, asr_mode: mode }))
     await saveSettings({ ai_mode: mode, asr_mode: mode })
     flash(mode === 'builtin' ? '已切到本机内置模型' : mode === 'cloud' ? '已切到云端 API' : '已切到自建本地服务')
+  }
+
+  // 开放 API 立即生效：只持久化 api_* 字段，不动页面上其它未保存的修改
+  async function applyApi(p: Partial<Pick<AppSettings, 'api_enabled' | 'api_port' | 'api_token'>>): Promise<void> {
+    setSettings((cur) => ({ ...cur, ...p }))
+    await saveSettings(p)
   }
 
   // 内置模型的选择也立即生效（下载状态是全局的，跟「保存」无关）
@@ -308,6 +315,10 @@ export default function SettingsPage(): JSX.Element {
             onChange={(urls) => patch({ calendar_ics_urls: urls })}
             onFlash={flash}
           />
+        </Section>
+
+        <Section title="开放 API" desc="桌面版本机起 HTTP 服务（127.0.0.1），让 Raycast / 快捷指令 / 脚本读写任务和笔记。改动立即生效。">
+          <OpenApiRow settings={settings} onApply={(p) => void applyApi(p)} flash={flash} />
         </Section>
 
         <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。">
@@ -768,6 +779,82 @@ function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Eleme
       {lastMsg && (
         <div className="text-[11px] text-text-3">{lastMsg}</div>
       )}
+    </div>
+  )
+}
+
+/** 开放 API：开关 / 端口 / token。改动立即启停本机 HTTP 服务（api/localApi.ts）。 */
+function OpenApiRow({ settings, onApply, flash }: {
+  settings: AppSettings
+  onApply: (p: Partial<Pick<AppSettings, 'api_enabled' | 'api_port' | 'api_token'>>) => void
+  flash: (msg: string) => void
+}): JSX.Element {
+  const [err, setErr] = useState<string | null>(null)
+  const tauri = isTauri()
+  const port = settings.api_port || 17893
+  const token = settings.api_token
+  const base = `http://127.0.0.1:${port}`
+
+  async function restartWith(p: Partial<Pick<AppSettings, 'api_enabled' | 'api_port' | 'api_token'>>): Promise<void> {
+    setErr(null)
+    onApply(p)
+    const enabled = p.api_enabled ?? settings.api_enabled
+    try {
+      await setApiEnabled(enabled, p.api_port ?? port, p.api_token ?? token)
+      if (enabled) flash('开放 API 已开启')
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  function regenerate(): void {
+    const t = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, '0')).join('')
+    void restartWith({ api_token: t }).then(() => flash('已生成新 token'))
+  }
+
+  if (!tauri) {
+    return <div className="text-[12px] text-text-3">开放 API 仅桌面版（mac app）可用——浏览器页面没有宿主能监听本机端口。</div>
+  }
+  return (
+    <div className="space-y-2">
+      <Toggle
+        checked={settings.api_enabled}
+        onChange={(v) => void restartWith({ api_enabled: v })}
+        label="启用本机 HTTP 服务"
+        hint={`${base} — 只有本机程序能访问；所有写接口（除 /health）都要 Bearer token。`}
+      />
+      <FieldRow label="端口">
+        <input
+          className="input h-8 w-28"
+          type="number"
+          min={1024}
+          max={65535}
+          value={port}
+          onChange={(e) => {
+            const v = Number(e.target.value)
+            if (v >= 1024 && v <= 65535) void restartWith({ api_port: v })
+          }}
+        />
+      </FieldRow>
+      <FieldRow label="API token">
+        <div className="flex items-center gap-2">
+          <code className="text-[11px] text-text-2 bg-bg-overlay border border-line rounded px-2 py-1">
+            {token ? `${token.slice(0, 8)}…${token.slice(-4)}` : '（启用时自动生成）'}
+          </code>
+          <button onClick={regenerate} className="btn-ghost text-xs h-7 px-2">重新生成</button>
+          {token && (
+            <button
+              onClick={() => { void navigator.clipboard.writeText(token).then(() => flash('token 已复制')) }}
+              className="btn-ghost text-xs h-7 px-2"
+            >复制</button>
+          )}
+        </div>
+      </FieldRow>
+      <div className="text-[11px] text-text-3 space-y-0.5">
+        <div>示例：<code className="text-text-2">curl -H "Authorization: Bearer &lt;token&gt;" {base}/todos</code></div>
+        <div>任务：<code className="text-text-2">GET/POST /todos · PATCH/DELETE /todos/:id</code>（DELETE 软删整棵子树）｜笔记：<code className="text-text-2">GET/POST /notes · GET /notes/:id</code></div>
+      </div>
+      {err && <div className="text-[12px] text-danger">{err}</div>}
     </div>
   )
 }

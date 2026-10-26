@@ -6,6 +6,7 @@ import { bindRecorderEngine } from './audio/engine'
 import { resumePendingJobs } from './pipeline/jobs'
 import { refreshBuiltinModels } from './lib/builtinModels'
 import { ensurePersistentStorage } from './lib/storage'
+import { initLocalApi } from './api/localApi'
 
 /**
  * 第一次"用户动作"自动收掉 onboarding：
@@ -62,4 +63,5 @@ export async function bootstrap(): Promise<void> {
   bindRecorderEngine()
   void resumePendingJobs().catch((e) => console.error('恢复任务失败', e))
   void refreshBuiltinModels()
+  void initLocalApi(settings)
 }
