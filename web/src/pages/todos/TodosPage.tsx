@@ -43,6 +43,8 @@ interface Ctx {
   byId: Map<string, Todo>
   kids: Map<string | null, Todo[]>
   progress: Map<string, number>
+  /** 每个节点的深度（根=0）：缩进投影用 */
+  depth: Map<string, number>
   period: string
   tagFilter: string | null
   tagIdsByTodo: Map<string, string[]>
@@ -88,10 +90,22 @@ export default function TodosPage(): JSX.Element {
 
   const ctx: Ctx = useMemo(() => {
     const all = raw.filter((t) => t.deleted_at === null)
+    const kids = childrenIndex(all)
+    const depth = new Map<string, number>()
+    const walk = (id: string | null, d: number, seen: Set<string>): void => {
+      for (const k of kids.get(id) ?? []) {
+        if (seen.has(k.id)) continue
+        seen.add(k.id)
+        depth.set(k.id, d)
+        walk(k.id, d + 1, seen)
+      }
+    }
+    walk(null, 0, new Set())
     return {
       all,
       byId: new Map(all.map((t) => [t.id, t])),
-      kids: childrenIndex(all),
+      kids,
+      depth,
       progress: rollupProgress(all),
       period,
       tagFilter,
@@ -370,6 +384,7 @@ function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }):
   const isRoot = depth === 0
   // 指示线只订阅自己这一行，拖动时不会全树重渲染
   const indicator = useDrag((s) => (s.overId === node.id ? s.zone : null))
+  const indicatorLevel = useDrag((s) => (s.overId === node.id ? s.level : 0))
   const dragging = useDrag((s) => s.activeId === node.id)
   const { setNodeRef: setDragRef, setActivatorNodeRef, listeners, attributes } = useDraggable({ id: node.id })
 
@@ -383,8 +398,8 @@ function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }):
           indicator === 'inside' ? 'ring-2 ring-accent/50 bg-accent/8' : ''
         } ${dragging ? 'opacity-40' : ''}`}
       >
-        {indicator === 'before' && <DropLine className="-top-px" />}
-        {indicator === 'after' && <DropLine className="-bottom-px" />}
+        {indicator === 'before' && <DropLine className="-top-px" inset={indicatorLevel * indentPx()} />}
+        {indicator === 'after' && <DropLine className="-bottom-px" inset={indicatorLevel * indentPx()} />}
         {/* 拖拽手柄：只从手柄起拖，不抢正文的文本选择和双击编辑 */}
         <button
           ref={setActivatorNodeRef}
@@ -422,10 +437,18 @@ function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }):
   )
 }
 
-/** 落点指示线：accent 圆点 + 横线（Notion 风格） */
-function DropLine({ className }: { className: string }): JSX.Element {
+/** 每层缩进的实际像素（与「ml-2.5 md:ml-4 pl-1.5 md:pl-3」对应）：桌面 16+12，移动 10+6 */
+function indentPx(): number {
+  return window.innerWidth >= 768 ? 28 : 16
+}
+
+/** 落点指示线：accent 圆点 + 横线（Notion 风格）；inset>0 时左移 = 投影到更浅层级 */
+function DropLine({ className, inset = 0 }: { className: string; inset?: number }): JSX.Element {
   return (
-    <div className={`pointer-events-none absolute left-0 right-0 z-10 flex items-center ${className}`}>
+    <div
+      className={`pointer-events-none absolute right-0 z-10 flex items-center ${className}`}
+      style={{ left: -inset }}
+    >
       <div className="h-[5px] w-[5px] shrink-0 rounded-full bg-accent" />
       <div className="h-[2px] flex-1 rounded-full bg-accent" />
     </div>
@@ -461,12 +484,16 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
   const activeTodo = useDrag((s) => (s.activeId ? ctx.byId.get(s.activeId) : undefined))
 
   // 命中检测：指针下的有效落点，O(1)。返回 null = 指针下没有可放置处（拖动继续，只是无指示）。
-  function hitAt(x: number, y: number): { id: string; zone: DropZone } | null {
+  // 缩进投影（Notion 式）：排序区里指针靠左一个缩进条带 = 目标上溯一级父节点，
+  // 指示线随之左移；非法层级的投影自动向浅回退，全非法才不给指示。
+  // ponytail: 行内最多投影一级（更深的左移会落到祖先行的间隙区，见 hitAt 的间隙拒识），
+  // 更深的挪动可以拖到父行上完成；要任意级投影得让行占满整宽再改。
+  function hitAt(x: number, y: number): { id: string; zone: DropZone; level: number } | null {
     const activeId = useDrag.getState().activeId
     if (!activeId) return null
     const el = document.elementFromPoint(x, y)
     if (el?.closest('[data-drop="inbox"]')) {
-      return planAt(ctx, activeId, 'inbox', 'inside') ? { id: 'inbox', zone: 'inside' } : null
+      return planAt(ctx, activeId, 'inbox', 'inside') ? { id: 'inbox', zone: 'inside', level: 0 } : null
     }
     const hit = el?.closest('[data-todo-id]') as HTMLElement | null
     const id = hit?.dataset.todoId
@@ -479,7 +506,26 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
     if (!t) return null
     const fy = (y - r.top) / r.height
     const zone: DropZone = t.kind === 'task' ? (fy < 0.5 ? 'before' : 'after') : fy < 0.25 ? 'before' : fy > 0.75 ? 'after' : 'inside'
-    return planAt(ctx, activeId, id, zone) ? { id, zone } : null
+    if (zone === 'inside') {
+      return planAt(ctx, activeId, id, 'inside') ? { id, zone, level: 0 } : null
+    }
+    const depth = ctx.depth.get(id) ?? 0
+    const k = Math.min(Math.max(Math.ceil((r.left + indentPx() / 2 - x) / indentPx()), 0), Math.min(depth, 1))
+    for (let kk = k; kk >= 0; kk--) {
+      if (resolveDrop(ctx, activeId, id, zone, kk)) return { id, zone, level: kk }
+    }
+    return null
+  }
+
+  /** 按投影层级解析最终补丁：level>0 = 目标上溯 level 级父节点后再排前/后 */
+  function resolveDrop(ctx: Ctx, activeId: string, hoverId: string, zone: DropZone, level: number): Patch[] | null {
+    if (zone === 'inside') return planAt(ctx, activeId, hoverId, 'inside')
+    let eff = ctx.byId.get(hoverId)
+    for (let i = 0; i < level && eff; i++) {
+      eff = eff.parent_id ? ctx.byId.get(eff.parent_id) : undefined
+    }
+    if (!eff) return null
+    return planAt(ctx, activeId, eff.id, zone)
   }
 
   function clearExpand(): void {
@@ -488,7 +534,7 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
   function reset(): void {
     clearExpand()
     document.removeEventListener('pointermove', onPointerMove)
-    useDrag.setState({ activeId: null, overId: null, zone: null })
+    useDrag.setState({ activeId: null, overId: null, zone: null, level: 0 })
   }
 
   // 拖动期间自己跟 pointer（不用 dnd-kit 的 over 事件）：elementFromPoint 命中 + rAF 节流，
@@ -506,10 +552,12 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
       const hit = hitAt(p.x, p.y)
       const cur = useDrag.getState()
       if (!hit) {
-        if (cur.overId) useDrag.setState({ overId: null, zone: null })
+        if (cur.overId) useDrag.setState({ overId: null, zone: null, level: 0 })
         return
       }
-      if (cur.overId !== hit.id || cur.zone !== hit.zone) useDrag.setState({ overId: hit.id, zone: hit.zone })
+      if (cur.overId !== hit.id || cur.zone !== hit.zone || cur.level !== hit.level) {
+        useDrag.setState({ overId: hit.id, zone: hit.zone, level: hit.level })
+      }
       // 悬停折叠节点 → 500ms 自动展开
       if (hit.zone === 'inside' && useOpen.getState().map[hit.id] === false) {
         expandTimer.current = setTimeout(() => setNodeOpen(hit.id, true), 500)
@@ -518,15 +566,17 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
   }
 
   function onDragStart(e: DragStartEvent): void {
-    useDrag.setState({ activeId: String(e.active.id), overId: null, zone: null })
+    useDrag.setState({ activeId: String(e.active.id), overId: null, zone: null, level: 0 })
     document.addEventListener('pointermove', onPointerMove)
   }
 
   function onDragEnd(): void {
-    const { activeId, overId, zone } = useDrag.getState()
+    const { activeId, overId, zone, level } = useDrag.getState()
     reset()
     if (!activeId || !overId || !zone) return
-    const plan = planAt(ctx, activeId, overId, zone)
+    const plan = zone === 'inside' || overId === 'inbox'
+      ? planAt(ctx, activeId, overId, zone)
+      : resolveDrop(ctx, activeId, overId, zone, level)
     if (plan) void applyPatches(plan, ctx.all).then(() => {
       if (zone === 'inside' && overId !== 'inbox') setNodeOpen(overId, true)
     })
@@ -537,15 +587,19 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
       {children}
       <DragOverlay dropAnimation={null} className="pointer-events-none">
         {activeTodo ? (
-          <div className="card pointer-events-none max-w-[420px] rotate-[1.5deg] truncate px-3 py-2 text-sm text-text-1 shadow-xl">{activeTodo.title}</div>
+          /* 拖影偏在指针左上方，落点指示线在指针下才看得见（Notion 同款处理） */
+          <div className="card pointer-events-none max-w-[420px] -translate-x-[10%] -translate-y-[140%] rotate-[1.5deg] truncate px-3 py-2 text-sm text-text-1 shadow-xl">
+            {activeTodo.title}
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>
   )
 }
 
-/** Inbox（未挂 KR 的任务）放进树视图顶部：可以直接拖到 KR 上；把树里的任务拖回这里 = 取消挂载 */
-function InboxStrip({ ctx }: { ctx: Ctx }): JSX.Element | null {
+/** Inbox（未挂 KR 的任务）放在树视图顶部：拖到 KR 上归位；树里的任务拖回这里 = 取消挂载。
+ *  始终渲染（哪怕空）——否则拖动已挂载任务时它突然出现，会把整棵树顶下去一截。 */
+function InboxStrip({ ctx }: { ctx: Ctx }): JSX.Element {
   const inbox = ctx.all
     .filter((t) => t.kind === 'task' && t.parent_id === null && (t.status === 'open' || t.status === 'pending_review') && matchesTag(t, ctx))
     .sort((a, b) => a.sort_order - b.sort_order)
@@ -553,7 +607,6 @@ function InboxStrip({ ctx }: { ctx: Ctx }): JSX.Element | null {
   const over = useDrag((st) => st.overId === 'inbox')
   const dragged = draggingId ? ctx.byId.get(draggingId) : undefined
   const canDrop = !!dragged && dragged.kind === 'task' && dragged.parent_id !== null
-  if (inbox.length === 0 && !canDrop) return null
   return (
     <section
       data-drop="inbox"
@@ -564,8 +617,9 @@ function InboxStrip({ ctx }: { ctx: Ctx }): JSX.Element | null {
         <span className="text-[11px] text-text-3 tabular-nums">{inbox.length}</span>
         <span className="text-[11px] text-text-3 ml-auto hidden sm:inline">拖到下面的 KR 上即可归位 · 或用 ⋯ →「移动到…」</span>
       </div>
-      {inbox.length === 0 ? <p className="text-[12px] text-text-3 px-1 py-1">放到这里 = 移出 KR，回到 Inbox</p>
-        : inbox.map((t) => <OkrNode key={t.id} node={t} ctx={ctx} depth={1} />)}
+      {inbox.length > 0
+        ? inbox.map((t) => <OkrNode key={t.id} node={t} ctx={ctx} depth={1} />)
+        : canDrop && <p className="text-[12px] text-text-3 px-1 py-1">放到这里 = 移出 KR，回到 Inbox</p>}
     </section>
   )
 }
@@ -925,9 +979,9 @@ function EditPopover({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: ()
 
 type DropZone = 'before' | 'after' | 'inside'
 
-/** 正在拖动的节点 + 当前落点；行组件各自订阅自己的指示线，拖动时不会全树重渲染 */
-const useDrag = create<{ activeId: string | null; overId: string | null; zone: DropZone | null }>(
-  () => ({ activeId: null, overId: null, zone: null }),
+/** 正在拖动的节点 + 当前落点 + 缩进投影层级；行组件各自订阅自己的指示线，拖动时不会全树重渲染 */
+const useDrag = create<{ activeId: string | null; overId: string | null; zone: DropZone | null; level: number }>(
+  () => ({ activeId: null, overId: null, zone: null, level: 0 }),
 )
 
 /** 折叠状态提升到 store：拖拽悬停自动展开需要能改它；缺省 = 展开 */

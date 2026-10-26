@@ -6,9 +6,10 @@ import { test, expect, type Page, type Locator } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
-/** Playwright 的真实鼠标拖拽偶发挂住，所以排序 / 非法落点用合成 PointerEvent（dnd-kit 监听 pointer*） */
-async function synthDrag(page: Page, fromId: string, toId: string, fy: number): Promise<void> {
-  await page.evaluate(async ({ fromId, toId, fy }) => {
+/** Playwright 的真实鼠标拖拽偶发挂住，所以排序 / 非法落点用合成 PointerEvent（dnd-kit 监听 pointer*）。
+ *  dx = 落点 x 距目标行左缘的绝对像素（缺省 = 行中央）；用来测缩进投影（左侧条带 = 上溯一级挂）。 */
+async function synthDrag(page: Page, fromId: string, toId: string, fy: number, dx?: number): Promise<void> {
+  await page.evaluate(async ({ fromId, toId, fy, dx }) => {
     const handle = (id: string) => document.querySelector(`[data-todo-id="${id}"] [aria-label="拖动调整位置"]`) as HTMLElement
     const rowOf = (id: string) => document.querySelector(`[data-todo-id="${id}"] > div`) as HTMLElement
     const fire = (el: Element, type: string, x: number, y: number, up = false) =>
@@ -25,12 +26,12 @@ async function synthDrag(page: Page, fromId: string, toId: string, fy: number): 
     fire(document, 'pointermove', sx, sy + 10) // 越过 6px 死区
     await new Promise((r) => setTimeout(r, 50))
     const tr = rowOf(toId).getBoundingClientRect()
-    const tx = tr.left + tr.width / 2
+    const tx = tr.left + (dx ?? tr.width / 2)
     const ty = tr.top + Math.min(Math.max(tr.height * fy, 2), tr.height - 2)
     fire(document, 'pointermove', tx, ty)
     await new Promise((r) => setTimeout(r, 50))
     fire(document, 'pointerup', tx, ty, true)
-  }, { fromId, toId, fy })
+  }, { fromId, toId, fy, dx })
 }
 
 async function reopen(page: Page): Promise<void> {
@@ -50,6 +51,8 @@ async function seed(page: Page): Promise<void> {
     const rows = [
       { id: 'O', kind: 'objective', scope: 'strategic', parent_id: null, title: '战略目标甲', sort_order: 10 },
       { id: 'KR', kind: 'kr', scope: 'strategic', parent_id: 'O', title: '战略 KR 乙', sort_order: 20 },
+      { id: 'KR2', kind: 'kr', scope: 'strategic', parent_id: 'O', title: '战略 KR 戊', sort_order: 25 },
+      { id: 'QO2', kind: 'objective', scope: 'quarterly', parent_id: 'KR2', title: '季度目标己', period: '2026-Q4', sort_order: 26 },
       { id: 'QO', kind: 'objective', scope: 'quarterly', parent_id: 'KR', title: '季度目标丙', period: '2026-Q4', sort_order: 30 },
       { id: 'QK', kind: 'kr', scope: 'quarterly', parent_id: 'QO', title: '季度 KR 丁', period: '2026-Q4', sort_order: 40 },
       { id: 't1', kind: 'task', scope: 'quarterly', parent_id: 'QK', title: '任务一', sort_order: 10 },
@@ -102,6 +105,17 @@ test('拖拽：Inbox 任务拖到 KR 上 = 挂进去；同级拖到最前 = 排�
   await synthDrag(page, 'QO', 't1', 0.5)
   await page.waitForTimeout(300)
   expect((await get(page, 'QO'))?.parent_id).toBe('KR')
+})
+
+test('缩进投影：行左侧条带 = 上溯一级挂；行中央 = 原层级（非法则不动）', async ({ page }) => {
+  await seed(page)
+  // 中央：QO2（季度 O）排到 QK 上沿中央 = 与 QK 同级 → 父将是季度 KR，季度 O 只接受战略 KR，不动
+  await synthDrag(page, 'QO2', 'QK', 0.1)
+  await page.waitForTimeout(300)
+  expect((await get(page, 'QO2'))?.parent_id).toBe('KR2')
+  // 左侧条带（距行左 8px < 半个缩进 14px）→ 投影上溯一级：排到 QO 之前 = 挂到 KR 下
+  await synthDrag(page, 'QO2', 'QK', 0.1, 8)
+  await expect.poll(async () => (await get(page, 'QO2'))?.parent_id).toBe('KR')
 })
 
 test('⋯ 菜单上移；拖回 Inbox = 取消挂载', async ({ page }) => {
