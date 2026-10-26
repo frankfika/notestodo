@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { create } from 'zustand'
+import {
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  useDraggable,
+  type DragStartEvent,
+} from '@dnd-kit/core'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { now, today as todayIso, uid } from '../../lib/id'
@@ -300,19 +305,21 @@ function QuarterView({ ctx, setPeriod }: { ctx: Ctx; setPeriod: (p: string) => v
         )}
         {otherCount > 0 && <span className="ml-auto text-[11px] text-text-3">其它季度 {otherCount} 个 O 已收起</span>}
       </div>
-      <InboxStrip ctx={ctx} />
-      {roots.length === 0 ? (
-        <div className="card">
-          <EmptyState
-            title={`${ctx.period} 还没有季度目标`}
-            hint="季度 O 挂在某个战略 KR 下：用右上「+ 新建」选「季度 O」，或在「战略」视图里从战略 KR 的 ＋ 往下拆。"
-          />
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
-        </ul>
-      )}
+      <TreeDnd ctx={ctx}>
+        <InboxStrip ctx={ctx} />
+        {roots.length === 0 ? (
+          <div className="card">
+            <EmptyState
+              title={`${ctx.period} 还没有季度目标`}
+              hint="季度 O 挂在某个战略 KR 下：用右上「+ 新建」选「季度 O」，或在「战略」视图里从战略 KR 的 ＋ 往下拆。"
+            />
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
+          </ul>
+        )}
+      </TreeDnd>
     </div>
   )
 }
@@ -328,23 +335,25 @@ function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
   const [adding, setAdding] = useState(false)
   return (
     <div>
-      <InboxStrip ctx={ctx} />
-      {roots.length === 0 ? (
-        <div className="card">
-          <EmptyState
-            title="还没有战略目标"
-            hint="从一个年度大 O 开始，往下拆 KR → 季度 O → 项目 O → Task。"
-            action={adding
-              ? <InlineAdd placeholder="战略 O 标题，回车创建" onDone={() => setAdding(false)}
-                  onSubmit={(title) => createNode(LEVELS[0], null, title)} />
-              : <button onClick={() => setAdding(true)} className="btn-primary h-8 text-xs px-3">+ 新建战略 O</button>}
-          />
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
-        </ul>
-      )}
+      <TreeDnd ctx={ctx}>
+        <InboxStrip ctx={ctx} />
+        {roots.length === 0 ? (
+          <div className="card">
+            <EmptyState
+              title="还没有战略目标"
+              hint="从一个年度大 O 开始，往下拆 KR → 季度 O → 项目 O → Task。"
+              action={adding
+                ? <InlineAdd placeholder="战略 O 标题，回车创建" onDone={() => setAdding(false)}
+                    onSubmit={(title) => createNode(LEVELS[0], null, title)} />
+                : <button onClick={() => setAdding(true)} className="btn-primary h-8 text-xs px-3">+ 新建战略 O</button>}
+            />
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
+          </ul>
+        )}
+      </TreeDnd>
     </div>
   )
 }
@@ -352,59 +361,42 @@ function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
 // ── 树节点 ────────────────────────────────────────────────────────
 
 function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }): JSX.Element {
-  const [open, setOpen] = useState(true)
+  const open = useOpen((s) => s.map[node.id] ?? true)
   const [adding, setAdding] = useState<Level | null>(null)
-  const [zone, setZone] = useState<DropZone | null>(null)
   const children = [...(ctx.kids.get(node.id) ?? [])]
     .filter((c) => c.kind !== 'task' || matchesTag(c, ctx))
     .sort((x, y) => x.sort_order - y.sort_order)
   const options = node.kind === 'task' ? [] : childLevels(node)
   const isRoot = depth === 0
-  const dragging = useDrag((st) => st.id)
+  // 指示线只订阅自己这一行，拖动时不会全树重渲染
+  const indicator = useDrag((s) => (s.overId === node.id ? s.zone : null))
+  const dragging = useDrag((s) => s.activeId === node.id)
+  const { setNodeRef: setDragRef, setActivatorNodeRef, listeners, attributes } = useDraggable({ id: node.id })
 
-  // 拖拽：上 1/4 放前面、下 1/4 放后面、中间挂进来（只有 O/KR 能挂）；非法落点不高亮、不接收
-  function zoneAt(e: React.DragEvent): DropZone {
-    const r = e.currentTarget.getBoundingClientRect()
-    const y = (e.clientY - r.top) / r.height
-    if (node.kind === 'task') return y < 0.5 ? 'before' : 'after'
-    return y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'inside'
-  }
-  function planFor(z: DropZone): Patch[] | null {
-    const dragged = dragging ? ctx.byId.get(dragging) : undefined
-    if (!dragged || dragged.id === node.id) return null
-    const plan = dropPlan(dragged, node, z, ctx.all)
-    return 'error' in plan ? null : plan
-  }
-  const zoneClass = zone === 'before' ? 'shadow-[inset_0_2px_0_var(--accent)]'
-    : zone === 'after' ? 'shadow-[inset_0_-2px_0_var(--accent)]'
-    : zone === 'inside' ? 'bg-accent/10 ring-1 ring-accent/40' : ''
-
-  const startAdd = (l: Level): void => { setOpen(true); setAdding(l) }
+  const startAdd = (l: Level): void => { setNodeOpen(node.id, true); setAdding(l) }
 
   return (
     <div data-todo-id={node.id} className={isRoot ? 'card px-2 md:px-3 py-1.5' : ''}>
       <div
-        draggable
-        onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', node.id); e.dataTransfer.effectAllowed = 'move'; useDrag.setState({ id: node.id }) }}
-        onDragEnd={() => { useDrag.setState({ id: null }); setZone(null) }}
-        onDragOver={(e) => {
-          e.stopPropagation()
-          const z = zoneAt(e)
-          if (planFor(z)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (z !== zone) setZone(z) } else if (zone) setZone(null)
-        }}
-        onDragLeave={() => setZone(null)}
-        onDrop={(e) => {
-          e.preventDefault(); e.stopPropagation()
-          const z = zoneAt(e)
-          const plan = planFor(z)
-          setZone(null); useDrag.setState({ id: null })
-          if (plan) void applyPatches(plan, ctx.all).then(() => { if (z === 'inside') setOpen(true) })
-        }}
-        className={`flex items-start gap-1 rounded-md transition-colors ${zoneClass} ${dragging === node.id ? 'opacity-40' : ''}`}
+        ref={setDragRef}
+        className={`group/row relative flex items-start rounded-md transition-colors ${
+          indicator === 'inside' ? 'ring-2 ring-accent/50 bg-accent/8' : ''
+        } ${dragging ? 'opacity-40' : ''}`}
       >
+        {indicator === 'before' && <DropLine className="-top-px" />}
+        {indicator === 'after' && <DropLine className="-bottom-px" />}
+        {/* 拖拽手柄：只从手柄起拖，不抢正文的文本选择和双击编辑 */}
+        <button
+          ref={setActivatorNodeRef}
+          {...listeners}
+          {...attributes}
+          className="mt-1 h-6 w-4 shrink-0 flex items-center justify-center text-[10px] text-text-3 hover:text-text-1 cursor-grab active:cursor-grabbing touch-none opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:focus-visible:opacity-100 transition-opacity"
+          aria-label="拖动调整位置"
+          title="拖动调整位置"
+        >⠿</button>
         {node.kind !== 'task' ? (
           <button
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => setNodeOpen(node.id, !open)}
             className="mt-1 h-6 w-5 shrink-0 flex items-center justify-center text-[11px] text-text-3 hover:text-text-1"
             aria-label={open ? '收起' : '展开'}
             aria-expanded={open}
@@ -430,27 +422,142 @@ function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }):
   )
 }
 
+/** 落点指示线：accent 圆点 + 横线（Notion 风格） */
+function DropLine({ className }: { className: string }): JSX.Element {
+  return (
+    <div className={`pointer-events-none absolute left-0 right-0 z-10 flex items-center ${className}`}>
+      <div className="h-[5px] w-[5px] shrink-0 rounded-full bg-accent" />
+      <div className="h-[2px] flex-1 rounded-full bg-accent" />
+    </div>
+  )
+}
+
+/** 拖拽落点 → 补丁：inbox 特例 = 移出 KR 回 Inbox；其余走 lib/okrMove 的规则校验 */
+function planAt(ctx: Ctx, draggedId: string, overId: string, zone: DropZone): Patch[] | null {
+  const dragged = ctx.byId.get(draggedId)
+  if (!dragged) return null
+  if (overId === 'inbox') {
+    if (dragged.kind !== 'task' || dragged.parent_id === null) return null
+    const r = reparent(dragged, null, ctx.all)
+    return 'error' in r ? null : [r]
+  }
+  const target = ctx.byId.get(overId)
+  if (!target || dragged.id === target.id) return null
+  const plan = dropPlan(dragged, target, zone, ctx.all)
+  return 'error' in plan ? null : plan
+}
+
+/**
+ * 树拖拽上下文。dnd-kit 负责：跟随指针的拖影（DragOverlay）、划过滚动容器边缘时
+ * 自动滚动、指针传感器（6px 死区，误触不触发）。落点判定自己跟 pointer：
+ * elementFromPoint 命中行 → 三区规则 → okrMove 校验，非法落点不显示指示线，
+ * rAF 节流一帧一次；合成事件和真实鼠标走同一条路径。
+ * 悬停折叠节点 500ms 自动展开。
+ * ponytail: 固定三区命中，不做多级投影（grandparent/indent 感知）；树要更像 Notion 时再上 sortable。
+ */
+function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JSX.Element {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeTodo = useDrag((s) => (s.activeId ? ctx.byId.get(s.activeId) : undefined))
+
+  // 命中检测：指针下的有效落点，O(1)。返回 null = 指针下没有可放置处（拖动继续，只是无指示）。
+  function hitAt(x: number, y: number): { id: string; zone: DropZone } | null {
+    const activeId = useDrag.getState().activeId
+    if (!activeId) return null
+    const el = document.elementFromPoint(x, y)
+    if (el?.closest('[data-drop="inbox"]')) {
+      return planAt(ctx, activeId, 'inbox', 'inside') ? { id: 'inbox', zone: 'inside' } : null
+    }
+    const hit = el?.closest('[data-todo-id]') as HTMLElement | null
+    const id = hit?.dataset.todoId
+    if (!id) return null
+    const rowEl = hit.querySelector(':scope > div')
+    if (!rowEl) return null
+    const r = rowEl.getBoundingClientRect()
+    if (y < r.top - 4 || y > r.bottom + 4) return null // 行间隙：等下一次采样，避免抖动
+    const t = ctx.byId.get(id)
+    if (!t) return null
+    const fy = (y - r.top) / r.height
+    const zone: DropZone = t.kind === 'task' ? (fy < 0.5 ? 'before' : 'after') : fy < 0.25 ? 'before' : fy > 0.75 ? 'after' : 'inside'
+    return planAt(ctx, activeId, id, zone) ? { id, zone } : null
+  }
+
+  function clearExpand(): void {
+    if (expandTimer.current) { clearTimeout(expandTimer.current); expandTimer.current = null }
+  }
+  function reset(): void {
+    clearExpand()
+    document.removeEventListener('pointermove', onPointerMove)
+    useDrag.setState({ activeId: null, overId: null, zone: null })
+  }
+
+  // 拖动期间自己跟 pointer（不用 dnd-kit 的 over 事件）：elementFromPoint 命中 + rAF 节流，
+  // 指示线更新一帧一次，合成事件和真实鼠标走同一条路径。
+  const rafId = useRef(0)
+  const pendingPos = useRef<{ x: number; y: number } | null>(null)
+  function onPointerMove(e: PointerEvent): void {
+    pendingPos.current = { x: e.clientX, y: e.clientY }
+    if (rafId.current) return
+    rafId.current = requestAnimationFrame(() => {
+      rafId.current = 0
+      const p = pendingPos.current
+      if (!p) return
+      clearExpand()
+      const hit = hitAt(p.x, p.y)
+      const cur = useDrag.getState()
+      if (!hit) {
+        if (cur.overId) useDrag.setState({ overId: null, zone: null })
+        return
+      }
+      if (cur.overId !== hit.id || cur.zone !== hit.zone) useDrag.setState({ overId: hit.id, zone: hit.zone })
+      // 悬停折叠节点 → 500ms 自动展开
+      if (hit.zone === 'inside' && useOpen.getState().map[hit.id] === false) {
+        expandTimer.current = setTimeout(() => setNodeOpen(hit.id, true), 500)
+      }
+    })
+  }
+
+  function onDragStart(e: DragStartEvent): void {
+    useDrag.setState({ activeId: String(e.active.id), overId: null, zone: null })
+    document.addEventListener('pointermove', onPointerMove)
+  }
+
+  function onDragEnd(): void {
+    const { activeId, overId, zone } = useDrag.getState()
+    reset()
+    if (!activeId || !overId || !zone) return
+    const plan = planAt(ctx, activeId, overId, zone)
+    if (plan) void applyPatches(plan, ctx.all).then(() => {
+      if (zone === 'inside' && overId !== 'inbox') setNodeOpen(overId, true)
+    })
+  }
+
+  return (
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={reset}>
+      {children}
+      <DragOverlay dropAnimation={null} className="pointer-events-none">
+        {activeTodo ? (
+          <div className="card pointer-events-none max-w-[420px] rotate-[1.5deg] truncate px-3 py-2 text-sm text-text-1 shadow-xl">{activeTodo.title}</div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  )
+}
+
 /** Inbox（未挂 KR 的任务）放进树视图顶部：可以直接拖到 KR 上；把树里的任务拖回这里 = 取消挂载 */
 function InboxStrip({ ctx }: { ctx: Ctx }): JSX.Element | null {
   const inbox = ctx.all
     .filter((t) => t.kind === 'task' && t.parent_id === null && (t.status === 'open' || t.status === 'pending_review') && matchesTag(t, ctx))
     .sort((a, b) => a.sort_order - b.sort_order)
-  const dragging = useDrag((st) => st.id)
-  const [over, setOver] = useState(false)
-  const dragged = dragging ? ctx.byId.get(dragging) : undefined
+  const draggingId = useDrag((st) => st.activeId)
+  const over = useDrag((st) => st.overId === 'inbox')
+  const dragged = draggingId ? ctx.byId.get(draggingId) : undefined
   const canDrop = !!dragged && dragged.kind === 'task' && dragged.parent_id !== null
   if (inbox.length === 0 && !canDrop) return null
   return (
     <section
-      onDragOver={(e) => { if (canDrop) { e.preventDefault(); setOver(true) } }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault(); setOver(false); useDrag.setState({ id: null })
-        if (!dragged || !canDrop) return
-        const r = reparent(dragged, null, ctx.all)
-        if (!('error' in r)) void applyPatches([r], ctx.all)
-      }}
-      className={`card px-2 md:px-3 py-2 mb-3 transition-colors ${over ? 'ring-1 ring-accent/50 bg-accent/5' : ''}`}
+      data-drop="inbox"
+      className={`card px-2 md:px-3 py-2 mb-3 transition-colors ${over ? 'ring-2 ring-accent/50 bg-accent/8' : ''}`}
     >
       <div className="flex items-baseline gap-2 px-1 mb-1">
         <span className="section-title">Inbox</span>
@@ -818,8 +925,16 @@ function EditPopover({ todo, ctx, onClose }: { todo: Todo; ctx: Ctx; onClose: ()
 
 type DropZone = 'before' | 'after' | 'inside'
 
-/** 正在拖动的节点（树里任意层级都能读到） */
-const useDrag = create<{ id: string | null }>(() => ({ id: null }))
+/** 正在拖动的节点 + 当前落点；行组件各自订阅自己的指示线，拖动时不会全树重渲染 */
+const useDrag = create<{ activeId: string | null; overId: string | null; zone: DropZone | null }>(
+  () => ({ activeId: null, overId: null, zone: null }),
+)
+
+/** 折叠状态提升到 store：拖拽悬停自动展开需要能改它；缺省 = 展开 */
+const useOpen = create<{ map: Record<string, boolean> }>(() => ({ map: {} }))
+const setNodeOpen = (id: string, open: boolean): void => {
+  useOpen.setState((s) => ({ map: { ...s.map, [id]: open } }))
+}
 
 async function applyPatches(patches: Patch[], all: Todo[]): Promise<void> {
   if (patches.length === 0) return

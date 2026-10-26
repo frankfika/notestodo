@@ -1,28 +1,35 @@
 /**
  * OKR 树交互：拖拽挂到 KR / 同级排序 / 非法落点被拒 / ⋯ 菜单上移 / 拖回 Inbox。
+ * 拖拽基于 dnd-kit（PointerSensor + ⠿ 手柄），合成事件用 PointerEvent，真实拖拽走 page.mouse。
  */
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Locator } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
-/**
- * Playwright 的鼠标拖拽模拟在同一页第二次拖拽时会挂住（与应用无关：同样的拖拽用真实 DragEvent 派发 ~30ms 完成）。
- * 所以：每次真实鼠标拖拽后重载页面（数据在 IndexedDB 里）；排序 / 非法落点用 synthDrag 直接派发 DragEvent。
- */
+/** Playwright 的真实鼠标拖拽偶发挂住，所以排序 / 非法落点用合成 PointerEvent（dnd-kit 监听 pointer*） */
 async function synthDrag(page: Page, fromId: string, toId: string, fy: number): Promise<void> {
   await page.evaluate(async ({ fromId, toId, fy }) => {
-    const row = (id: string) => document.querySelector(`[data-todo-id="${id}"] > div[draggable]`) as HTMLElement
-    const dt = new DataTransfer()
-    const fire = (el: HTMLElement, type: string) => {
-      const r = el.getBoundingClientRect()
-      el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + r.width / 2, clientY: r.top + Math.max(2, r.height * fy) }))
-    }
-    fire(row(fromId), 'dragstart')
+    const handle = (id: string) => document.querySelector(`[data-todo-id="${id}"] [aria-label="拖动调整位置"]`) as HTMLElement
+    const rowOf = (id: string) => document.querySelector(`[data-todo-id="${id}"] > div`) as HTMLElement
+    const fire = (el: Element, type: string, x: number, y: number, up = false) =>
+      el.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: 'mouse',
+        button: 0, buttons: up ? 0 : 1, clientX: x, clientY: y,
+      }))
+    const h = handle(fromId)
+    const hr = h.getBoundingClientRect()
+    const sx = hr.left + hr.width / 2
+    const sy = hr.top + hr.height / 2
+    fire(h, 'pointerdown', sx, sy)
     await new Promise((r) => setTimeout(r, 50))
-    fire(row(toId), 'dragover')
+    fire(document, 'pointermove', sx, sy + 10) // 越过 6px 死区
     await new Promise((r) => setTimeout(r, 50))
-    fire(row(toId), 'drop')
-    fire(row(fromId), 'dragend')
+    const tr = rowOf(toId).getBoundingClientRect()
+    const tx = tr.left + tr.width / 2
+    const ty = tr.top + Math.min(Math.max(tr.height * fy, 2), tr.height - 2)
+    fire(document, 'pointermove', tx, ty)
+    await new Promise((r) => setTimeout(r, 50))
+    fire(document, 'pointerup', tx, ty, true)
   }, { fromId, toId, fy })
 }
 
@@ -56,10 +63,11 @@ async function seed(page: Page): Promise<void> {
   await expect(page.locator('[data-todo-id="t3"]')).toBeVisible()
 }
 
-const row = (page: Page, id: string) => page.locator(`[data-todo-id="${id}"] > div[draggable]`).first()
+const row = (page: Page, id: string) => page.locator(`[data-todo-id="${id}"] > div`).first()
+const handle = (page: Page, id: string) => page.locator(`[data-todo-id="${id}"] [aria-label="拖动调整位置"]`).first()
 
-/** 用真实鼠标步骤拖拽（按下 → 分步移动 → 松开），fy = 目标内纵向比例（0 顶 / 0.5 中 / 1 底） */
-async function drag(page: Page, from: ReturnType<typeof row>, to: ReturnType<typeof row>, fy = 0.5): Promise<void> {
+/** 用真实鼠标步骤拖拽（从 ⠿ 手柄按下 → 分步移动 → 松开），fy = 目标内纵向比例（0 顶 / 0.5 中 / 1 底） */
+async function drag(page: Page, from: Locator, to: Locator, fy = 0.5): Promise<void> {
   const a = (await from.boundingBox())!
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
   await page.mouse.down()
@@ -81,7 +89,7 @@ test('拖拽：Inbox 任务拖到 KR 上 = 挂进去；同级拖到最前 = 排�
   await seed(page)
 
   // 1) 收件箱任务拖到「季度 KR 丁」行中间 → 挂到它下面，scope 跟随
-  await drag(page, row(page, 'in'), row(page, 'QK'), 0.5)
+  await drag(page, handle(page, 'in'), row(page, 'QK'), 0.5)
   await expect.poll(async () => (await get(page, 'in'))?.parent_id).toBe('QK')
   expect((await get(page, 'in'))?.scope).toBe('quarterly')
   await reopen(page)
@@ -106,6 +114,6 @@ test('⋯ 菜单上移；拖回 Inbox = 取消挂载', async ({ page }) => {
   await reopen(page)
 
   // 收件箱有任务时 Inbox 区块就在顶部：把任务一拖进去
-  await drag(page, row(page, 't1'), page.locator('section', { hasText: 'Inbox' }).first(), 0.5)
+  await drag(page, handle(page, 't1'), page.locator('section', { hasText: 'Inbox' }).first(), 0.5)
   await expect.poll(async () => (await get(page, 't1'))?.parent_id).toBeNull()
 })
