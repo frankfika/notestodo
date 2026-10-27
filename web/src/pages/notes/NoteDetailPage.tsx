@@ -15,10 +15,20 @@ import OverflowMenu from '../../components/OverflowMenu'
 export default function NoteDetailPage(): JSX.Element {
   const noteId = useUI((s) => s.noteId)
   const goNotes = useUI((s) => s.goNotes)
+  const goNote = useUI((s) => s.goNote)
   const note = useLiveQuery(
     async () => noteId ? await db.notes.get(noteId) : undefined,
     [noteId ?? ''],
   )
+  // [[双链]] 解析：按标题找笔记（Obsidian 风格；重名取最近更新）
+  const allNotes = useLiveQuery(() => db.notes.toArray(), []) ?? []
+  const wiki = useMemo(() => ({
+    resolve: (title: string): string | null =>
+      [...allNotes]
+        .filter((n) => n.title.trim() === title)
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.id ?? null,
+    onOpen: (id: string): void => goNote(id),
+  }), [allNotes, goNote])
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
@@ -147,7 +157,7 @@ export default function NoteDetailPage(): JSX.Element {
           </div>
           <div className="card p-5">
             <div className="section-title mb-3">预览</div>
-            <MarkdownView source={draftBody} />
+            <MarkdownView source={draftBody} wiki={wiki} />
           </div>
         </div>
 

@@ -10,6 +10,7 @@ import { getSettings, saveSettings } from '../../db/settings'
 import { applyTheme } from '../../state/ui'
 import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../calendar/ics'
 import { exportData, importData } from '../../data/io'
+import { exportMarkdownVault } from '../../data/mdExport'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
 import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
@@ -754,6 +755,20 @@ function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Eleme
     }
   }
 
+  async function doMarkdownExport(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await exportMarkdownVault()
+      setLastMsg(`已导出 ${r.fileCount} 个 .md 文件（${(r.sizeBytes / 1024).toFixed(0)} KB）— 笔记是带 frontmatter 的纯文本，可直接当 Obsidian vault 打开`)
+      flash('Markdown 导出完成')
+    } catch (e: unknown) {
+      setLastMsg('Markdown 导出失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -762,6 +777,9 @@ function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Eleme
         </button>
         <button onClick={() => ref.current?.click()} disabled={busy} className="btn-outline text-sm h-9">
           导入 .zip
+        </button>
+        <button onClick={() => void doMarkdownExport()} disabled={busy} className="btn-outline text-sm h-9">
+          导出 Markdown
         </button>
         <input
           ref={ref}
