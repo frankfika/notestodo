@@ -340,6 +340,7 @@ function QuarterView({ ctx, setPeriod }: { ctx: Ctx; setPeriod: (p: string) => v
 
 // ── Strategy ──────────────────────────────────────────────────────
 
+/** 战略视图：一个战略 O 一个 tab，只看自己这棵树，层次更清楚；不属于任何战略 O 的根进「其它」 */
 function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
   // 根 = 无父的 O/KR + 父已删除的孤儿（避免节点凭空消失）
   const roots = ctx.all.filter((t) =>
@@ -347,27 +348,81 @@ function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
       : (t.parent_id !== null && !ctx.byId.has(t.parent_id)),
   ).sort((a, b) => a.sort_order - b.sort_order)
   const [adding, setAdding] = useState(false)
+
+  const tabOs = ctx.all
+    .filter((t) => t.kind === 'objective' && t.scope === 'strategic' && t.parent_id === null)
+    .sort((a, b) => a.sort_order - b.sort_order)
+  const tabIds = new Set(tabOs.map((o) => o.id))
+  const otherRoots = roots.filter((r) => !tabIds.has(r.id))
+  const tabs = [
+    ...tabOs.map((o) => ({ id: o.id, title: o.title })),
+    ...(otherRoots.length > 0 ? [{ id: '__other', title: '其它' }] : []),
+  ]
+
+  const okrTabId = useUI((s) => s.okrTabId)
+  const setOkrTab = useUI((s) => s.setOkrTab)
+  const active = tabs.some((t) => t.id === okrTabId) ? okrTabId! : (tabs[0]?.id ?? null)
+
   return (
     <div>
-      <TreeDnd ctx={ctx}>
-        <InboxStrip ctx={ctx} />
-        {roots.length === 0 ? (
-          <div className="card">
-            <EmptyState
-              title="还没有战略目标"
-              hint="从一个年度大 O 开始，往下拆 KR → 季度 O → 项目 O → Task。"
-              action={adding
-                ? <InlineAdd placeholder="战略 O 标题，回车创建" onDone={() => setAdding(false)}
-                    onSubmit={(title) => createNode(LEVELS[0], null, title)} />
-                : <button onClick={() => setAdding(true)} className="btn-primary h-8 text-xs px-3">+ 新建战略 O</button>}
-            />
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {roots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
-          </ul>
-        )}
-      </TreeDnd>
+      {roots.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            title="还没有战略目标"
+            hint="从一个年度大 O 开始，往下拆 KR → 季度 O → 项目 O → Task。"
+            action={adding
+              ? <InlineAdd placeholder="战略 O 标题，回车创建" onDone={() => setAdding(false)}
+                  onSubmit={(title) => createNode(LEVELS[0], null, title)} />
+              : <button onClick={() => setAdding(true)} className="btn-primary h-8 text-xs px-3">+ 新建战略 O</button>}
+          />
+        </div>
+      ) : (
+        <>
+          {tabs.length > 1 && (
+            <div className="flex gap-0.5 overflow-x-auto border-b border-line mb-4 px-1">
+              {tabs.map((t) => {
+                const isActive = t.id === active
+                const pct = t.id !== '__other' ? ctx.progress.get(t.id) : undefined
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setOkrTab(t.id)}
+                    className={`shrink-0 px-3 h-9 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                      isActive ? 'border-accent text-accent font-medium' : 'border-transparent text-text-3 hover:text-text-1'
+                    }`}
+                    aria-selected={isActive}
+                    role="tab"
+                  >
+                    {t.title || '未命名 O'}
+                    {pct != null && pct > 0 && (
+                      <span className={`ml-1.5 text-[10px] tabular-nums ${isActive ? 'opacity-80' : 'opacity-60'}`}>
+                        {Math.round(pct * 100)}%
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <TreeDnd ctx={ctx}>
+            <InboxStrip ctx={ctx} />
+            {tabOs.map((o) => (
+              <div key={o.id} className={o.id === active ? '' : 'hidden'} role="tabpanel">
+                <ul className="space-y-3">
+                  <li><OkrNode node={o} ctx={ctx} depth={0} /></li>
+                </ul>
+              </div>
+            ))}
+            {otherRoots.length > 0 && (
+              <div className={active === '__other' ? '' : 'hidden'} role="tabpanel">
+                <ul className="space-y-3">
+                  {otherRoots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
+                </ul>
+              </div>
+            )}
+          </TreeDnd>
+        </>
+      )}
     </div>
   )
 }
@@ -380,7 +435,7 @@ function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }):
   const children = [...(ctx.kids.get(node.id) ?? [])]
     .filter((c) => c.kind !== 'task' || matchesTag(c, ctx))
     .sort((x, y) => x.sort_order - y.sort_order)
-  const options = node.kind === 'task' ? [] : childLevels(node)
+  const options = childLevels(node)
   const isRoot = depth === 0
   // 指示线只订阅自己这一行，拖动时不会全树重渲染
   const indicator = useDrag((s) => (s.overId === node.id ? s.zone : null))
@@ -505,7 +560,8 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
     const t = ctx.byId.get(id)
     if (!t) return null
     const fy = (y - r.top) / r.height
-    const zone: DropZone = t.kind === 'task' ? (fy < 0.5 ? 'before' : 'after') : fy < 0.25 ? 'before' : fy > 0.75 ? 'after' : 'inside'
+    // 所有节点统一三区：上/下 1/4 排序，中间挂进来（task 也能挂 task = 大任务拆小任务）
+    const zone: DropZone = fy < 0.25 ? 'before' : fy > 0.75 ? 'after' : 'inside'
     if (zone === 'inside') {
       return planAt(ctx, activeId, id, 'inside') ? { id, zone, level: 0 } : null
     }
@@ -798,6 +854,8 @@ function TodoLine({ todo, ctx, showParent, addOptions = [], onAdd }: {
     [todo.id],
   ) ?? []
   const parent = showParent && todo.parent_id ? ctx.byId.get(todo.parent_id) : undefined
+  const hasKids = (ctx.kids.get(todo.id) ?? []).some((t) => t.deleted_at === null)
+  const showProgress = !isTask || hasKids
   // Inbox 任务：给出一个建议 KR，一键挂上（不用打开编辑表单选父节点）
   const suggested = useMemo(
     () => isTask && todo.parent_id === null && !isDone ? suggestKr(todo.title, ctx.all) : null,
@@ -858,9 +916,9 @@ function TodoLine({ todo, ctx, showParent, addOptions = [], onAdd }: {
               </button>
             ))}
           </div>
-          {!isTask && progress > 0 && <ProgressBar value={progress} />}
+          {showProgress && progress > 0 && <ProgressBar value={progress} />}
         </div>
-        {!isTask && progress > 0 && (
+        {showProgress && progress > 0 && (
           <span className="mt-[3px] text-[11px] text-text-3 tabular-nums shrink-0">{Math.round(progress * 100)}%</span>
         )}
         {/* 行操作：桌面悬停出现，触屏常驻 */}

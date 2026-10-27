@@ -111,18 +111,52 @@ function parseBlocks(src: string): Block[] {
  * dangerouslySetInnerHTML；只输出 React 元素，自然转义。
  */
 import type { ReactNode } from 'react'
-function inline(text: string, keyBase: string): ReactNode[] {
+
+/** 双链（Obsidian 风格 [[标题]]）：resolve 标题 → 笔记 id；onOpen 跳转 */
+export interface WikiLinkHandler {
+  resolve: (title: string) => string | null
+  onOpen: (noteId: string) => void
+}
+
+function inline(text: string, keyBase: string, wiki?: WikiLinkHandler): ReactNode[] {
   const out: ReactNode[] = []
-  // 顺序：行内代码 → 粗体 → 斜体 → 链接
-  const re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g
+  // 顺序：双链 → 行内代码 → 删除线 → 粗体 → 斜体 → 链接
+  const re = /(\[\[[^\]]+\]\]|`[^`]+`|~~[^~]+~~|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g
   let last = 0
   let m: RegExpExecArray | null
   let k = 0
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index))
     const tok = m[0]
-    if (tok.startsWith('`')) {
+    if (tok.startsWith('[[')) {
+      // [[目标]] 或 [[目标|别名]]
+      const inner = tok.slice(2, -2)
+      const bar = inner.indexOf('|')
+      const target = (bar >= 0 ? inner.slice(0, bar) : inner).trim()
+      const label = (bar >= 0 ? inner.slice(bar + 1) : inner).trim()
+      const id = wiki?.resolve(target) ?? null
+      if (wiki && id) {
+        out.push(
+          <button
+            key={`${keyBase}-w-${k++}`}
+            onClick={() => wiki.onOpen(id)}
+            className="text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent"
+            title={`打开笔记「${target}」`}
+          >{label}</button>,
+        )
+      } else if (wiki) {
+        out.push(
+          <span key={`${keyBase}-w-${k++}`} className="text-text-3 border-b border-dashed border-text-3" title={`还没有叫「${target}」的笔记`}>
+            {label}
+          </span>,
+        )
+      } else {
+        out.push(tok)
+      }
+    } else if (tok.startsWith('`')) {
       out.push(<code key={`${keyBase}-c-${k++}`} className="font-mono text-[0.9em] bg-bg-overlay px-1 py-0.5 rounded">{tok.slice(1, -1)}</code>)
+    } else if (tok.startsWith('~~')) {
+      out.push(<del key={`${keyBase}-s-${k++}`} className="text-text-3">{tok.slice(2, -2)}</del>)
     } else if (tok.startsWith('**')) {
       out.push(<strong key={`${keyBase}-b-${k++}`} className="font-semibold text-text-1">{tok.slice(2, -2)}</strong>)
     } else if (tok.startsWith('*')) {
@@ -151,9 +185,11 @@ function inline(text: string, keyBase: string): ReactNode[] {
 
 export interface MarkdownViewProps {
   source: string
+  /** 传了才把 [[双链]] 渲染成可点链接；不传按原文本显示 */
+  wiki?: WikiLinkHandler
 }
 
-export default function MarkdownView({ source }: MarkdownViewProps): JSX.Element {
+export default function MarkdownView({ source, wiki }: MarkdownViewProps): JSX.Element {
   const blocks = useMemo(() => parseBlocks(source || ''), [source])
   return (
     <div className="markdown-view text-[15px] leading-[1.75] text-text-1 space-y-3">
@@ -161,27 +197,27 @@ export default function MarkdownView({ source }: MarkdownViewProps): JSX.Element
         <p className="text-text-3 text-sm italic">（空白）</p>
       )}
       {blocks.map((b, i) => {
-        if (b.kind === 'h1') return <h1 key={i} className="text-2xl font-semibold text-text-1 mt-2">{inline(b.items![0], `h1-${i}`)}</h1>
-        if (b.kind === 'h2') return <h2 key={i} className="text-lg font-semibold text-text-1 mt-4">{inline(b.items![0], `h2-${i}`)}</h2>
-        if (b.kind === 'h3') return <h3 key={i} className="text-base font-semibold text-text-2 mt-3">{inline(b.items![0], `h3-${i}`)}</h3>
+        if (b.kind === 'h1') return <h1 key={i} className="text-2xl font-semibold text-text-1 mt-2">{inline(b.items![0], `h1-${i}`, wiki)}</h1>
+        if (b.kind === 'h2') return <h2 key={i} className="text-lg font-semibold text-text-1 mt-4">{inline(b.items![0], `h2-${i}`, wiki)}</h2>
+        if (b.kind === 'h3') return <h3 key={i} className="text-base font-semibold text-text-2 mt-3">{inline(b.items![0], `h3-${i}`, wiki)}</h3>
         if (b.kind === 'quote') {
           return (
             <blockquote key={i} className="border-l-2 border-accent/40 pl-3 text-text-2 my-2 italic">
-              {inline(b.items![0], `q-${i}`)}
+              {inline(b.items![0], `q-${i}`, wiki)}
             </blockquote>
           )
         }
         if (b.kind === 'ul') {
           return (
             <ul key={i} className="list-disc list-outside pl-5 space-y-1 marker:text-text-3">
-              {b.items!.map((it, j) => <li key={j}>{inline(it, `ul-${i}-${j}`)}</li>)}
+              {b.items!.map((it, j) => <li key={j}>{inline(it, `ul-${i}-${j}`, wiki)}</li>)}
             </ul>
           )
         }
         if (b.kind === 'ol') {
           return (
             <ol key={i} className="list-decimal list-outside pl-5 space-y-1 marker:text-text-3">
-              {b.items!.map((it, j) => <li key={j}>{inline(it, `ol-${i}-${j}`)}</li>)}
+              {b.items!.map((it, j) => <li key={j}>{inline(it, `ol-${i}-${j}`, wiki)}</li>)}
             </ol>
           )
         }
@@ -198,7 +234,7 @@ export default function MarkdownView({ source }: MarkdownViewProps): JSX.Element
                       }`}
                       aria-hidden
                     >{checked ? '✓' : ''}</span>
-                    <span className={checked ? 'line-through text-text-3' : 'text-text-1'}>{inline(it, `ult-${i}-${j}`)}</span>
+                    <span className={checked ? 'line-through text-text-3' : 'text-text-1'}>{inline(it, `ult-${i}-${j}`, wiki)}</span>
                   </li>
                 )
               })}
@@ -213,7 +249,7 @@ export default function MarkdownView({ source }: MarkdownViewProps): JSX.Element
           )
         }
         if (b.kind === 'hr') return <hr key={i} className="border-line my-4" />
-        return <p key={i}>{inline(b.items![0], `p-${i}`)}</p>
+        return <p key={i}>{inline(b.items![0], `p-${i}`, wiki)}</p>
       })}
     </div>
   )

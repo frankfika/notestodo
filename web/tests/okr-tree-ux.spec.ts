@@ -118,6 +118,13 @@ test('缩进投影：行左侧条带 = 上溯一级挂；行中央 = 原层级�
   await expect.poll(async () => (await get(page, 'QO2'))?.parent_id).toBe('KR')
 })
 
+test('大任务拆小任务：Inbox 任务拖到另一个任务上 = 挂为它的子任务', async ({ page }) => {
+  await seed(page)
+  await synthDrag(page, 'in', 't1', 0.5)
+  await expect.poll(async () => (await get(page, 'in'))?.parent_id).toBe('t1')
+  expect((await get(page, 'in'))?.scope).toBe((await get(page, 't1'))?.scope)
+})
+
 test('⋯ 菜单上移；拖回 Inbox = 取消挂载', async ({ page }) => {
   await seed(page)
   const more = page.locator('[data-todo-id="t2"]').getByRole('button', { name: '更多操作' }).first()

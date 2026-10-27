@@ -33,6 +33,9 @@ interface UIStore extends RouteState {
   /** 任务页内切视角（看板走 board 路由，其余走 todos） */
   taskMode: Exclude<TaskMode, 'board'>
   goTaskMode: (m: TaskMode) => void
+  /** 战略视图当前选中的 OKR tab（O id；null = 第一个） */
+  okrTabId: string | null
+  setOkrTab: (id: string | null) => void
   goBoard: () => void
   goReport: () => void
   goTemplates: () => void
@@ -69,6 +72,8 @@ export const useUI = create<UIStore>((set) => ({
   goTaskMode: (m) => set(m === 'board'
     ? { view: 'board', meetingId: null, noteId: null }
     : { view: 'todos', taskMode: m, meetingId: null, noteId: null, todoFocusId: null }),
+  okrTabId: null,
+  setOkrTab: (id) => set({ okrTabId: id }),
   goReport: () => set({ view: 'report', meetingId: null, noteId: null }),
   goTemplates: () => set({ view: 'templates', meetingId: null, noteId: null }),
   goSettings: () => set({ view: 'settings', meetingId: null, noteId: null }),
