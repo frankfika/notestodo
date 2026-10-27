@@ -40,11 +40,12 @@ test('+ 新建笔记：创建后立即进入详情页 + DB 写入', async ({ pag
   await page.getByRole('button', { name: '+ 新建笔记' }).first().click({ timeout: 8_000 })
   await page.waitForTimeout(800)
 
-  // 1) 自动导航到 note-detail view → 显示 placeholder 标题「标题」+ 空 body textarea
+  // 1) 自动导航到 note-detail view → 显示标题「未命名笔记」+ 空块编辑器
   await expect(page.locator('input[placeholder="标题"]')).toBeAttached({ timeout: 5_000 })
-  await expect(page.locator('textarea')).toBeAttached()
+  const ed = page.locator('.note-editor .ProseMirror')
+  await expect(ed).toBeAttached()
   const titleValue = await page.locator('input[placeholder="标题"]').inputValue()
-  const bodyValue = await page.locator('textarea').inputValue()
+  const bodyValue = (await ed.innerText()).trim()
   expect(titleValue).toBe('未命名笔记')
   expect(bodyValue).toBe('')
 

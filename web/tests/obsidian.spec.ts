@@ -29,17 +29,27 @@ async function seed(page: Page): Promise<void> {
   })
 }
 
-test('[[双链]]：命中渲染成按钮并跳转；断链虚线提示', async ({ page }) => {
+test('[[双链]]：编辑器里渲染成内链，点击跳转；round-trip 不丢', async ({ page }) => {
   await seed(page)
-  // 预览里的双链按钮（含别名显示「这篇」）
-  const link = page.locator('button', { hasText: '这篇' })
+  // 编辑器里 [[标题|别名]] 渲染成 span.wiki-link（显示别名）
+  const ed = page.locator('.note-editor .ProseMirror')
+  const link = ed.locator('span.wiki-link', { hasText: '这篇' })
   await expect(link).toBeVisible()
-  await expect(link).toHaveAttribute('title', '打开笔记「复盘方法」')
-  // 断链：虚线 span，带提示
-  await expect(page.locator('span[title="还没有叫「不存在的笔记」的笔记"]')).toBeVisible()
-  // 点击跳转 → 标题输入框变成复盘方法
+  await expect(link).toHaveAttribute('title', '复盘方法')
+  // 断链也渲染（title 指向不存在的笔记）
+  await expect(ed.locator('span.wiki-link', { hasText: '不存在的笔记' })).toBeVisible()
+  // 点击命中链接 → 跳到复盘方法
   await link.click()
   await expect(page.locator('input[placeholder="标题"]')).toHaveValue('复盘方法')
+  // round-trip：不丢链、不丢别名
+  await page.waitForTimeout(600)
+  const saved = await page.evaluate(async () => {
+    const { db } = await import('/src/db/db.ts')
+    const rows = await db.notes.toArray()
+    return rows.find((n) => n.title === '会议纪要')?.body_md ?? ''
+  })
+  expect(saved).toContain('[[复盘方法|这篇]]')
+  expect(saved).toContain('[[不存在的笔记]]')
 })
 
 test('Markdown 导出：笔记带 frontmatter、任务成嵌套 GFM 列表、软删不出现', async ({ page }) => {

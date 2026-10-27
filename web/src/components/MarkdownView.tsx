@@ -120,8 +120,8 @@ export interface WikiLinkHandler {
 
 function inline(text: string, keyBase: string, wiki?: WikiLinkHandler): ReactNode[] {
   const out: ReactNode[] = []
-  // 顺序：双链 → 行内代码 → 粗体 → 斜体 → 链接
-  const re = /(\[\[[^\]]+\]\]|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g
+  // 顺序：双链 → 行内代码 → 删除线 → 粗体 → 斜体 → 链接
+  const re = /(\[\[[^\]]+\]\]|`[^`]+`|~~[^~]+~~|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g
   let last = 0
   let m: RegExpExecArray | null
   let k = 0
@@ -155,6 +155,8 @@ function inline(text: string, keyBase: string, wiki?: WikiLinkHandler): ReactNod
       }
     } else if (tok.startsWith('`')) {
       out.push(<code key={`${keyBase}-c-${k++}`} className="font-mono text-[0.9em] bg-bg-overlay px-1 py-0.5 rounded">{tok.slice(1, -1)}</code>)
+    } else if (tok.startsWith('~~')) {
+      out.push(<del key={`${keyBase}-s-${k++}`} className="text-text-3">{tok.slice(2, -2)}</del>)
     } else if (tok.startsWith('**')) {
       out.push(<strong key={`${keyBase}-b-${k++}`} className="font-semibold text-text-1">{tok.slice(2, -2)}</strong>)
     } else if (tok.startsWith('*')) {

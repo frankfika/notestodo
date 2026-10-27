@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import type { Editor } from '@tiptap/react'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'
 import { fmtDateTime, now } from '../../lib/id'
 import type { Todo } from '../../types'
-import MarkdownView from '../../components/MarkdownView'
 import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
+import NoteEditor from '../../components/editor/NoteEditor'
 
 /**
- * 单条笔记：左侧 Markdown 编辑器（纯 textarea，MVP），右侧渲染。
- * 顶部「插入待办」按钮 —— 创建一条 Todo{ source:'note', origin_note_id:this.id, status:'open' }。
+ * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
+ * 顶部「插入待办」—— 创建 Todo{ source:'note', origin_note_id:this.id }，
+ * 标题取编辑器内选中的文本。
  */
 export default function NoteDetailPage(): JSX.Element {
   const noteId = useUI((s) => s.noteId)
@@ -20,22 +22,23 @@ export default function NoteDetailPage(): JSX.Element {
     async () => noteId ? await db.notes.get(noteId) : undefined,
     [noteId ?? ''],
   )
-  // [[双链]] 解析：按标题找笔记（Obsidian 风格；重名取最近更新）
+  // [[双链]] 跳转目标：按标题找笔记（重名取最近更新）
   const allNotes = useLiveQuery(() => db.notes.toArray(), []) ?? []
-  const wiki = useMemo(() => ({
-    resolve: (title: string): string | null =>
-      [...allNotes]
-        .filter((n) => n.title.trim() === title)
-        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.id ?? null,
-    onOpen: (id: string): void => goNote(id),
-  }), [allNotes, goNote])
+  const openWiki = useCallback((title: string): void => {
+    const hit = [...allNotes]
+      .filter((n) => n.title.trim() === title.trim())
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
+    if (hit) goNote(hit.id)
+  }, [allNotes, goNote])
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
+  const editorRef = useRef<Editor | null>(null)
 
   useEffect(() => {
     setDraftBody(note?.body_md ?? '')
     setDraftTitle(note?.title ?? '')
+    // 编辑器按 note.id 重挂载，正文不回灌编辑器，draftBody 只作存盘基准
   }, [note?.id, note?.body_md, note?.title])
 
   const dirty = !!note && (draftBody !== note.body_md || draftTitle !== note.title)
@@ -64,9 +67,13 @@ export default function NoteDetailPage(): JSX.Element {
 
   async function insertTodo(): Promise<void> {
     if (!note) return
-    // 抓当前选中文本
-    const sel = window.getSelection?.()?.toString().trim()
-    const title = sel || '从笔记创建的任务'
+    // 取编辑器内的选中文本
+    const ed = editorRef.current
+    const sel = ed?.state.selection
+    const text = ed && sel && !sel.empty
+      ? ed.state.doc.textBetween(sel.from, sel.to, '\n').trim()
+      : ''
+    const title = text || '从笔记创建的任务'
     const todo: Todo = {
       id: crypto.randomUUID(),
       kind: 'task',
@@ -138,27 +145,21 @@ export default function NoteDetailPage(): JSX.Element {
             className={`btn-outline text-xs h-8 ${note.pinned ? 'text-accent border-accent/40' : ''}`}
             title="置顶"
           >{note.pinned ? '已置顶' : '置顶'}</button>
-          <button onClick={() => void insertTodo()} className="btn-primary text-xs h-8" title="从当前笔记新建一条 Task">
+          <button onClick={() => void insertTodo()} className="btn-primary text-xs h-8" title="基于编辑器中选中的文字新建一条 Task">
             + 插入待办
           </button>
           <OverflowMenu items={[{ label: '删除笔记', danger: true, onClick: () => void deleteNote() }]} />
         </div>
 
-        {/* 分割编辑 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="card p-4">
-            <textarea
-              value={draftBody}
-              onChange={(e) => setDraftBody(e.target.value)}
-              placeholder="# 标题&#10;&#10;开始写作……选中文字再点上方「插入待办」可基于选中片段建任务。"
-              className="w-full min-h-[60vh] bg-transparent text-[15px] leading-[1.7] text-text-1 placeholder:text-text-3 outline-none resize-y font-mono"
-              spellCheck={false}
-            />
-          </div>
-          <div className="card p-5">
-            <div className="section-title mb-3">预览</div>
-            <MarkdownView source={draftBody} wiki={wiki} />
-          </div>
+        {/* 块编辑器（所见即所得，替代原 textarea + 预览分栏） */}
+        <div className="card px-12 md:px-14 py-5">
+          <NoteEditor
+            key={note.id}
+            initialMarkdown={note.body_md}
+            onChange={setDraftBody}
+            onReady={(ed) => { editorRef.current = ed }}
+            onWikiOpen={openWiki}
+          />
         </div>
 
         {/* 关联任务 */}
