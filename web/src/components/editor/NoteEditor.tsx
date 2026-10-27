@@ -280,7 +280,9 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
       onDrop={(e) => {
         if (!e.dataTransfer.types.includes('application/x-shibei-block')) return
         e.preventDefault()
-        const src = dragSrc.current
+        // 优先用 dragstart 记录的 src；为空时（拖出编辑器又拖回等边界）从 dataTransfer 兜底
+        const fromData = Number(e.dataTransfer.getData('application/x-shibei-block'))
+        const src = dragSrc.current ?? (Number.isInteger(fromData) && fromData >= 0 ? { pos: fromData } : null)
         dragSrc.current = null
         const b = locateBlock(e.clientX, e.clientY)
         clearDropMark()

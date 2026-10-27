@@ -435,7 +435,7 @@ function OkrNode({ node, ctx, depth }: { node: Todo; ctx: Ctx; depth: number }):
   const children = [...(ctx.kids.get(node.id) ?? [])]
     .filter((c) => c.kind !== 'task' || matchesTag(c, ctx))
     .sort((x, y) => x.sort_order - y.sort_order)
-  const options = node.kind === 'task' ? [] : childLevels(node)
+  const options = childLevels(node)
   const isRoot = depth === 0
   // 指示线只订阅自己这一行，拖动时不会全树重渲染
   const indicator = useDrag((s) => (s.overId === node.id ? s.zone : null))
@@ -560,7 +560,8 @@ function TreeDnd({ ctx, children }: { ctx: Ctx; children: React.ReactNode }): JS
     const t = ctx.byId.get(id)
     if (!t) return null
     const fy = (y - r.top) / r.height
-    const zone: DropZone = t.kind === 'task' ? (fy < 0.5 ? 'before' : 'after') : fy < 0.25 ? 'before' : fy > 0.75 ? 'after' : 'inside'
+    // 所有节点统一三区：上/下 1/4 排序，中间挂进来（task 也能挂 task = 大任务拆小任务）
+    const zone: DropZone = fy < 0.25 ? 'before' : fy > 0.75 ? 'after' : 'inside'
     if (zone === 'inside') {
       return planAt(ctx, activeId, id, 'inside') ? { id, zone, level: 0 } : null
     }
@@ -853,6 +854,8 @@ function TodoLine({ todo, ctx, showParent, addOptions = [], onAdd }: {
     [todo.id],
   ) ?? []
   const parent = showParent && todo.parent_id ? ctx.byId.get(todo.parent_id) : undefined
+  const hasKids = (ctx.kids.get(todo.id) ?? []).some((t) => t.deleted_at === null)
+  const showProgress = !isTask || hasKids
   // Inbox 任务：给出一个建议 KR，一键挂上（不用打开编辑表单选父节点）
   const suggested = useMemo(
     () => isTask && todo.parent_id === null && !isDone ? suggestKr(todo.title, ctx.all) : null,
@@ -913,9 +916,9 @@ function TodoLine({ todo, ctx, showParent, addOptions = [], onAdd }: {
               </button>
             ))}
           </div>
-          {!isTask && progress > 0 && <ProgressBar value={progress} />}
+          {showProgress && progress > 0 && <ProgressBar value={progress} />}
         </div>
-        {!isTask && progress > 0 && (
+        {showProgress && progress > 0 && (
           <span className="mt-[3px] text-[11px] text-text-3 tabular-nums shrink-0">{Math.round(progress * 100)}%</span>
         )}
         {/* 行操作：桌面悬停出现，触屏常驻 */}

@@ -37,7 +37,8 @@ export function levelLabel(l: Level): string {
 }
 
 export function canParent(child: Level, parent: Pick<Todo, 'kind' | 'scope'> | null): boolean {
-  if (child.kind === 'task') return parent === null || parent.kind === 'kr'
+  // task：Inbox / 挂 KR 下 / 挂另一个 task 下（大任务拆小任务，两层够用——OKR 层级是给你想用时用的）
+  if (child.kind === 'task') return parent === null || parent.kind === 'kr' || parent.kind === 'task'
   const want = PARENT_OF[`${child.kind}:${child.scope}`]
   if (want === undefined) return false
   if (want === null) return parent === null
@@ -103,7 +104,8 @@ export function rollupProgress(todos: Todo[]): Map<string, number> {
     seen.add(t.id)
     const ch = kids.get(t.id) ?? []
     let v: number
-    if (t.kind === 'task' || ch.length === 0) {
+    if (ch.length === 0) {
+      // 叶子按自身状态；有子节点的 task（大任务）也按子任务汇总
       v = t.status === 'done' ? 1 : 0
     } else {
       let sum = 0

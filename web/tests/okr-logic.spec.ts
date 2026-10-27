@@ -32,6 +32,7 @@ test('parent rules', () => {
   const task = { kind: 'task' as const, scope: null }
   for (const kr of [sKR, qKR, pKR]) expect(canParent(task, kr)).toBe(true)
   expect(canParent(task, null)).toBe(true)
+  expect(canParent(task, task)).toBe(true) // 大任务拆小任务
   expect(canParent(task, pO)).toBe(false)
 })
 

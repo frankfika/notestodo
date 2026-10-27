@@ -23,10 +23,10 @@ const tree = (): Todo[] => {
   ]
 }
 
-test('validParents：task 只能挂 KR 或回 Inbox；O/KR 只能挂合法层级，且不含自己的子孙', () => {
+test('validParents：task 可挂 KR / 回 Inbox / 挂另一个 task（大任务）；O/KR 只能挂合法层级，且不含自己的子孙', () => {
   const all = tree()
   const t = validParents(all.find((x) => x.id === 'inbox')!, all)
-  expect(t.parents.map((p) => p.id).sort()).toEqual(['KR', 'QK1', 'QK2'])
+  expect(t.parents.map((p) => p.id).sort()).toEqual(['KR', 'QK1', 'QK2', 't1', 't2', 't3'])
   expect(t.rootOk).toBe(true)
   const qo = validParents(all.find((x) => x.id === 'QO')!, all)
   expect(qo.parents.map((p) => p.id)).toEqual(['KR'])

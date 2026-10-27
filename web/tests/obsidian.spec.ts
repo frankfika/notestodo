@@ -52,6 +52,19 @@ test('[[双链]]：编辑器里渲染成内链，点击跳转；round-trip 不�
   expect(saved).toContain('[[不存在的笔记]]')
 })
 
+test('反向链接：其它笔记 [[链]] 到这篇时出现在「关联」区，点击跳转', async ({ page }) => {
+  await seed(page)
+  await page.evaluate(async () => {
+    const { db } = await import('/src/db/db.ts')
+    const ts = new Date().toISOString()
+    await db.notes.put({ id: 'n3', title: '产品构想', body_md: '下周对照 [[会议纪要]] 逐项过', todo_ids: [], pinned: false, created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 })
+  })
+  // 打开「会议纪要」→ 反向链接列出产品构想
+  await expect(page.locator('.section-title', { hasText: '反向链接 (1)' })).toBeVisible()
+  await page.locator('button', { hasText: '产品构想' }).click()
+  await expect(page.locator('input[placeholder="标题"]')).toHaveValue('产品构想')
+})
+
 test('Markdown 导出：笔记带 frontmatter、任务成嵌套 GFM 列表、软删不出现', async ({ page }) => {
   await seed(page)
   const out = await page.evaluate(async () => {

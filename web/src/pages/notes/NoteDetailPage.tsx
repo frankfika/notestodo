@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { Editor } from '@tiptap/react'
 import { useUI } from '../../state/ui'
@@ -18,9 +18,14 @@ export default function NoteDetailPage(): JSX.Element {
   const noteId = useUI((s) => s.noteId)
   const goNotes = useUI((s) => s.goNotes)
   const goNote = useUI((s) => s.goNote)
+  const goMeeting = useUI((s) => s.goMeeting)
   const note = useLiveQuery(
     async () => noteId ? await db.notes.get(noteId) : undefined,
     [noteId ?? ''],
+  )
+  const originMeeting = useLiveQuery(
+    async () => note?.meeting_id ? await db.meetings.get(note.meeting_id) : undefined,
+    [note?.meeting_id ?? ''],
   )
   // [[双链]] 跳转目标：按标题找笔记（重名取最近更新）
   const allNotes = useLiveQuery(() => db.notes.toArray(), []) ?? []
@@ -30,6 +35,13 @@ export default function NoteDetailPage(): JSX.Element {
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
     if (hit) goNote(hit.id)
   }, [allNotes, goNote])
+  // 反向链接：其它笔记正文里 [[这篇的标题]]（含 [[标题|别名]] 写法）
+  const backlinks = useMemo(() => {
+    const title = note?.title?.trim()
+    if (!title || !note) return []
+    const re = new RegExp(`\\[\\[${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\]\\]|\\|)`)
+    return allNotes.filter((n) => n.id !== note.id && n.deleted_at === null && re.test(n.body_md ?? ''))
+  }, [allNotes, note])
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
@@ -162,9 +174,17 @@ export default function NoteDetailPage(): JSX.Element {
           />
         </div>
 
-        {/* 关联任务 */}
+        {/* 关联：任务 / 来源会议 / 反向链接 */}
         <div className="mt-6">
-          <div className="section-title mb-2">从这条笔记创建的任务 ({linkedTodos.length})</div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="section-title">关联</div>
+            {originMeeting && (
+              <button onClick={() => goMeeting(originMeeting.id)} className="chip hover:text-accent" title="打开来源会议">
+                会议 · {originMeeting.title}
+              </button>
+            )}
+          </div>
+          <div className="section-title mb-2 mt-3">从这条笔记创建的任务 ({linkedTodos.length})</div>
           {linkedTodos.length === 0 ? (
             <div className="text-xs text-text-3 px-3 py-2">还没有。选中正文片段后点「+ 插入待办」可创建一条 Task。</div>
           ) : (
@@ -174,6 +194,24 @@ export default function NoteDetailPage(): JSX.Element {
                   <span className="text-text-3">·</span>
                   <span className={`flex-1 ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}>{t.title}</span>
                   <span className="chip">{t.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* 反向链接：哪些笔记 [[链]] 到这篇（Obsidian backlinks） */}
+        <div className="mt-6">
+          <div className="section-title mb-2">反向链接 ({backlinks.length})</div>
+          {backlinks.length === 0 ? (
+            <div className="text-xs text-text-3 px-3 py-2">还没有笔记链接到这篇。在其它笔记里写 [[{note.title || '标题'}]] 即可挂上。</div>
+          ) : (
+            <ul className="card divide-y divide-line">
+              {backlinks.map((n) => (
+                <li key={n.id}>
+                  <button onClick={() => goNote(n.id)} className="w-full text-left px-4 py-2.5 text-sm text-text-1 hover:bg-bg-overlay">
+                    {n.title || '未命名笔记'}
+                  </button>
                 </li>
               ))}
             </ul>
