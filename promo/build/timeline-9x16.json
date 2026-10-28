@@ -1,0 +1,112 @@
+{
+  "layout": "9x16",
+  "size": [
+    1080,
+    1920
+  ],
+  "fps": 30,
+  "target_s": 60.0,
+  "total_s": 61.452,
+  "vo_lead": 0.4,
+  "shots": [
+    {
+      "id": "SH-01",
+      "kind": "hook",
+      "src": [
+        "hook-1",
+        "hook-2"
+      ],
+      "vo": "vo-01",
+      "note": "纸底大字逐句浮现 → 小窗推入 today",
+      "start": 0.0,
+      "dur": 6.126,
+      "xfade_next": 0.6,
+      "cap": "开会时，你在讨论，还是在**抄笔记**？",
+      "en": "In a meeting, are you in the discussion — or just taking notes?",
+      "vo_dur": 5.506,
+      "cap_in": 0.47,
+      "cap_out": 5.776
+    },
+    {
+      "id": "SH-03",
+      "kind": "ui-clip",
+      "src": [
+        "record-start-clean",
+        "live-caption-clean"
+      ],
+      "vo": "vo-03",
+      "note": "record-start → live-caption（快捷键真值 ⌘⇧R）",
+      "start": 5.526,
+      "dur": 12.412,
+      "xfade_next": 0.5,
+      "cap": "**⌘⇧R** 一键开录 · 会中只记关键词，回车即存",
+      "en": "One shortcut to record · jot keywords, hit enter to save",
+      "vo_dur": 11.792,
+      "cap_in": 5.996,
+      "cap_out": 17.588
+    },
+    {
+      "id": "SH-04",
+      "kind": "ui-clip",
+      "src": "polish",
+      "vo": "vo-04",
+      "note": "重新整理 → 笔记 Tab → 全部确认",
+      "start": 17.438,
+      "dur": 12.863,
+      "xfade_next": 0.5,
+      "cap": "一次调用 = 标题 + 纪要 + 待办 · 每条带**原文引用**",
+      "en": "One pass = title + notes + action items, each with its source quote",
+      "vo_dur": 12.243,
+      "cap_in": 17.908,
+      "cap_out": 29.951
+    },
+    {
+      "id": "SH-06",
+      "kind": "ui-clip",
+      "src": [
+        "okr-views",
+        "okr-attach"
+      ],
+      "vo": "vo-06",
+      "note": "三视图切换 + 挂到 KR",
+      "start": 29.801,
+      "dur": 12.285,
+      "xfade_next": 0.5,
+      "cap": "**嵌套 OKR** · 战略 → 季度 → 项目 → 任务",
+      "en": "Nested OKRs · strategy → quarter → project → task",
+      "vo_dur": 11.665,
+      "cap_in": 30.271,
+      "cap_out": 41.736
+    },
+    {
+      "id": "SH-08",
+      "kind": "ui-clip",
+      "src": "settings-ai",
+      "vo": "vo-08",
+      "note": "AI 运行在哪里 + 数据去向（不得暗示网页版可离线推理）",
+      "start": 41.586,
+      "dur": 13.319,
+      "xfade_next": 0.5,
+      "cap": "**桌面版**内置模型 · 断网可用 · 数据去向如实自检",
+      "en": "Built-in models on desktop · works offline · honest data-flow check",
+      "vo_dur": 12.699,
+      "cap_in": 42.056,
+      "cap_out": 54.555
+    },
+    {
+      "id": "SH-10",
+      "kind": "card",
+      "src": "end-card-1920x1080.png",
+      "vo": "vo-10",
+      "note": "收尾",
+      "start": 54.405,
+      "dur": 7.047,
+      "xfade_next": 0.0,
+      "cap": "**github.com/frankfika/notestodo** · 本地优先 · 开源",
+      "en": "github.com/frankfika/notestodo · local-first · open source",
+      "vo_dur": 6.427,
+      "cap_in": 54.875,
+      "cap_out": 61.102
+    }
+  ]
+}

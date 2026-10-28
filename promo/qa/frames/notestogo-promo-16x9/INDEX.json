@@ -1,0 +1,195 @@
+{
+  "video": "promo/build/out/notestogo-promo-16x9.mp4",
+  "duration_s": 90.0,
+  "frames": [
+    {
+      "i": 0,
+      "t_s": 0.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/000_t0000.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 1,
+      "t_s": 4.0,
+      "tag": "SH-01",
+      "file": "promo/qa/frames/notestogo-promo-16x9/001_t0004.00s_SH-01.png",
+      "ok": true
+    },
+    {
+      "i": 2,
+      "t_s": 5.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/002_t0005.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 3,
+      "t_s": 10.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/003_t0010.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 4,
+      "t_s": 11.5,
+      "tag": "SH-02",
+      "file": "promo/qa/frames/notestogo-promo-16x9/004_t0011.50s_SH-02.png",
+      "ok": true
+    },
+    {
+      "i": 5,
+      "t_s": 15.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/005_t0015.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 6,
+      "t_s": 20.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/006_t0020.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 7,
+      "t_s": 21.5,
+      "tag": "SH-03",
+      "file": "promo/qa/frames/notestogo-promo-16x9/007_t0021.50s_SH-03.png",
+      "ok": true
+    },
+    {
+      "i": 8,
+      "t_s": 25.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/008_t0025.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 9,
+      "t_s": 30.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/009_t0030.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 10,
+      "t_s": 35.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/010_t0035.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 11,
+      "t_s": 35.0,
+      "tag": "SH-04",
+      "file": "promo/qa/frames/notestogo-promo-16x9/011_t0035.00s_SH-04.png",
+      "ok": true
+    },
+    {
+      "i": 12,
+      "t_s": 40.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/012_t0040.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 13,
+      "t_s": 45.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/013_t0045.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 14,
+      "t_s": 45.5,
+      "tag": "SH-05",
+      "file": "promo/qa/frames/notestogo-promo-16x9/014_t0045.50s_SH-05.png",
+      "ok": true
+    },
+    {
+      "i": 15,
+      "t_s": 50.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/015_t0050.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 16,
+      "t_s": 55.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/016_t0055.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 17,
+      "t_s": 56.0,
+      "tag": "SH-06",
+      "file": "promo/qa/frames/notestogo-promo-16x9/017_t0056.00s_SH-06.png",
+      "ok": true
+    },
+    {
+      "i": 18,
+      "t_s": 60.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/018_t0060.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 19,
+      "t_s": 65.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/019_t0065.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 20,
+      "t_s": 68.5,
+      "tag": "SH-07",
+      "file": "promo/qa/frames/notestogo-promo-16x9/020_t0068.50s_SH-07.png",
+      "ok": true
+    },
+    {
+      "i": 21,
+      "t_s": 70.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/021_t0070.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 22,
+      "t_s": 75.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/022_t0075.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 23,
+      "t_s": 79.5,
+      "tag": "SH-08",
+      "file": "promo/qa/frames/notestogo-promo-16x9/023_t0079.50s_SH-08.png",
+      "ok": true
+    },
+    {
+      "i": 24,
+      "t_s": 80.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/024_t0080.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 25,
+      "t_s": 85.0,
+      "tag": "every5s",
+      "file": "promo/qa/frames/notestogo-promo-16x9/025_t0085.00s_every5s.png",
+      "ok": true
+    },
+    {
+      "i": 26,
+      "t_s": 88.5,
+      "tag": "SH-09",
+      "file": "promo/qa/frames/notestogo-promo-16x9/026_t0088.50s_SH-09.png",
+      "ok": true
+    }
+  ]
+}

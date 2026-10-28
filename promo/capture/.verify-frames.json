@@ -1,0 +1,1523 @@
+{
+  "stills": [
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 16.16,
+      "unique_colors_sampled": 1258,
+      "accent_px": 24666,
+      "ink_px": 22425,
+      "mean_rgb": [
+        249,
+        246,
+        239
+      ],
+      "name": "today",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 22.61,
+      "unique_colors_sampled": 1163,
+      "accent_px": 0,
+      "ink_px": 3706,
+      "mean_rgb": [
+        202,
+        197,
+        190
+      ],
+      "name": "today-cmdk",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 21.84,
+      "unique_colors_sampled": 1740,
+      "accent_px": 49,
+      "ink_px": 57583,
+      "mean_rgb": [
+        248,
+        245,
+        239
+      ],
+      "name": "live-meeting",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 21.24,
+      "unique_colors_sampled": 1730,
+      "accent_px": 0,
+      "ink_px": 55044,
+      "mean_rgb": [
+        248,
+        245,
+        239
+      ],
+      "name": "live-meeting-clean",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 29.77,
+      "unique_colors_sampled": 1681,
+      "accent_px": 26969,
+      "ink_px": 134091,
+      "mean_rgb": [
+        245,
+        242,
+        235
+      ],
+      "name": "meeting-note",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 28.39,
+      "unique_colors_sampled": 1999,
+      "accent_px": 45015,
+      "ink_px": 105581,
+      "mean_rgb": [
+        246,
+        242,
+        235
+      ],
+      "name": "meeting-todo-confirm",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 27.85,
+      "unique_colors_sampled": 1463,
+      "accent_px": 24946,
+      "ink_px": 108747,
+      "mean_rgb": [
+        247,
+        244,
+        238
+      ],
+      "name": "meeting-transcript",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 22.79,
+      "unique_colors_sampled": 1778,
+      "accent_px": 42429,
+      "ink_px": 43862,
+      "mean_rgb": [
+        248,
+        245,
+        238
+      ],
+      "name": "okr-focus",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 23.18,
+      "unique_colors_sampled": 1885,
+      "accent_px": 57623,
+      "ink_px": 43335,
+      "mean_rgb": [
+        249,
+        245,
+        239
+      ],
+      "name": "okr-quarter",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 24.48,
+      "unique_colors_sampled": 1924,
+      "accent_px": 65332,
+      "ink_px": 50829,
+      "mean_rgb": [
+        248,
+        245,
+        238
+      ],
+      "name": "okr-strategy",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 19.42,
+      "unique_colors_sampled": 1682,
+      "accent_px": 35028,
+      "ink_px": 24976,
+      "mean_rgb": [
+        245,
+        241,
+        234
+      ],
+      "name": "board",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 25.52,
+      "unique_colors_sampled": 1517,
+      "accent_px": 41424,
+      "ink_px": 77170,
+      "mean_rgb": [
+        249,
+        246,
+        241
+      ],
+      "name": "report",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 17.69,
+      "unique_colors_sampled": 1596,
+      "accent_px": 27761,
+      "ink_px": 17554,
+      "mean_rgb": [
+        249,
+        246,
+        239
+      ],
+      "name": "settings-ai",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "std": 17.41,
+      "unique_colors_sampled": 1410,
+      "accent_px": 27761,
+      "ink_px": 15197,
+      "mean_rgb": [
+        249,
+        246,
+        240
+      ],
+      "name": "data-flow",
+      "expected": "3840x2160"
+    },
+    {
+      "w": 1170,
+      "h": 2532,
+      "std": 29.37,
+      "unique_colors_sampled": 2612,
+      "accent_px": 3098,
+      "ink_px": 38278,
+      "mean_rgb": [
+        247,
+        244,
+        240
+      ],
+      "name": "mobile-today",
+      "expected": "1170x2532"
+    },
+    {
+      "w": 2732,
+      "h": 2048,
+      "std": 22.94,
+      "unique_colors_sampled": 2150,
+      "accent_px": 35028,
+      "ink_px": 24915,
+      "mean_rgb": [
+        244,
+        240,
+        233
+      ],
+      "name": "ipad-board",
+      "expected": "2732x2048"
+    },
+    {
+      "w": 1536,
+      "h": 2048,
+      "std": 33.96,
+      "unique_colors_sampled": 2938,
+      "accent_px": 45051,
+      "ink_px": 36874,
+      "mean_rgb": [
+        245,
+        240,
+        233
+      ],
+      "name": "ipad-portrait",
+      "expected": "1536x2048"
+    }
+  ],
+  "clips": [
+    {
+      "duration_s": 7.12,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.067,
+        0.005,
+        0.017,
+        0.002,
+        0.0,
+        0.0,
+        0.018
+      ],
+      "mid_diff": 1.626,
+      "mid_diffs": [
+        1.626,
+        1.194,
+        0.145,
+        0.666
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 330,
+          "std": 10.0
+        },
+        {
+          "t": 0.15,
+          "accent_px": 331,
+          "std": 11.13
+        },
+        {
+          "t": 0.25,
+          "accent_px": 331,
+          "std": 12.29
+        },
+        {
+          "t": 0.35,
+          "accent_px": 331,
+          "std": 12.3
+        },
+        {
+          "t": 0.45,
+          "accent_px": 335,
+          "std": 12.44
+        },
+        {
+          "t": 0.55,
+          "accent_px": 336,
+          "std": 12.43
+        },
+        {
+          "t": 0.65,
+          "accent_px": 335,
+          "std": 12.68
+        },
+        {
+          "t": 0.75,
+          "accent_px": 335,
+          "std": 12.44
+        },
+        {
+          "t": 0.85,
+          "accent_px": 336,
+          "std": 12.68
+        },
+        {
+          "t": 0.95,
+          "accent_px": 335,
+          "std": 12.69
+        },
+        {
+          "t": 1.05,
+          "accent_px": 0,
+          "std": 11.28
+        },
+        {
+          "t": 1.15,
+          "accent_px": 0,
+          "std": 11.33
+        },
+        {
+          "t": 1.25,
+          "accent_px": 1,
+          "std": 9.74
+        },
+        {
+          "t": 1.35,
+          "accent_px": 1,
+          "std": 9.55
+        },
+        {
+          "t": 1.45,
+          "accent_px": 23,
+          "std": 9.85
+        },
+        {
+          "t": 1.55,
+          "accent_px": 26,
+          "std": 9.83
+        }
+      ],
+      "name": "record-start",
+      "expected_duration_s": 7.12
+    },
+    {
+      "duration_s": 8.44,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.006,
+        0.006,
+        0.004,
+        0.0,
+        0.009,
+        0.009,
+        0.004
+      ],
+      "mid_diff": 1.585,
+      "mid_diffs": [
+        0.838,
+        0.848,
+        1.585,
+        1.488
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 331,
+          "std": 9.68
+        },
+        {
+          "t": 0.15,
+          "accent_px": 330,
+          "std": 11.31
+        },
+        {
+          "t": 0.25,
+          "accent_px": 331,
+          "std": 12.57
+        },
+        {
+          "t": 0.35,
+          "accent_px": 331,
+          "std": 12.58
+        },
+        {
+          "t": 0.45,
+          "accent_px": 333,
+          "std": 12.6
+        },
+        {
+          "t": 0.55,
+          "accent_px": 336,
+          "std": 12.61
+        },
+        {
+          "t": 0.65,
+          "accent_px": 335,
+          "std": 12.72
+        },
+        {
+          "t": 0.75,
+          "accent_px": 336,
+          "std": 12.75
+        },
+        {
+          "t": 0.85,
+          "accent_px": 0,
+          "std": 11.13
+        },
+        {
+          "t": 0.95,
+          "accent_px": 0,
+          "std": 11.36
+        },
+        {
+          "t": 1.05,
+          "accent_px": 0,
+          "std": 9.25
+        },
+        {
+          "t": 1.15,
+          "accent_px": 12,
+          "std": 9.76
+        },
+        {
+          "t": 1.25,
+          "accent_px": 29,
+          "std": 9.96
+        },
+        {
+          "t": 1.35,
+          "accent_px": 31,
+          "std": 9.84
+        },
+        {
+          "t": 1.45,
+          "accent_px": 33,
+          "std": 9.87
+        },
+        {
+          "t": 1.55,
+          "accent_px": 32,
+          "std": 9.86
+        }
+      ],
+      "name": "live-caption",
+      "expected_duration_s": 8.44
+    },
+    {
+      "duration_s": 5.44,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.086,
+        0.253,
+        0.979,
+        0.447,
+        0.798,
+        0.828,
+        0.152
+      ],
+      "mid_diff": 6.752,
+      "mid_diffs": [
+        0.163,
+        6.752,
+        6.022,
+        1.142
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 406,
+          "std": 15.47
+        },
+        {
+          "t": 0.15,
+          "accent_px": 405,
+          "std": 15.58
+        },
+        {
+          "t": 0.25,
+          "accent_px": 412,
+          "std": 15.72
+        },
+        {
+          "t": 0.35,
+          "accent_px": 404,
+          "std": 15.69
+        },
+        {
+          "t": 0.45,
+          "accent_px": 406,
+          "std": 15.62
+        },
+        {
+          "t": 0.55,
+          "accent_px": 413,
+          "std": 15.61
+        },
+        {
+          "t": 0.65,
+          "accent_px": 414,
+          "std": 15.65
+        },
+        {
+          "t": 0.75,
+          "accent_px": 417,
+          "std": 15.67
+        },
+        {
+          "t": 0.85,
+          "accent_px": 417,
+          "std": 15.69
+        },
+        {
+          "t": 0.95,
+          "accent_px": 417,
+          "std": 15.7
+        },
+        {
+          "t": 1.05,
+          "accent_px": 417,
+          "std": 15.67
+        },
+        {
+          "t": 1.15,
+          "accent_px": 337,
+          "std": 15.13
+        },
+        {
+          "t": 1.25,
+          "accent_px": 338,
+          "std": 15.16
+        },
+        {
+          "t": 1.35,
+          "accent_px": 338,
+          "std": 15.15
+        },
+        {
+          "t": 1.45,
+          "accent_px": 338,
+          "std": 15.15
+        },
+        {
+          "t": 1.55,
+          "accent_px": 337,
+          "std": 15.14
+        }
+      ],
+      "name": "polish",
+      "expected_duration_s": 5.44
+    },
+    {
+      "duration_s": 4.96,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.022,
+        0.008,
+        0.004,
+        0.002,
+        0.816,
+        0.141,
+        0.359
+      ],
+      "mid_diff": 1.194,
+      "mid_diffs": [
+        1.194,
+        0.823,
+        0.303,
+        0.313
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 463,
+          "std": 20.1
+        },
+        {
+          "t": 0.15,
+          "accent_px": 462,
+          "std": 20.1
+        },
+        {
+          "t": 0.25,
+          "accent_px": 405,
+          "std": 12.85
+        },
+        {
+          "t": 0.35,
+          "accent_px": 409,
+          "std": 18.68
+        },
+        {
+          "t": 0.45,
+          "accent_px": 409,
+          "std": 19.05
+        },
+        {
+          "t": 0.55,
+          "accent_px": 412,
+          "std": 19.05
+        },
+        {
+          "t": 0.65,
+          "accent_px": 409,
+          "std": 19.0
+        },
+        {
+          "t": 0.75,
+          "accent_px": 412,
+          "std": 19.1
+        },
+        {
+          "t": 0.85,
+          "accent_px": 416,
+          "std": 19.1
+        },
+        {
+          "t": 0.95,
+          "accent_px": 416,
+          "std": 19.1
+        },
+        {
+          "t": 1.05,
+          "accent_px": 414,
+          "std": 19.19
+        },
+        {
+          "t": 1.15,
+          "accent_px": 415,
+          "std": 19.12
+        },
+        {
+          "t": 1.25,
+          "accent_px": 416,
+          "std": 19.15
+        },
+        {
+          "t": 1.35,
+          "accent_px": 416,
+          "std": 19.03
+        },
+        {
+          "t": 1.45,
+          "accent_px": 416,
+          "std": 19.17
+        },
+        {
+          "t": 1.55,
+          "accent_px": 415,
+          "std": 19.18
+        }
+      ],
+      "name": "transcript-speakers",
+      "expected_duration_s": 4.96
+    },
+    {
+      "duration_s": 6.0,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.308,
+        0.183,
+        0.183,
+        0.069,
+        0.844,
+        0.737,
+        0.004
+      ],
+      "mid_diff": 5.377,
+      "mid_diffs": [
+        5.377,
+        4.359,
+        4.363,
+        1.115
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 408,
+          "std": 16.19
+        },
+        {
+          "t": 0.15,
+          "accent_px": 408,
+          "std": 16.19
+        },
+        {
+          "t": 0.25,
+          "accent_px": 410,
+          "std": 16.24
+        },
+        {
+          "t": 0.35,
+          "accent_px": 410,
+          "std": 16.31
+        },
+        {
+          "t": 0.45,
+          "accent_px": 411,
+          "std": 16.4
+        },
+        {
+          "t": 0.55,
+          "accent_px": 412,
+          "std": 16.45
+        },
+        {
+          "t": 0.65,
+          "accent_px": 412,
+          "std": 16.48
+        },
+        {
+          "t": 0.75,
+          "accent_px": 414,
+          "std": 16.5
+        },
+        {
+          "t": 0.85,
+          "accent_px": 415,
+          "std": 16.57
+        },
+        {
+          "t": 0.95,
+          "accent_px": 415,
+          "std": 16.58
+        },
+        {
+          "t": 1.05,
+          "accent_px": 413,
+          "std": 16.52
+        },
+        {
+          "t": 1.15,
+          "accent_px": 414,
+          "std": 16.52
+        },
+        {
+          "t": 1.25,
+          "accent_px": 413,
+          "std": 16.54
+        },
+        {
+          "t": 1.35,
+          "accent_px": 413,
+          "std": 16.54
+        },
+        {
+          "t": 1.45,
+          "accent_px": 430,
+          "std": 17.61
+        },
+        {
+          "t": 1.55,
+          "accent_px": 425,
+          "std": 17.56
+        }
+      ],
+      "name": "okr-views",
+      "expected_duration_s": 6
+    },
+    {
+      "duration_s": 4.24,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.074,
+        0.16,
+        0.038,
+        0.048,
+        0.008,
+        0.005,
+        0.001
+      ],
+      "mid_diff": 3.016,
+      "mid_diffs": [
+        3.016,
+        2.786,
+        0.436,
+        0.295
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 413,
+          "std": 18.19
+        },
+        {
+          "t": 0.15,
+          "accent_px": 414,
+          "std": 18.19
+        },
+        {
+          "t": 0.25,
+          "accent_px": 416,
+          "std": 18.25
+        },
+        {
+          "t": 0.35,
+          "accent_px": 419,
+          "std": 18.34
+        },
+        {
+          "t": 0.45,
+          "accent_px": 426,
+          "std": 18.42
+        },
+        {
+          "t": 0.55,
+          "accent_px": 429,
+          "std": 18.49
+        },
+        {
+          "t": 0.65,
+          "accent_px": 443,
+          "std": 18.54
+        },
+        {
+          "t": 0.75,
+          "accent_px": 446,
+          "std": 18.52
+        },
+        {
+          "t": 0.85,
+          "accent_px": 461,
+          "std": 18.59
+        },
+        {
+          "t": 0.95,
+          "accent_px": 486,
+          "std": 18.57
+        },
+        {
+          "t": 1.05,
+          "accent_px": 489,
+          "std": 18.46
+        },
+        {
+          "t": 1.15,
+          "accent_px": 497,
+          "std": 18.58
+        },
+        {
+          "t": 1.25,
+          "accent_px": 494,
+          "std": 18.45
+        },
+        {
+          "t": 1.35,
+          "accent_px": 489,
+          "std": 18.39
+        },
+        {
+          "t": 1.45,
+          "accent_px": 495,
+          "std": 18.49
+        },
+        {
+          "t": 1.55,
+          "accent_px": 467,
+          "std": 18.64
+        }
+      ],
+      "name": "okr-attach",
+      "expected_duration_s": 4.24
+    },
+    {
+      "duration_s": 4.0,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.156,
+        0.123,
+        0.055,
+        0.057,
+        0.027,
+        0.014,
+        0.008
+      ],
+      "mid_diff": 1.422,
+      "mid_diffs": [
+        1.418,
+        1.422,
+        0.358,
+        0.274
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 334,
+          "std": 14.45
+        },
+        {
+          "t": 0.15,
+          "accent_px": 334,
+          "std": 14.61
+        },
+        {
+          "t": 0.25,
+          "accent_px": 333,
+          "std": 14.62
+        },
+        {
+          "t": 0.35,
+          "accent_px": 335,
+          "std": 14.64
+        },
+        {
+          "t": 0.45,
+          "accent_px": 336,
+          "std": 14.72
+        },
+        {
+          "t": 0.55,
+          "accent_px": 335,
+          "std": 14.75
+        },
+        {
+          "t": 0.65,
+          "accent_px": 335,
+          "std": 14.72
+        },
+        {
+          "t": 0.75,
+          "accent_px": 335,
+          "std": 14.73
+        },
+        {
+          "t": 0.85,
+          "accent_px": 335,
+          "std": 14.76
+        },
+        {
+          "t": 0.95,
+          "accent_px": 335,
+          "std": 14.81
+        },
+        {
+          "t": 1.05,
+          "accent_px": 336,
+          "std": 14.83
+        },
+        {
+          "t": 1.15,
+          "accent_px": 334,
+          "std": 14.85
+        },
+        {
+          "t": 1.25,
+          "accent_px": 334,
+          "std": 14.67
+        },
+        {
+          "t": 1.35,
+          "accent_px": 334,
+          "std": 14.68
+        },
+        {
+          "t": 1.45,
+          "accent_px": 334,
+          "std": 14.84
+        },
+        {
+          "t": 1.55,
+          "accent_px": 334,
+          "std": 14.84
+        }
+      ],
+      "name": "board-drag",
+      "expected_duration_s": 4
+    },
+    {
+      "duration_s": 4.6,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.005,
+        0.004,
+        0.008,
+        0.004,
+        0.003,
+        0.001,
+        0.74
+      ],
+      "mid_diff": 5.838,
+      "mid_diffs": [
+        5.838,
+        0.563,
+        0.307,
+        0.045
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 511,
+          "std": 19.06
+        },
+        {
+          "t": 0.15,
+          "accent_px": 541,
+          "std": 19.1
+        },
+        {
+          "t": 0.25,
+          "accent_px": 553,
+          "std": 19.21
+        },
+        {
+          "t": 0.35,
+          "accent_px": 557,
+          "std": 19.23
+        },
+        {
+          "t": 0.45,
+          "accent_px": 561,
+          "std": 19.32
+        },
+        {
+          "t": 0.55,
+          "accent_px": 553,
+          "std": 19.36
+        },
+        {
+          "t": 0.65,
+          "accent_px": 561,
+          "std": 19.23
+        },
+        {
+          "t": 0.75,
+          "accent_px": 561,
+          "std": 19.24
+        },
+        {
+          "t": 0.85,
+          "accent_px": 562,
+          "std": 19.25
+        },
+        {
+          "t": 0.95,
+          "accent_px": 563,
+          "std": 19.29
+        },
+        {
+          "t": 1.05,
+          "accent_px": 565,
+          "std": 19.2
+        },
+        {
+          "t": 1.15,
+          "accent_px": 565,
+          "std": 19.37
+        },
+        {
+          "t": 1.25,
+          "accent_px": 565,
+          "std": 19.2
+        },
+        {
+          "t": 1.35,
+          "accent_px": 564,
+          "std": 19.2
+        },
+        {
+          "t": 1.45,
+          "accent_px": 565,
+          "std": 19.11
+        },
+        {
+          "t": 1.55,
+          "accent_px": 565,
+          "std": 19.11
+        }
+      ],
+      "name": "report",
+      "expected_duration_s": 4.6
+    },
+    {
+      "duration_s": 7.0,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.005,
+        0.01,
+        0.001,
+        0.009,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mid_diff": 3.727,
+      "mid_diffs": [
+        2.845,
+        2.627,
+        3.727,
+        3.681
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 336,
+          "std": 13.43
+        },
+        {
+          "t": 0.15,
+          "accent_px": 336,
+          "std": 13.58
+        },
+        {
+          "t": 0.25,
+          "accent_px": 335,
+          "std": 13.55
+        },
+        {
+          "t": 0.35,
+          "accent_px": 336,
+          "std": 13.6
+        },
+        {
+          "t": 0.45,
+          "accent_px": 335,
+          "std": 13.64
+        },
+        {
+          "t": 0.55,
+          "accent_px": 335,
+          "std": 13.66
+        },
+        {
+          "t": 0.65,
+          "accent_px": 336,
+          "std": 13.76
+        },
+        {
+          "t": 0.75,
+          "accent_px": 336,
+          "std": 13.66
+        },
+        {
+          "t": 0.85,
+          "accent_px": 336,
+          "std": 13.66
+        },
+        {
+          "t": 0.95,
+          "accent_px": 336,
+          "std": 13.72
+        },
+        {
+          "t": 1.05,
+          "accent_px": 551,
+          "std": 15.13
+        },
+        {
+          "t": 1.15,
+          "accent_px": 551,
+          "std": 15.09
+        },
+        {
+          "t": 1.25,
+          "accent_px": 551,
+          "std": 15.13
+        },
+        {
+          "t": 1.35,
+          "accent_px": 551,
+          "std": 15.1
+        },
+        {
+          "t": 1.45,
+          "accent_px": 551,
+          "std": 15.13
+        },
+        {
+          "t": 1.55,
+          "accent_px": 551,
+          "std": 15.12
+        }
+      ],
+      "name": "settings-ai",
+      "expected_duration_s": 7
+    },
+    {
+      "duration_s": 6.0,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.532,
+        0.497,
+        0.117,
+        0.172,
+        0.005,
+        0.012,
+        0.0
+      ],
+      "mid_diff": 1.047,
+      "mid_diffs": [
+        1.047,
+        0.92,
+        0.011,
+        0.343
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 335,
+          "std": 13.26
+        },
+        {
+          "t": 0.15,
+          "accent_px": 335,
+          "std": 13.21
+        },
+        {
+          "t": 0.25,
+          "accent_px": 335,
+          "std": 13.25
+        },
+        {
+          "t": 0.35,
+          "accent_px": 336,
+          "std": 13.34
+        },
+        {
+          "t": 0.45,
+          "accent_px": 335,
+          "std": 13.34
+        },
+        {
+          "t": 0.55,
+          "accent_px": 336,
+          "std": 13.35
+        },
+        {
+          "t": 0.65,
+          "accent_px": 335,
+          "std": 13.39
+        },
+        {
+          "t": 0.75,
+          "accent_px": 335,
+          "std": 13.4
+        },
+        {
+          "t": 0.85,
+          "accent_px": 337,
+          "std": 13.45
+        },
+        {
+          "t": 0.95,
+          "accent_px": 338,
+          "std": 13.19
+        },
+        {
+          "t": 1.05,
+          "accent_px": 338,
+          "std": 13.21
+        },
+        {
+          "t": 1.15,
+          "accent_px": 339,
+          "std": 13.3
+        },
+        {
+          "t": 1.25,
+          "accent_px": 339,
+          "std": 13.39
+        },
+        {
+          "t": 1.35,
+          "accent_px": 339,
+          "std": 13.41
+        },
+        {
+          "t": 1.45,
+          "accent_px": 340,
+          "std": 13.42
+        },
+        {
+          "t": 1.55,
+          "accent_px": 340,
+          "std": 13.42
+        }
+      ],
+      "name": "export-zip",
+      "expected_duration_s": 6
+    },
+    {
+      "duration_s": 7.36,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.01,
+        0.004,
+        0.004,
+        0.001,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mid_diff": 1.757,
+      "mid_diffs": [
+        1.757,
+        1.123,
+        0.157,
+        1.064
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 329,
+          "std": 10.09
+        },
+        {
+          "t": 0.15,
+          "accent_px": 331,
+          "std": 10.6
+        },
+        {
+          "t": 0.25,
+          "accent_px": 331,
+          "std": 12.28
+        },
+        {
+          "t": 0.35,
+          "accent_px": 331,
+          "std": 12.26
+        },
+        {
+          "t": 0.45,
+          "accent_px": 333,
+          "std": 12.54
+        },
+        {
+          "t": 0.55,
+          "accent_px": 336,
+          "std": 12.57
+        },
+        {
+          "t": 0.65,
+          "accent_px": 337,
+          "std": 12.68
+        },
+        {
+          "t": 0.75,
+          "accent_px": 337,
+          "std": 12.63
+        },
+        {
+          "t": 0.85,
+          "accent_px": 337,
+          "std": 12.61
+        },
+        {
+          "t": 0.95,
+          "accent_px": 336,
+          "std": 12.62
+        },
+        {
+          "t": 1.05,
+          "accent_px": 0,
+          "std": 11.25
+        },
+        {
+          "t": 1.15,
+          "accent_px": 0,
+          "std": 11.24
+        },
+        {
+          "t": 1.25,
+          "accent_px": 0,
+          "std": 10.94
+        },
+        {
+          "t": 1.35,
+          "accent_px": 0,
+          "std": 10.93
+        },
+        {
+          "t": 1.45,
+          "accent_px": 2,
+          "std": 9.81
+        },
+        {
+          "t": 1.55,
+          "accent_px": 0,
+          "std": 9.22
+        }
+      ],
+      "name": "record-start-clean",
+      "expected_duration_s": 7.36
+    },
+    {
+      "duration_s": 8.48,
+      "first_ui_s": 0.05,
+      "tail_static_s": 1.4,
+      "tail_diffs": [
+        0.011,
+        0.007,
+        0.008,
+        0.0,
+        0.0,
+        0.0,
+        0.002
+      ],
+      "mid_diff": 1.62,
+      "mid_diffs": [
+        0.987,
+        0.845,
+        1.62,
+        1.584
+      ],
+      "head_samples": [
+        {
+          "t": 0.05,
+          "accent_px": 329,
+          "std": 9.68
+        },
+        {
+          "t": 0.15,
+          "accent_px": 331,
+          "std": 10.67
+        },
+        {
+          "t": 0.25,
+          "accent_px": 331,
+          "std": 12.5
+        },
+        {
+          "t": 0.35,
+          "accent_px": 331,
+          "std": 12.53
+        },
+        {
+          "t": 0.45,
+          "accent_px": 335,
+          "std": 12.54
+        },
+        {
+          "t": 0.55,
+          "accent_px": 335,
+          "std": 12.62
+        },
+        {
+          "t": 0.65,
+          "accent_px": 335,
+          "std": 12.65
+        },
+        {
+          "t": 0.75,
+          "accent_px": 336,
+          "std": 12.72
+        },
+        {
+          "t": 0.85,
+          "accent_px": 335,
+          "std": 12.65
+        },
+        {
+          "t": 0.95,
+          "accent_px": 0,
+          "std": 11.17
+        },
+        {
+          "t": 1.05,
+          "accent_px": 0,
+          "std": 7.99
+        },
+        {
+          "t": 1.15,
+          "accent_px": 0,
+          "std": 8.98
+        },
+        {
+          "t": 1.25,
+          "accent_px": 10,
+          "std": 9.3
+        },
+        {
+          "t": 1.35,
+          "accent_px": 18,
+          "std": 9.27
+        },
+        {
+          "t": 1.45,
+          "accent_px": 28,
+          "std": 9.27
+        },
+        {
+          "t": 1.55,
+          "accent_px": 37,
+          "std": 9.34
+        }
+      ],
+      "name": "live-caption-clean",
+      "expected_duration_s": 8.48
+    }
+  ],
+  "problems": [],
+  "ok": true
+}

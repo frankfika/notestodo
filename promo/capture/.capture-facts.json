@@ -1,0 +1,518 @@
+{
+  "stills": {
+    "today": {
+      "route": {
+        "view": "today",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 359,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "today-cmdk": {
+      "route": {
+        "view": "today",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 415,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "live-meeting": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "10ac809f-9d21-4b09-b624-e377ed9c5d93"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": true,
+      "disabled_items": [],
+      "text_len": 1115,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "meeting-note": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1430,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "meeting-todo-confirm": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1430,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "meeting-transcript": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1101,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "okr-focus": {
+      "route": {
+        "view": "todos",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1036,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "okr-quarter": {
+      "route": {
+        "view": "todos",
+        "taskMode": "quarter",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1402,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "okr-strategy": {
+      "route": {
+        "view": "todos",
+        "taskMode": "strategy",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1481,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "board": {
+      "route": {
+        "view": "board",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 558,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "report": {
+      "route": {
+        "view": "report",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [
+        "本周"
+      ],
+      "text_len": 588,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "settings-ai": {
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [
+        "保存修改",
+        "本机内置",
+        "↻ 立即同步"
+      ],
+      "text_len": 2084,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "data-flow": {
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [
+        "保存修改",
+        "本机内置",
+        "↻ 立即同步"
+      ],
+      "text_len": 2084,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    },
+    "mobile-today": {
+      "route": {
+        "view": "today",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 333,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "deviceScaleFactor": 3,
+      "size": "1170x2532"
+    },
+    "ipad-board": {
+      "route": {
+        "view": "board",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 558,
+      "viewport": {
+        "width": 1366,
+        "height": 1024
+      },
+      "deviceScaleFactor": 2,
+      "size": "2732x2048"
+    },
+    "ipad-portrait": {
+      "route": {
+        "view": "todos",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1036,
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "deviceScaleFactor": 2,
+      "size": "1536x2048"
+    },
+    "live-meeting-clean": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "97cda8b9-d5af-4d88-a5a8-be1e909880b8"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1052,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 2,
+      "size": "3840x2160"
+    }
+  },
+  "clips": {
+    "board-drag": {
+      "route": {
+        "view": "board",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 558,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "polish": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1510,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "transcript-speakers": {
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1111,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "okr-views": {
+      "route": {
+        "view": "todos",
+        "taskMode": "strategy",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1481,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "okr-attach": {
+      "route": {
+        "view": "todos",
+        "taskMode": "strategy",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [],
+      "text_len": 1481,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "report": {
+      "route": {
+        "view": "report",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [
+        "本周"
+      ],
+      "text_len": 588,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "settings-ai": {
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [
+        "保存修改",
+        "本机内置",
+        "↻ 立即同步"
+      ],
+      "text_len": 2084,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    },
+    "export-zip": {
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "empty_state_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "zero_count_hits": [],
+      "browser_banner": false,
+      "disabled_items": [
+        "保存修改",
+        "本机内置",
+        "↻ 立即同步"
+      ],
+      "text_len": 1637,
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "deviceScaleFactor": 1
+    }
+  }
+}

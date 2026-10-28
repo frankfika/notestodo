@@ -1,0 +1,1530 @@
+{
+  "generated_at": "2026-10-18T11:57:01.433Z",
+  "now_iso": "2026-10-18T11:57:01.433Z",
+  "audio_seconds": {
+    "m-q4-plan": 1104,
+    "m-onboarding": 960,
+    "m-1on1": 720,
+    "m-infra": 1320,
+    "m-upcoming-1": 0,
+    "m-upcoming-2": 0
+  },
+  "meetings": [
+    {
+      "id": "m-q4-plan",
+      "title": "Q4 产品路线评审",
+      "source": "manual",
+      "status": "summarized",
+      "started_at": "2026-10-17T06:00:00.000Z",
+      "ended_at": "2026-10-17T06:12:00.000Z",
+      "audio": {
+        "format": "audio/webm",
+        "codec": "opus",
+        "duration_ms": 1104000,
+        "chunk_count": 4,
+        "size_bytes": 5078400,
+        "gaps": []
+      },
+      "note_id": "n-q4-plan",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "m-onboarding",
+      "title": "新用户引导改版评审",
+      "source": "manual",
+      "status": "summarized",
+      "started_at": "2026-10-15T06:00:00.000Z",
+      "ended_at": "2026-10-15T06:12:00.000Z",
+      "audio": {
+        "format": "audio/webm",
+        "codec": "opus",
+        "duration_ms": 960000,
+        "chunk_count": 3,
+        "size_bytes": 4416000,
+        "gaps": []
+      },
+      "note_id": "n-onboarding",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "m-1on1",
+      "title": "1on1 · 张三",
+      "source": "manual",
+      "status": "summarized",
+      "started_at": "2026-10-13T06:00:00.000Z",
+      "ended_at": "2026-10-13T06:12:00.000Z",
+      "audio": {
+        "format": "audio/webm",
+        "codec": "opus",
+        "duration_ms": 720000,
+        "chunk_count": 2,
+        "size_bytes": 3312000,
+        "gaps": []
+      },
+      "note_id": "n-1on1",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "m-infra",
+      "title": "转录服务稳定性复盘",
+      "source": "manual",
+      "status": "summarized",
+      "started_at": "2026-10-12T06:00:00.000Z",
+      "ended_at": "2026-10-12T06:12:00.000Z",
+      "audio": {
+        "format": "audio/webm",
+        "codec": "opus",
+        "duration_ms": 1320000,
+        "chunk_count": 4,
+        "size_bytes": 6072000,
+        "gaps": []
+      },
+      "note_id": "n-infra",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "m-upcoming-1",
+      "title": "Q4 OKR 对齐会",
+      "source": "manual",
+      "status": "summarized",
+      "started_at": "2026-10-20T02:00:00.000Z",
+      "audio": {
+        "format": "audio/webm",
+        "codec": "opus",
+        "duration_ms": 0,
+        "chunk_count": 0,
+        "size_bytes": 0,
+        "gaps": []
+      },
+      "note_id": "n-upcoming-1",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "m-upcoming-2",
+      "title": "设计走查 · 看板与周报",
+      "source": "manual",
+      "status": "summarized",
+      "started_at": "2026-10-22T06:30:00.000Z",
+      "audio": {
+        "format": "audio/webm",
+        "codec": "opus",
+        "duration_ms": 0,
+        "chunk_count": 0,
+        "size_bytes": 0,
+        "gaps": []
+      },
+      "note_id": "n-upcoming-2",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "notes": [
+    {
+      "id": "n-q4-plan",
+      "title": "Q4 产品路线评审",
+      "body_md": "## 一句话结论\n\nQ4 只做两件事：把中文转录质量提到可交付，再把「散会后一次成稿」做到日常可用。周报改为自动生成可复制的 Markdown，数据去向按实际情况如实标注。\n\n## 讨论要点\n\n- **中文转录质量是前置条件。** 上周客户访谈里「拾贝」被识别成「十倍」，纪要跟着一起错，用户对纪要的信任直接受损。\n- **热词表是投入产出最高的一步。** 产品名、人名、专有名词进 hotwords，周三前接进转录请求，先拿 50 场历史录音跑回归。\n- **一次成稿是这季度最重要的一件事。** 散会后一次调用同时产出标题、完整纪要与行动项，不再让用户点第二下。\n- **行动项必须带原文引用。** 用户看到「谁说过」才敢确认；实在定位不到出处的也要保留，只标注不确定。\n- **说话人区分补齐后半段。** 3D-Speaker 中文声纹（两个模型共 30MB）标出说话人 1、2、3，改名后回写转录。\n- **周报不用手写。** 本周完成的卡片、开过的会、KR 进度都在库里，拼成 Markdown 草稿并补上风险与下周计划，复制即可贴飞书。\n- **数据去向不能含糊。** 局域网地址此前被误判为「本机」，需如实标成离开本机；内置模型下载补断点续传与下载源自动切换。\n\n## 决定\n\n1. Q4 优先级：中文转录质量 → 一次成稿 → 周报自动化 → 数据去向自检。\n2. 周报只交付可复制的 Markdown 草稿，不做 PDF 导出。\n3. 行动项一律带原文引用；定位不到出处的保留并标注，不静默丢弃。\n4. 数据去向自检对「局域网地址」不得显示为本机。\n\n## 行动项\n\n- 热词表接入转录请求，跑 50 场历史录音回归 —— 王五，本周三前\n- 重新整理管线补齐行动项的原文引用与模板切换 —— 李四\n- 周报草稿补齐风险与下周计划段 —— 李四\n- 数据去向自检如实标出局域网地址 —— 王五\n- 内置模型下载补断点续传与下载源自动切换 —— 李四\n",
+      "meeting_id": "m-q4-plan",
+      "todo_ids": [],
+      "pinned": true,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "n-onboarding",
+      "title": "新用户引导改版评审",
+      "body_md": "## 一句话结论\n\n新用户引导从「三步配置」改成「一句话说清价值 + 一键跑通第一次录音」，把首次到达会中页的步数从 5 步压到 2 步。\n\n## 讨论要点\n\n- 现在首次打开要先选 AI 运行在哪里，用户还不知道产品能干什么就被要求做技术决策，流失集中在这一步。\n- 引导面板改成右下角气泡，不拦截主界面；「开始录音」始终可点。\n- 第一次录音结束后自动整理出纪要，比任何文案都有说服力。\n\n## 决定\n\n1. 引导不拦截主 UI，只做右下角气泡 + 三步以内。\n2. 首次录音的默认模板用「标准会议纪要」。\n\n## 行动项\n\n- 引导气泡文案重写，去掉技术名词 —— 李四\n- 首次录音结束后的空状态换成一次成稿的示例 —— 王五\n",
+      "meeting_id": "m-onboarding",
+      "todo_ids": [],
+      "pinned": false,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "n-1on1",
+      "title": "1on1 · 张三",
+      "body_md": "## 一句话结论\n\n张三本季度从「什么都跟」收敛到「只负责一次成稿这条线」，其余交给李四与王五。\n\n## 讨论要点\n\n- 手上的活太散，三件事都没做完；需要明确一件事做到能交付。\n- 一次成稿是目前离用户最近、也最能说明产品价值的一条线。\n\n## 决定\n\n1. 张三 Q4 只对「一次成稿」负责，每周五同步进度。\n2. 会议模板的维护交给王五。\n\n## 行动项\n\n- 每周五给一次成稿的进度快照 —— 张三\n- 接手会议模板维护 —— 王五\n",
+      "meeting_id": "m-1on1",
+      "todo_ids": [],
+      "pinned": false,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "n-infra",
+      "title": "转录服务稳定性复盘",
+      "body_md": "## 一句话结论\n\n上周转录服务两次超时是单请求体过大导致，改为按 5 分钟分片上传后不再复现。\n\n## 讨论要点\n\n- 45 分钟以上的会议，一次性上传音频会被网关拦掉。\n- 分片上传 + 失败重试后，50 场回归全部成功。\n- 分钟级重试要保留幂等键，避免重复计费。\n\n## 决定\n\n1. 转录一律走分片上传，单片不超过 5 分钟。\n2. 重试必须带幂等键。\n\n## 行动项\n\n- 把 5 分钟分片接进转录管线 —— 李四\n- 补幂等键的回归用例 —— 王五\n",
+      "meeting_id": "m-infra",
+      "todo_ids": [],
+      "pinned": false,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "n-memo",
+      "title": "会议速记法：只记关键词",
+      "body_md": "## 会议速记法：只记关键词\n\n会中不要试图把话记全 —— 记下来的应该是「定位用的锚点」：\n\n- 一个数字（预算、日期、指标）\n- 一个名字（谁负责）\n- 一个有争议的结论\n\n散会后靠转录把锚点扩写回完整表达。记全了反而会漏掉讨论本身。\n",
+      "todo_ids": [],
+      "pinned": true,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "n-upcoming-1",
+      "title": "Q4 OKR 对齐会",
+      "body_md": "",
+      "meeting_id": "m-upcoming-1",
+      "todo_ids": [],
+      "pinned": false,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "n-upcoming-2",
+      "title": "设计走查 · 看板与周报",
+      "body_md": "",
+      "meeting_id": "m-upcoming-2",
+      "todo_ids": [],
+      "pinned": false,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "summaries": [
+    {
+      "id": "s-q4-plan",
+      "meeting_id": "m-q4-plan",
+      "template_id": "builtin-standard",
+      "content_md": "## 一句话结论\n\nQ4 只做两件事：把中文转录质量提到可交付，再把「散会后一次成稿」做到日常可用。周报改为自动生成可复制的 Markdown，数据去向按实际情况如实标注。\n\n## 讨论要点\n\n- **中文转录质量是前置条件。** 上周客户访谈里「拾贝」被识别成「十倍」，纪要跟着一起错，用户对纪要的信任直接受损。\n- **热词表是投入产出最高的一步。** 产品名、人名、专有名词进 hotwords，周三前接进转录请求，先拿 50 场历史录音跑回归。\n- **一次成稿是这季度最重要的一件事。** 散会后一次调用同时产出标题、完整纪要与行动项，不再让用户点第二下。\n- **行动项必须带原文引用。** 用户看到「谁说过」才敢确认；实在定位不到出处的也要保留，只标注不确定。\n- **说话人区分补齐后半段。** 3D-Speaker 中文声纹（两个模型共 30MB）标出说话人 1、2、3，改名后回写转录。\n- **周报不用手写。** 本周完成的卡片、开过的会、KR 进度都在库里，拼成 Markdown 草稿并补上风险与下周计划，复制即可贴飞书。\n- **数据去向不能含糊。** 局域网地址此前被误判为「本机」，需如实标成离开本机；内置模型下载补断点续传与下载源自动切换。\n\n## 决定\n\n1. Q4 优先级：中文转录质量 → 一次成稿 → 周报自动化 → 数据去向自检。\n2. 周报只交付可复制的 Markdown 草稿，不做 PDF 导出。\n3. 行动项一律带原文引用；定位不到出处的保留并标注，不静默丢弃。\n4. 数据去向自检对「局域网地址」不得显示为本机。\n\n## 行动项\n\n- 热词表接入转录请求，跑 50 场历史录音回归 —— 王五，本周三前\n- 重新整理管线补齐行动项的原文引用与模板切换 —— 李四\n- 周报草稿补齐风险与下周计划段 —— 李四\n- 数据去向自检如实标出局域网地址 —— 王五\n- 内置模型下载补断点续传与下载源自动切换 —— 李四\n",
+      "raw_llm_output": {
+        "model": "MiniMax-M2.7"
+      },
+      "generated_at": "2026-10-18T11:57:01.433Z",
+      "model": "MiniMax-M2.7",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "s-onboarding",
+      "meeting_id": "m-onboarding",
+      "template_id": "builtin-standard",
+      "content_md": "## 一句话结论\n\n新用户引导从「三步配置」改成「一句话说清价值 + 一键跑通第一次录音」，把首次到达会中页的步数从 5 步压到 2 步。\n\n## 讨论要点\n\n- 现在首次打开要先选 AI 运行在哪里，用户还不知道产品能干什么就被要求做技术决策，流失集中在这一步。\n- 引导面板改成右下角气泡，不拦截主界面；「开始录音」始终可点。\n- 第一次录音结束后自动整理出纪要，比任何文案都有说服力。\n\n## 决定\n\n1. 引导不拦截主 UI，只做右下角气泡 + 三步以内。\n2. 首次录音的默认模板用「标准会议纪要」。\n\n## 行动项\n\n- 引导气泡文案重写，去掉技术名词 —— 李四\n- 首次录音结束后的空状态换成一次成稿的示例 —— 王五\n",
+      "raw_llm_output": {
+        "model": "MiniMax-M2.7"
+      },
+      "generated_at": "2026-10-18T11:57:01.433Z",
+      "model": "MiniMax-M2.7",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "s-1on1",
+      "meeting_id": "m-1on1",
+      "template_id": "builtin-action",
+      "content_md": "## 一句话结论\n\n张三本季度从「什么都跟」收敛到「只负责一次成稿这条线」，其余交给李四与王五。\n\n## 讨论要点\n\n- 手上的活太散，三件事都没做完；需要明确一件事做到能交付。\n- 一次成稿是目前离用户最近、也最能说明产品价值的一条线。\n\n## 决定\n\n1. 张三 Q4 只对「一次成稿」负责，每周五同步进度。\n2. 会议模板的维护交给王五。\n\n## 行动项\n\n- 每周五给一次成稿的进度快照 —— 张三\n- 接手会议模板维护 —— 王五\n",
+      "raw_llm_output": {
+        "model": "MiniMax-M2.7"
+      },
+      "generated_at": "2026-10-18T11:57:01.433Z",
+      "model": "MiniMax-M2.7",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "s-infra",
+      "meeting_id": "m-infra",
+      "template_id": "builtin-standard",
+      "content_md": "## 一句话结论\n\n上周转录服务两次超时是单请求体过大导致，改为按 5 分钟分片上传后不再复现。\n\n## 讨论要点\n\n- 45 分钟以上的会议，一次性上传音频会被网关拦掉。\n- 分片上传 + 失败重试后，50 场回归全部成功。\n- 分钟级重试要保留幂等键，避免重复计费。\n\n## 决定\n\n1. 转录一律走分片上传，单片不超过 5 分钟。\n2. 重试必须带幂等键。\n\n## 行动项\n\n- 把 5 分钟分片接进转录管线 —— 李四\n- 补幂等键的回归用例 —— 王五\n",
+      "raw_llm_output": {
+        "model": "MiniMax-M2.7"
+      },
+      "generated_at": "2026-10-18T11:57:01.433Z",
+      "model": "MiniMax-M2.7",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "transcripts": [
+    {
+      "id": "t-q4-plan",
+      "meeting_id": "m-q4-plan",
+      "language": "zh-CN",
+      "engine": "minimax-asr",
+      "engine_meta": {
+        "diarization": true
+      },
+      "segments": [
+        {
+          "start_ms": 15000,
+          "end_ms": 48000,
+          "speaker_label": "说话人 1",
+          "text": "今天主要定 Q4 的路线优先级，先过一遍手上的候选，然后决定砍掉哪些。"
+        },
+        {
+          "start_ms": 48000,
+          "end_ms": 82000,
+          "speaker_label": "说话人 2",
+          "text": "我这边最担心的是中文转录质量。上周那场客户访谈，转录把「拾贝」识别成了「十倍」，纪要跟着一起错。"
+        },
+        {
+          "start_ms": 82000,
+          "end_ms": 120000,
+          "speaker_label": "说话人 3",
+          "text": "热词表已经在做了，把产品名、人名、专有名词塞进去，转录请求里带上 hotwords，能救回来一大半。"
+        },
+        {
+          "start_ms": 120000,
+          "end_ms": 158000,
+          "speaker_label": "说话人 1",
+          "text": "那转录这条就按「先热词、再说话人区分」排。热词表本周能进测试吗？"
+        },
+        {
+          "start_ms": 158000,
+          "end_ms": 176000,
+          "speaker_label": "说话人 3",
+          "text": "能，周三之前我把它接进转录请求，先拿 50 场历史录音跑回归。"
+        },
+        {
+          "start_ms": 221000,
+          "end_ms": 265000,
+          "speaker_label": "说话人 2",
+          "text": "我再提一个更前置的：散会后出纪要这一步，现在还得人工点「整理笔记」，而且模板给的结构不稳定。"
+        },
+        {
+          "start_ms": 265000,
+          "end_ms": 310000,
+          "speaker_label": "说话人 1",
+          "text": "一次成稿是这季度最重要的一件事。散会后一次调用就把标题、完整纪要和行动项一起给出来，不要让用户点第二下。"
+        },
+        {
+          "start_ms": 310000,
+          "end_ms": 352000,
+          "speaker_label": "说话人 2",
+          "text": "那重新整理这条管线要补三块：行动项的原文引用、模板切换，还有标题的生成。"
+        },
+        {
+          "start_ms": 352000,
+          "end_ms": 376000,
+          "speaker_label": "说话人 1",
+          "text": "行动项必须带原文引用，用户看到「张三说过」才敢确认。实在找不到出处的也别丢，标一下就行。"
+        },
+        {
+          "start_ms": 376000,
+          "end_ms": 422000,
+          "speaker_label": "说话人 3",
+          "text": "说话人区分我接了 3D-Speaker 的中文声纹，两个模型一共 30MB，能标出说话人 1、2、3；改名之后回写转录。"
+        },
+        {
+          "start_ms": 422000,
+          "end_ms": 456000,
+          "speaker_label": "说话人 1",
+          "text": "好。周报这边呢？上周大家反馈还是得手写。"
+        },
+        {
+          "start_ms": 500000,
+          "end_ms": 545000,
+          "speaker_label": "说话人 2",
+          "text": "周报的数据其实都在库里：本周完成的卡片、开过的会、还有 KR 进度。我把它拼成 Markdown 草稿，补上风险和下周计划，复制就能贴飞书。"
+        },
+        {
+          "start_ms": 545000,
+          "end_ms": 590000,
+          "speaker_label": "说话人 1",
+          "text": "那就定：周报草稿直接给可复制的 Markdown，不做 PDF 导出。"
+        },
+        {
+          "start_ms": 590000,
+          "end_ms": 626000,
+          "speaker_label": "说话人 3",
+          "text": "数据去向那块我想补一句。局域网地址现在会被当成「本机」，这是错的，得如实标成离开本机。"
+        },
+        {
+          "start_ms": 700000,
+          "end_ms": 734000,
+          "speaker_label": "说话人 1",
+          "text": "对，合规上不能含糊。内置模型下载也加上断点续传，别让用户重下一遍。"
+        },
+        {
+          "start_ms": 734000,
+          "end_ms": 768000,
+          "speaker_label": "说话人 2",
+          "text": "断点续传我这周一起做了，顺便把下载源自动切换补上。"
+        },
+        {
+          "start_ms": 870000,
+          "end_ms": 906000,
+          "speaker_label": "说话人 1",
+          "text": "还有一个：今天页现在只放 Inbox 和今天到期的，太多了反而看不清重点。"
+        },
+        {
+          "start_ms": 1010000,
+          "end_ms": 1050000,
+          "speaker_label": "说话人 1",
+          "text": "今天就到这儿。行动项我让纪要自动提，大家明天在任务页确认一下。"
+        }
+      ],
+      "speaker_names": {},
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "t-onboarding",
+      "meeting_id": "m-onboarding",
+      "language": "zh-CN",
+      "engine": "minimax-asr",
+      "engine_meta": {
+        "diarization": true
+      },
+      "segments": [
+        {
+          "start_ms": 8000,
+          "end_ms": 42000,
+          "speaker_label": "说话人 1",
+          "text": "现在首次打开要先选 AI 运行在哪里，用户还不知道产品能干什么，就被要求做技术决策。"
+        },
+        {
+          "start_ms": 42000,
+          "end_ms": 88000,
+          "speaker_label": "说话人 2",
+          "text": "流失就集中在这一步。引导面板改成右下角气泡，不拦截主界面。"
+        },
+        {
+          "start_ms": 88000,
+          "end_ms": 130000,
+          "speaker_label": "说话人 1",
+          "text": "第一次录音结束后自动整理出纪要，比任何文案都有说服力。"
+        },
+        {
+          "start_ms": 130000,
+          "end_ms": 176000,
+          "speaker_label": "说话人 2",
+          "text": "那引导控制在三步以内，只讲价值，不讲架构。"
+        },
+        {
+          "start_ms": 176000,
+          "end_ms": 220000,
+          "speaker_label": "说话人 1",
+          "text": "首次录音的默认模板用「标准会议纪要」，别用头脑风暴。"
+        },
+        {
+          "start_ms": 240000,
+          "end_ms": 286000,
+          "speaker_label": "说话人 2",
+          "text": "文案我来重写，技术名词全部去掉。"
+        }
+      ],
+      "speaker_names": {},
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "t-1on1",
+      "meeting_id": "m-1on1",
+      "language": "zh-CN",
+      "engine": "minimax-asr",
+      "engine_meta": {
+        "diarization": true
+      },
+      "segments": [
+        {
+          "start_ms": 10000,
+          "end_ms": 52000,
+          "speaker_label": "说话人 1",
+          "text": "你这个季度手上的活太散了，三件事都没做完。"
+        },
+        {
+          "start_ms": 52000,
+          "end_ms": 96000,
+          "speaker_label": "说话人 2",
+          "text": "确实。一次成稿这条线离用户最近，我想只做它。"
+        },
+        {
+          "start_ms": 96000,
+          "end_ms": 140000,
+          "speaker_label": "说话人 1",
+          "text": "那就这么定：Q4 你只对一次成稿负责，每周五同步一次进度。"
+        },
+        {
+          "start_ms": 140000,
+          "end_ms": 182000,
+          "speaker_label": "说话人 2",
+          "text": "会议模板的维护我交给王五。"
+        },
+        {
+          "start_ms": 182000,
+          "end_ms": 220000,
+          "speaker_label": "说话人 1",
+          "text": "可以。"
+        }
+      ],
+      "speaker_names": {},
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "t-infra",
+      "meeting_id": "m-infra",
+      "language": "zh-CN",
+      "engine": "minimax-asr",
+      "engine_meta": {
+        "diarization": true
+      },
+      "segments": [
+        {
+          "start_ms": 12000,
+          "end_ms": 58000,
+          "speaker_label": "说话人 1",
+          "text": "上周转录服务超时两次，都是 45 分钟以上的会议。"
+        },
+        {
+          "start_ms": 58000,
+          "end_ms": 104000,
+          "speaker_label": "说话人 2",
+          "text": "单请求体太大了，一次性上传被网关拦掉。"
+        },
+        {
+          "start_ms": 104000,
+          "end_ms": 150000,
+          "speaker_label": "说话人 1",
+          "text": "改成分片上传之后呢？"
+        },
+        {
+          "start_ms": 150000,
+          "end_ms": 196000,
+          "speaker_label": "说话人 2",
+          "text": "按 5 分钟切片，50 场回归全部成功，没有复现。"
+        },
+        {
+          "start_ms": 196000,
+          "end_ms": 240000,
+          "speaker_label": "说话人 1",
+          "text": "重试要带幂等键，别重复计费。"
+        },
+        {
+          "start_ms": 240000,
+          "end_ms": 288000,
+          "speaker_label": "说话人 2",
+          "text": "好，这条我一起补回归用例。"
+        }
+      ],
+      "speaker_names": {},
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "scribbles": [
+    {
+      "id": "sc-q4-0",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 12000,
+      "text": "Q4 优先级：转录质量 > 一次成稿 > 周报",
+      "created_at": "2026-10-17T11:57:12.000Z"
+    },
+    {
+      "id": "sc-q4-1",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 95000,
+      "text": "问题：拾贝 → 十倍，纪要跟着错",
+      "created_at": "2026-10-17T11:58:35.000Z"
+    },
+    {
+      "id": "sc-q4-2",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 130000,
+      "text": "热词表 周三前进测试",
+      "created_at": "2026-10-17T11:59:10.000Z"
+    },
+    {
+      "id": "sc-q4-3",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 300000,
+      "text": "散会后一次调用：标题 + 纪要 + 行动项",
+      "created_at": "2026-10-17T12:02:00.000Z"
+    },
+    {
+      "id": "sc-q4-4",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 360000,
+      "text": "行动项必须带原文引用",
+      "created_at": "2026-10-17T12:03:00.000Z"
+    },
+    {
+      "id": "sc-q4-5",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 520000,
+      "text": "周报 = 可复制 Markdown，不做 PDF",
+      "created_at": "2026-10-17T12:05:40.000Z"
+    },
+    {
+      "id": "sc-q4-6",
+      "meeting_id": "m-q4-plan",
+      "t_ms": 600000,
+      "text": "数据去向：局域网不能算「本机」",
+      "created_at": "2026-10-17T12:07:00.000Z"
+    }
+  ],
+  "todos": [
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-strat-1",
+      "parent_id": null,
+      "scope": "strategic",
+      "title": "让中文会议记录不再需要人肉整理"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-strat-1",
+      "parent_id": "o-strat-1",
+      "scope": "strategic",
+      "title": "散会后 1 分钟内拿到可用的完整纪要",
+      "weight": 0.7
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-strat-2",
+      "parent_id": "o-strat-1",
+      "scope": "strategic",
+      "title": "数据主权可验证",
+      "weight": 0.3
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-q4-1",
+      "parent_id": "kr-strat-1",
+      "scope": "quarterly",
+      "period": "2026-Q4",
+      "title": "Q4 把一次成稿做到可日常依赖",
+      "weight": 0.7
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-q4-1",
+      "parent_id": "o-q4-1",
+      "scope": "quarterly",
+      "period": "2026-Q4",
+      "title": "纪要一次成稿率 ≥ 90%"
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-proj-1",
+      "parent_id": "kr-q4-1",
+      "scope": "project",
+      "title": "打磨重新整理管线"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-proj-1",
+      "parent_id": "o-proj-1",
+      "scope": "project",
+      "title": "重新整理补齐原文引用与模板切换"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-1",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 10,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-polish-1",
+      "title": "重跑 30 场历史会议做回归",
+      "assignee": "李四"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-1",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 20,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-polish-2",
+      "title": "补齐行动项的原文引用",
+      "assignee": "李四",
+      "board_col": "done"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-1",
+      "scope": "project",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 30,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-polish-3",
+      "title": "把模板切换接进重新整理",
+      "assignee": "张三",
+      "due_date": "2026-10-21",
+      "board_col": "doing"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-proj-2",
+      "parent_id": "o-proj-1",
+      "scope": "project",
+      "title": "周报草稿含风险与下周计划"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-2",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 10,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-report-1",
+      "title": "周报补齐风险与下周计划段",
+      "assignee": "李四"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-2",
+      "scope": "project",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-report-2",
+      "title": "周报一键复制 Markdown",
+      "assignee": "李四",
+      "board_col": "review"
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-proj-2",
+      "parent_id": "kr-q4-1",
+      "scope": "project",
+      "title": "行动项可信与可追溯"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-proj-3",
+      "parent_id": "o-proj-2",
+      "scope": "project",
+      "title": "数据去向自检覆盖全部链路",
+      "weight": 0.4
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-3",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 10,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-data-1",
+      "title": "校对局域网地址的判定",
+      "assignee": "王五"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-3",
+      "scope": "project",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-data-2",
+      "title": "数据去向自检如实标出局域网地址",
+      "assignee": "王五",
+      "board_col": "review"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-proj-4",
+      "parent_id": "o-proj-2",
+      "scope": "project",
+      "title": "热词表接入转录请求",
+      "weight": 0.6
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-4",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 10,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-hot-0",
+      "title": "整理产品名与人名热词表",
+      "assignee": "王五"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-4",
+      "scope": "project",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-hot-1",
+      "title": "热词表接入转录请求跑 50 场回归",
+      "assignee": "王五",
+      "due_date": "2026-10-20",
+      "board_col": "todo"
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-q4-2",
+      "parent_id": "kr-strat-1",
+      "scope": "quarterly",
+      "period": "2026-Q4",
+      "title": "Q4 中文转录可用性",
+      "weight": 0.3
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-q4-2",
+      "parent_id": "o-q4-2",
+      "scope": "quarterly",
+      "period": "2026-Q4",
+      "title": "中文会议转录字准率 ≥ 95%"
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-proj-3",
+      "parent_id": "kr-q4-2",
+      "scope": "project",
+      "title": "说话人区分"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-proj-5",
+      "parent_id": "o-proj-3",
+      "scope": "project",
+      "title": "转录标出说话人 1/2/3"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-5",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 10,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-spk-1",
+      "title": "接 3D-Speaker 中文声纹",
+      "assignee": "王五"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-5",
+      "scope": "project",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 20,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-spk-2",
+      "title": "说话人改名后回写转录",
+      "assignee": "王五",
+      "board_col": "doing"
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-q4-3",
+      "parent_id": "kr-strat-2",
+      "scope": "quarterly",
+      "period": "2026-Q4",
+      "title": "Q4 本地优先可验证"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-q4-3",
+      "parent_id": "o-q4-3",
+      "scope": "quarterly",
+      "period": "2026-Q4",
+      "title": "内置模型全离线可用"
+    },
+    {
+      "kind": "objective",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "o-proj-4",
+      "parent_id": "kr-q4-3",
+      "scope": "project",
+      "title": "内置模型下载"
+    },
+    {
+      "kind": "kr",
+      "status": "open",
+      "source": "manual",
+      "sort_order": 10,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "kr-proj-6",
+      "parent_id": "o-proj-4",
+      "scope": "project",
+      "title": "下载断点续传与下载源自动切换"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-6",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 10,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-dl-1",
+      "title": "内置模型下载断点续传",
+      "assignee": "李四"
+    },
+    {
+      "kind": "task",
+      "parent_id": "kr-proj-6",
+      "scope": "project",
+      "status": "done",
+      "source": "manual",
+      "sort_order": 20,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-dl-2",
+      "title": "下载源失败自动切换",
+      "assignee": "李四"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "open",
+      "source": "meeting",
+      "sort_order": 100,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-inbox-1",
+      "title": "把评审结论同步给市场部",
+      "assignee": "张三",
+      "due_date": "2026-10-18",
+      "meeting_id": "m-q4-plan",
+      "board_col": "todo"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "open",
+      "source": "manual",
+      "sort_order": 110,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-inbox-2",
+      "title": "回复法务关于数据处理协议的邮件",
+      "due_date": "2026-10-17",
+      "board_col": "todo"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "open",
+      "source": "manual",
+      "sort_order": 120,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-inbox-3",
+      "title": "整理客户访谈录音清单"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "pending_review",
+      "source": "meeting",
+      "sort_order": 0,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-pend-1",
+      "title": "热词表接入转录请求并跑 50 场回归",
+      "assignee": "王五",
+      "due_date": "2026-10-21",
+      "transcript_span": {
+        "start_ms": 158000,
+        "end_ms": 176000,
+        "quote": "能，周三之前我把它接进转录请求，先拿 50 场历史录音跑回归。"
+      },
+      "meeting_id": "m-q4-plan",
+      "origin_note_id": "n-q4-plan"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "pending_review",
+      "source": "meeting",
+      "sort_order": 1,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-pend-2",
+      "title": "重新整理管线补齐行动项的原文引用",
+      "assignee": "李四",
+      "due_date": "2026-10-25",
+      "transcript_span": {
+        "start_ms": 310000,
+        "end_ms": 352000,
+        "quote": "那重新整理这条管线要补三块：行动项的原文引用、模板切换，还有标题的生成。"
+      },
+      "meeting_id": "m-q4-plan",
+      "origin_note_id": "n-q4-plan"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "pending_review",
+      "source": "meeting",
+      "sort_order": 2,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-pend-3",
+      "title": "周报草稿补齐风险与下周计划段",
+      "assignee": "李四",
+      "due_date": "2026-10-23",
+      "transcript_span": {
+        "start_ms": 500000,
+        "end_ms": 545000,
+        "quote": "周报的数据其实都在库里：本周完成的卡片、开过的会、还有 KR 进度。我把它拼成 Markdown 草稿，补上风险和下周计划，复制就能贴飞书。"
+      },
+      "meeting_id": "m-q4-plan",
+      "origin_note_id": "n-q4-plan"
+    },
+    {
+      "kind": "task",
+      "parent_id": null,
+      "scope": null,
+      "status": "pending_review",
+      "source": "meeting",
+      "sort_order": 3,
+      "notes_md": "",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0,
+      "id": "t-pend-4",
+      "title": "数据去向自检如实标出局域网地址",
+      "assignee": "王五",
+      "due_date": "2026-10-28",
+      "transcript_span": {
+        "start_ms": 590000,
+        "end_ms": 626000,
+        "quote": "数据去向那块我想补一句。局域网地址现在会被当成「本机」，这是错的，得如实标成离开本机。"
+      },
+      "meeting_id": "m-q4-plan",
+      "origin_note_id": "n-q4-plan"
+    }
+  ],
+  "templates": [
+    {
+      "id": "builtin-standard",
+      "name": "标准会议纪要",
+      "icon": "📋",
+      "is_default": true,
+      "builtin": true,
+      "prompt_md": "你是一位专业的会议纪要秘书。请根据以下会议转录生成纪要。\n\n## 会议信息\n- 会议：{{meeting.title}}\n- 日期：{{meeting.date}}\n- 时长：{{meeting.duration}}\n- 参会人：{{transcript.speakers}}\n\n## 输出要求\n按以下结构输出 Markdown 纪要：\n1. ## 一句话结论\n2. ## 讨论要点（按议题分组，保留发言人姓名）\n3. ## 决定（Decisions）\n4. ## 行动项（提取为结构化列表，每个行动项包含：任务、负责人、截止日期、出处原话）\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "builtin-action",
+      "name": "行动项优先",
+      "icon": "✅",
+      "is_default": false,
+      "builtin": true,
+      "prompt_md": "你是一位以行动为导向的会议秘书。这份纪要只关心「接下来谁要做什么」。\n\n## 输出要求\n1. ## 一句话结论\n2. ## 决定\n3. ## 行动项清单（穷尽所有行动项；每条：任务、负责人、截止日期、出处原话）\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "builtin-brainstorm",
+      "name": "头脑风暴",
+      "icon": "💡",
+      "is_default": false,
+      "builtin": true,
+      "prompt_md": "你是一位善于提炼创意的会议记录者。\n\n## 输出要求\n1. ## 核心洞察\n2. ## 创意清单\n3. ## 争议与未决问题\n4. ## 后续行动\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tpl-customer",
+      "name": "客户访谈纪要",
+      "icon": "◇",
+      "is_default": false,
+      "builtin": false,
+      "prompt_md": "你是一位用户研究员。请把这次客户访谈整理成访谈纪要。\n\n## 输出要求\n1. ## 受访者画像\n2. ## 原话摘录（保留口语，标注时间戳）\n3. ## 痛点清单（按出现频次排序）\n4. ## 可验证的假设\n\n<transcript>\n{{transcript.full}}\n</transcript>",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "tags": [
+    {
+      "id": "tag-product",
+      "name": "产品",
+      "color": "#C0571E",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tag-eng",
+      "name": "工程",
+      "color": "#7A7168",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tag-q4",
+      "name": "Q4",
+      "color": "#3A3128",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "tagBindings": [
+    {
+      "id": "tb-1",
+      "tag_id": "tag-product",
+      "target_type": "todo",
+      "target_id": "t-polish-3",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tb-2",
+      "tag_id": "tag-q4",
+      "target_type": "todo",
+      "target_id": "t-polish-3",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tb-3",
+      "tag_id": "tag-eng",
+      "target_type": "todo",
+      "target_id": "t-spk-2",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tb-4",
+      "tag_id": "tag-q4",
+      "target_type": "todo",
+      "target_id": "t-hot-1",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "tb-5",
+      "tag_id": "tag-eng",
+      "target_type": "todo",
+      "target_id": "t-data-2",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "knowledgeEntries": [
+    {
+      "id": "ke-1",
+      "folder": "/Users/fangchen/Documents/拾贝知识库",
+      "path": "/Users/fangchen/Documents/拾贝知识库/竞品调研-会议笔记类产品.md",
+      "title": "竞品调研：会议笔记类产品",
+      "snippet": "一次成稿、原文引用、本地优先是三条被反复提到的差异点。",
+      "fullText": "一次成稿：散会后一次调用完成标题、纪要、行动项。原文引用：行动项必须能跳回转录原句。本地优先：录音与纪要默认不出本机。说话人区分：中文场景必须可用。周报自动化：数据都在库里，不该让用户手写。",
+      "mtime": 1792238221433,
+      "size_bytes": 95,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "ke-2",
+      "folder": "/Users/fangchen/Documents/拾贝知识库",
+      "path": "/Users/fangchen/Documents/拾贝知识库/术语表-拾贝产品词条.md",
+      "title": "术语表：拾贝产品词条",
+      "snippet": "拾贝、一次成稿、嵌套 OKR、重新整理、数据去向。",
+      "fullText": "拾贝 NotesToGO：本产品。一次成稿：散会后一次 LLM 调用产出标题 + 纪要 + 行动项。重新整理：用最新速记与转录重跑纪要管线。嵌套 OKR：战略 → 季度 → 项目 → 任务。数据去向：如实标出会议内容会去哪里。热词表：提高专有名词识别率。",
+      "mtime": 1792238221433,
+      "size_bytes": 127,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "ke-3",
+      "folder": "/Users/fangchen/Documents/拾贝知识库",
+      "path": "/Users/fangchen/Documents/拾贝知识库/Q3-复盘-中文转录质量.md",
+      "title": "Q3 复盘：中文转录质量",
+      "snippet": "专有名词识别率是纪要可信度的上限，热词表投入产出最高。",
+      "fullText": "Q3 复盘：中文会议转录的主要错误集中在专有名词（产品名、人名、缩写）。热词表 hotwords 接入后，专有名词错误率下降明显。周报与纪要的信任度取决于转录质量。",
+      "mtime": 1792238221433,
+      "size_bytes": 82,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    },
+    {
+      "id": "ke-4",
+      "folder": "/Users/fangchen/Documents/拾贝知识库",
+      "path": "/Users/fangchen/Documents/拾贝知识库/客户访谈-会议记录习惯.md",
+      "title": "客户访谈：会议记录习惯",
+      "snippet": "会中只记关键词，散会后靠转录补全；最怕纪要找不到出处。",
+      "fullText": "受访者普遍表示：会中记全反而漏听讨论。散会后最在意的是「这条待办是谁说的」，即原文引用与时间戳。周报希望一键复制到飞书。",
+      "mtime": 1792238221433,
+      "size_bytes": 60,
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "pinnedAssistCards": [
+    {
+      "id": "pac-1",
+      "meeting_id": "m-q4-plan",
+      "source_entry_id": "ke-2",
+      "title": "术语表：拾贝产品词条",
+      "snippet": "拾贝、一次成稿、嵌套 OKR、重新整理、数据去向。",
+      "path": "/Users/fangchen/Documents/拾贝知识库/术语表-拾贝产品词条.md",
+      "created_at": "2026-10-18T11:57:01.433Z",
+      "updated_at": "2026-10-18T11:57:01.433Z",
+      "deleted_at": null,
+      "sync_version": 0
+    }
+  ],
+  "kv": {
+    "settings": {
+      "ai_mode": "cloud",
+      "llm_provider": "openai-compatible",
+      "llm_base_url": "https://api.minimax.io/v1",
+      "llm_api_key": "sk-demo-9f3a2c7e1b4d5a6082",
+      "llm_model": "MiniMax-M2.7",
+      "asr_mode": "cloud",
+      "asr_provider": "minimax",
+      "asr_base_url": "https://api.minimaxi.com",
+      "asr_api_key": "sk-demo-4c81be7a2d6f0395",
+      "asr_model": "asr-1.0",
+      "local_llm_base_url": "http://127.0.0.1:11434/v1",
+      "local_llm_api_key": "",
+      "local_llm_model": "llama3.2",
+      "local_asr_base_url": "http://127.0.0.1:8080/v1",
+      "local_asr_api_key": "",
+      "local_asr_model": "whisper-1",
+      "builtin_llm_model": "gemma-4-e4b",
+      "builtin_asr_model": "whisper-large-v3-turbo",
+      "model_source": "auto",
+      "hotwords": "拾贝\nNotesToGO\nOKR\n一次成稿\nKR\n重新整理",
+      "delete_remote_audio": true,
+      "theme": "light",
+      "calendar_ics_urls": [],
+      "knowledge_folders": [
+        "/Users/fangchen/Documents/拾贝知识库"
+      ]
+    },
+    "onboarding_done_v1": true,
+    "live_caption_enabled": true
+  },
+  "polish_llm_json": {
+    "title": "Q4 产品路线评审",
+    "summary_md": "## 一句话结论\n\nQ4 只做两件事：把中文转录质量提到可交付，再把「散会后一次成稿」做到日常可用。周报改为自动生成可复制的 Markdown，数据去向按实际情况如实标注。\n\n## 讨论要点\n\n- **中文转录质量是前置条件。** 上周客户访谈里「拾贝」被识别成「十倍」，纪要跟着一起错，用户对纪要的信任直接受损。\n- **热词表是投入产出最高的一步。** 产品名、人名、专有名词进 hotwords，周三前接进转录请求，先拿 50 场历史录音跑回归。\n- **一次成稿是这季度最重要的一件事。** 散会后一次调用同时产出标题、完整纪要与行动项，不再让用户点第二下。\n- **行动项必须带原文引用。** 用户看到「谁说过」才敢确认；实在定位不到出处的也要保留，只标注不确定。\n- **说话人区分补齐后半段。** 3D-Speaker 中文声纹（两个模型共 30MB）标出说话人 1、2、3，改名后回写转录。\n- **周报不用手写。** 本周完成的卡片、开过的会、KR 进度都在库里，拼成 Markdown 草稿并补上风险与下周计划，复制即可贴飞书。\n- **数据去向不能含糊。** 局域网地址此前被误判为「本机」，需如实标成离开本机；内置模型下载补断点续传与下载源自动切换。\n\n## 决定\n\n1. Q4 优先级：中文转录质量 → 一次成稿 → 周报自动化 → 数据去向自检。\n2. 周报只交付可复制的 Markdown 草稿，不做 PDF 导出。\n3. 行动项一律带原文引用；定位不到出处的保留并标注，不静默丢弃。\n4. 数据去向自检对「局域网地址」不得显示为本机。\n\n## 行动项\n\n- 热词表接入转录请求，跑 50 场历史录音回归 —— 王五，本周三前\n- 重新整理管线补齐行动项的原文引用与模板切换 —— 李四\n- 周报草稿补齐风险与下周计划段 —— 李四\n- 数据去向自检如实标出局域网地址 —— 王五\n- 内置模型下载补断点续传与下载源自动切换 —— 李四\n",
+    "decisions": [
+      "Q4 优先级：中文转录质量 → 一次成稿 → 周报自动化 → 数据去向自检。",
+      "周报只交付可复制的 Markdown 草稿，不做 PDF 导出。",
+      "行动项一律带原文引用；定位不到出处的保留并标注，不静默丢弃。"
+    ],
+    "todos": [
+      {
+        "title": "热词表接入转录请求并跑 50 场回归",
+        "assignee_hint": "王五",
+        "due_hint": "本周三",
+        "evidence_quote": "能，周三之前我把它接进转录请求，先拿 50 场历史录音跑回归。",
+        "evidence_time": "02:38"
+      },
+      {
+        "title": "重新整理管线补齐行动项的原文引用",
+        "assignee_hint": "李四",
+        "due_hint": "",
+        "evidence_quote": "那重新整理这条管线要补三块：行动项的原文引用、模板切换，还有标题的生成。",
+        "evidence_time": "05:10"
+      },
+      {
+        "title": "周报草稿补齐风险与下周计划段",
+        "assignee_hint": "李四",
+        "due_hint": "",
+        "evidence_quote": "周报的数据其实都在库里：本周完成的卡片、开过的会、还有 KR 进度。我把它拼成 Markdown 草稿，补上风险和下周计划，复制就能贴飞书。",
+        "evidence_time": "08:20"
+      },
+      {
+        "title": "数据去向自检如实标出局域网地址",
+        "assignee_hint": "王五",
+        "due_hint": "",
+        "evidence_quote": "数据去向那块我想补一句。局域网地址现在会被当成「本机」，这是错的，得如实标成离开本机。",
+        "evidence_time": "09:50"
+      }
+    ]
+  },
+  "pre_polish_note": "## 会中速记\n\n- [00:42] Q4 优先级：转录质量 > 一次成稿 > 周报\n- [01:35] 问题：拾贝 → 十倍，纪要跟着错\n- [02:10] 热词表：周三前进测试\n- [05:05] 散会后一次调用，别再点第二下\n- [06:00] 行动项必须带原文引用\n- [08:40] 周报 = 可复制 Markdown，不做 PDF\n- [10:00] 数据去向：局域网不能算「本机」\n"
+}

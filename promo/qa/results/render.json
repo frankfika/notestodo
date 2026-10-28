@@ -1,0 +1,68 @@
+{
+  "target": "promo/build/render.py",
+  "spec": "renderflags",
+  "worst": "FAIL",
+  "meta": {},
+  "checks": [
+    {
+      "id": "S0.1",
+      "title": "渲染脚本声明 CRF 18",
+      "status": "FAIL",
+      "detail": "",
+      "expected": "STORYBOARD §1: CRF 18",
+      "actual": "未在脚本中找到",
+      "command": "/Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3 promo/qa/check_spec.py renderflags \"promo/build/render.py\"   # 内部匹配正则: -crf\\s+18\\b",
+      "evidence": ""
+    },
+    {
+      "id": "S0.2",
+      "title": "渲染脚本声明 +faststart",
+      "status": "PASS",
+      "detail": "",
+      "expected": "STORYBOARD §1: +faststart",
+      "actual": "+faststart",
+      "command": "/Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3 promo/qa/check_spec.py renderflags \"promo/build/render.py\"   # 内部匹配正则: \\+faststart",
+      "evidence": ""
+    },
+    {
+      "id": "S0.3",
+      "title": "渲染脚本声明 H.264 High profile",
+      "status": "FAIL",
+      "detail": "",
+      "expected": "STORYBOARD §1: H.264 High",
+      "actual": "未在脚本中找到",
+      "command": "/Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3 promo/qa/check_spec.py renderflags \"promo/build/render.py\"   # 内部匹配正则: -profile:v\\s+high|-profile\\s+high",
+      "evidence": ""
+    },
+    {
+      "id": "S0.4",
+      "title": "渲染脚本声明 yuv420p",
+      "status": "PASS",
+      "detail": "",
+      "expected": "STORYBOARD §1",
+      "actual": "yuv420p",
+      "command": "/Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3 promo/qa/check_spec.py renderflags \"promo/build/render.py\"   # 内部匹配正则: yuv420p",
+      "evidence": ""
+    },
+    {
+      "id": "S0.5",
+      "title": "渲染脚本声明 AAC 192k",
+      "status": "PASS",
+      "detail": "",
+      "expected": "STORYBOARD §1: AAC 192kbps",
+      "actual": "aac",
+      "command": "/Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3 promo/qa/check_spec.py renderflags \"promo/build/render.py\"   # 内部匹配正则: (-c:a\\s+aac|-acodec\\s+aac|aac)",
+      "evidence": ""
+    },
+    {
+      "id": "S0.6",
+      "title": "渲染脚本声明 48kHz 音频",
+      "status": "PASS",
+      "detail": "",
+      "expected": "STORYBOARD §1: 48kHz",
+      "actual": "48000",
+      "command": "/Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3 promo/qa/check_spec.py renderflags \"promo/build/render.py\"   # 内部匹配正则: (-ar\\s+48000|48000)",
+      "evidence": ""
+    }
+  ]
+}

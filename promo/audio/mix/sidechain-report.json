@@ -1,0 +1,260 @@
+{
+  "output": "audio/mix/master.wav",
+  "sample_rate": 48000,
+  "channels": 2,
+  "duration_s": 104.267,
+  "voice_target_active_rms_db": -20.0,
+  "vo_active_rms_before_norm_db": [
+    {
+      "id": "vo-01",
+      "active_rms_db": -17.961,
+      "dur_s": 5.506
+    },
+    {
+      "id": "vo-02",
+      "active_rms_db": -17.653,
+      "dur_s": 5.976
+    },
+    {
+      "id": "vo-03",
+      "active_rms_db": -17.704,
+      "dur_s": 11.792
+    },
+    {
+      "id": "vo-04",
+      "active_rms_db": -17.783,
+      "dur_s": 12.243
+    },
+    {
+      "id": "vo-05",
+      "active_rms_db": -17.68,
+      "dur_s": 5.865
+    },
+    {
+      "id": "vo-06",
+      "active_rms_db": -18.056,
+      "dur_s": 11.665
+    },
+    {
+      "id": "vo-07",
+      "active_rms_db": -17.652,
+      "dur_s": 7.525
+    },
+    {
+      "id": "vo-08",
+      "active_rms_db": -17.814,
+      "dur_s": 12.699
+    },
+    {
+      "id": "vo-09",
+      "active_rms_db": -17.409,
+      "dur_s": 7.941
+    },
+    {
+      "id": "vo-10",
+      "active_rms_db": -17.737,
+      "dur_s": 6.427
+    }
+  ],
+  "music_gap_rms_target_db": -33.0,
+  "music_duck_db": 10.5,
+  "music_rms_in_voiced_db": -38.905,
+  "voice_rms_in_voiced_db": -17.708,
+  "music_below_voice_db": -21.197,
+  "applied_gain_db": -1.3,
+  "astats": {
+    "channels": {
+      "1": {
+        "min_level": -20887.0,
+        "max_level": 22093.0,
+        "peak_level_db": -3.42364,
+        "rms_level_db": -19.089607,
+        "rms_peak_db": -10.623894,
+        "flat_factor": 0.0,
+        "peak_count": 2.0,
+        "dynamic_range": 92.905694
+      },
+      "2": {
+        "min_level": -20931.0,
+        "max_level": 22089.0,
+        "peak_level_db": -3.425213,
+        "rms_level_db": -19.095685,
+        "rms_peak_db": -10.624477,
+        "flat_factor": 0.0,
+        "peak_count": 2.0,
+        "dynamic_range": 92.904121
+      }
+    },
+    "overall": {
+      "min_level": -20931.0,
+      "max_level": 22093.0,
+      "peak_level_db": -3.42364,
+      "rms_level_db": -19.092645,
+      "rms_peak_db": -10.623894,
+      "flat_factor": 0.0,
+      "peak_count": 2.0
+    }
+  },
+  "astats_before_gain": {
+    "channels": {
+      "1": {
+        "min_level": -24260.0,
+        "max_level": 25660.0,
+        "peak_level_db": -2.123601,
+        "rms_level_db": -17.789607,
+        "rms_peak_db": -9.323903,
+        "flat_factor": 0.0,
+        "peak_count": 2.0,
+        "dynamic_range": 94.205733
+      },
+      "2": {
+        "min_level": -24310.0,
+        "max_level": 25656.0,
+        "peak_level_db": -2.124955,
+        "rms_level_db": -17.795686,
+        "rms_peak_db": -9.324473,
+        "flat_factor": 0.0,
+        "peak_count": 2.0,
+        "dynamic_range": 94.204379
+      }
+    },
+    "overall": {
+      "min_level": -24310.0,
+      "max_level": 25660.0,
+      "peak_level_db": -2.123601,
+      "rms_level_db": -17.792645,
+      "rms_peak_db": -9.323903,
+      "flat_factor": 0.0,
+      "peak_count": 2.0
+    }
+  },
+  "loudnorm": {
+    "input_i": -16.0,
+    "input_tp": -3.4,
+    "input_lra": 6.3,
+    "input_thresh": -27.2,
+    "output_i": -24.2,
+    "output_tp": -11.3
+  },
+  "loudnorm_before_gain": {
+    "input_i": -14.7,
+    "input_tp": -2.1,
+    "input_lra": 6.3,
+    "input_thresh": -25.9,
+    "output_i": -24.2,
+    "output_tp": -11.3
+  },
+  "timeline": [
+    {
+      "id": "vo-01",
+      "seg_start_s": 0.0,
+      "seg_len_s": 8.0,
+      "start_s": 0.9,
+      "end_s": 6.406,
+      "dur_s": 5.506,
+      "vo_end_vs_seg_end_s": -1.594,
+      "pushed_by": null,
+      "gap_from_prev_s": null
+    },
+    {
+      "id": "vo-02",
+      "seg_start_s": 8.0,
+      "seg_len_s": 7.0,
+      "start_s": 8.6,
+      "end_s": 14.576,
+      "dur_s": 5.976,
+      "vo_end_vs_seg_end_s": -0.424,
+      "pushed_by": null,
+      "gap_from_prev_s": 2.194
+    },
+    {
+      "id": "vo-03",
+      "seg_start_s": 15.0,
+      "seg_len_s": 13.0,
+      "start_s": 15.5,
+      "end_s": 27.292,
+      "dur_s": 11.792,
+      "vo_end_vs_seg_end_s": -0.708,
+      "pushed_by": null,
+      "gap_from_prev_s": 0.924
+    },
+    {
+      "id": "vo-04",
+      "seg_start_s": 28.0,
+      "seg_len_s": 14.0,
+      "start_s": 28.5,
+      "end_s": 40.743,
+      "dur_s": 12.243,
+      "vo_end_vs_seg_end_s": -1.257,
+      "pushed_by": null,
+      "gap_from_prev_s": 1.208
+    },
+    {
+      "id": "vo-05",
+      "seg_start_s": 42.0,
+      "seg_len_s": 7.0,
+      "start_s": 42.5,
+      "end_s": 48.365,
+      "dur_s": 5.865,
+      "vo_end_vs_seg_end_s": -0.635,
+      "pushed_by": null,
+      "gap_from_prev_s": 1.757
+    },
+    {
+      "id": "vo-06",
+      "seg_start_s": 49.0,
+      "seg_len_s": 14.0,
+      "start_s": 49.4,
+      "end_s": 61.065,
+      "dur_s": 11.665,
+      "vo_end_vs_seg_end_s": -1.935,
+      "pushed_by": null,
+      "gap_from_prev_s": 1.035
+    },
+    {
+      "id": "vo-07",
+      "seg_start_s": 63.0,
+      "seg_len_s": 11.0,
+      "start_s": 63.5,
+      "end_s": 71.025,
+      "dur_s": 7.525,
+      "vo_end_vs_seg_end_s": -2.975,
+      "pushed_by": null,
+      "gap_from_prev_s": 2.435
+    },
+    {
+      "id": "vo-08",
+      "seg_start_s": 74.0,
+      "seg_len_s": 11.0,
+      "start_s": 74.4,
+      "end_s": 87.099,
+      "dur_s": 12.699,
+      "vo_end_vs_seg_end_s": 2.099,
+      "pushed_by": null,
+      "gap_from_prev_s": 3.375
+    },
+    {
+      "id": "vo-09",
+      "seg_start_s": 85.0,
+      "seg_len_s": 7.0,
+      "start_s": 87.499,
+      "end_s": 95.44,
+      "dur_s": 7.941,
+      "vo_end_vs_seg_end_s": 3.44,
+      "pushed_by": "prev_vo_end+gap",
+      "gap_from_prev_s": 0.4
+    },
+    {
+      "id": "vo-10",
+      "seg_start_s": 92.0,
+      "seg_len_s": 8.0,
+      "start_s": 95.84,
+      "end_s": 102.267,
+      "dur_s": 6.427,
+      "vo_end_vs_seg_end_s": 2.267,
+      "pushed_by": "prev_vo_end+gap",
+      "gap_from_prev_s": 0.4
+    }
+  ],
+  "total_s": 104.267
+}

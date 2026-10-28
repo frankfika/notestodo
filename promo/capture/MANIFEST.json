@@ -1,0 +1,717 @@
+{
+  "generated_at": "2026-10-18T12:26:49.912Z",
+  "stills": [
+    {
+      "name": "today",
+      "file": "stills/today.png",
+      "path": "stills/today.png",
+      "scene": "SH-01",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "today",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "今天页：今日 7 条（逾期 / 今天 / Inbox / AI 待审 4 条）+ 接下来的会议 2 场"
+    },
+    {
+      "name": "today-cmdk",
+      "file": "stills/today-cmdk.png",
+      "path": "stills/today-cmdk.png",
+      "scene": null,
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "today",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "⌘K 命令面板（动作 + 跳转；录音快捷键如实显示 ⌘⇧R）。分镜未直接引用，作为备用素材"
+    },
+    {
+      "name": "live-meeting",
+      "file": "stills/live-meeting.png",
+      "path": "stills/live-meeting.png",
+      "scene": "SH-03",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "10ac809f-9d21-4b09-b624-e377ed9c5d93"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": true,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "会中：速记 7 条带时间锚点 + 实时字幕 8 条 + 相关资料 4 张固定卡（保留浏览器能力提示条）"
+    },
+    {
+      "name": "live-meeting-clean",
+      "file": "stills/live-meeting-clean.png",
+      "path": "stills/live-meeting-clean.png",
+      "scene": "SH-03",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "97cda8b9-d5af-4d88-a5a8-be1e909880b8"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "同上，隐藏浏览器能力提示条的干净版（本条目取自 *-clean 素材（HIDE_CAPTURE_BANNER=1））"
+    },
+    {
+      "name": "meeting-note",
+      "file": "stills/meeting-note.png",
+      "path": "stills/meeting-note.png",
+      "scene": "SH-04",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "会议详情 · 笔记：一句话结论 / 讨论要点 / 决定 / 行动项"
+    },
+    {
+      "name": "meeting-todo-confirm",
+      "file": "stills/meeting-todo-confirm.png",
+      "path": "stills/meeting-todo-confirm.png",
+      "scene": "SH-04",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "会议详情 · 会议待办 4 条：原文引用 + 建议 KR + 全部确认"
+    },
+    {
+      "name": "meeting-transcript",
+      "file": "stills/meeting-transcript.png",
+      "path": "stills/meeting-transcript.png",
+      "scene": "SH-05",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "转录 Tab：说话人 1/2/3 + 时间戳跳播 + 录音回放（总时长 18:24）"
+    },
+    {
+      "name": "okr-focus",
+      "file": "stills/okr-focus.png",
+      "path": "stills/okr-focus.png",
+      "scene": "SH-06",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "todos",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "任务 · 今日焦点（Inbox + 本季度 + 本周活跃 KR）"
+    },
+    {
+      "name": "okr-quarter",
+      "file": "stills/okr-quarter.png",
+      "path": "stills/okr-quarter.png",
+      "scene": "SH-06",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "todos",
+        "taskMode": "quarter",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "任务 · 本季 OKR（2026-Q4）"
+    },
+    {
+      "name": "okr-strategy",
+      "file": "stills/okr-strategy.png",
+      "path": "stills/okr-strategy.png",
+      "scene": "SH-06",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "todos",
+        "taskMode": "strategy",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "任务 · 战略树（战略 O → KR → 季度 O → 项目 KR → Task，加权进度条）"
+    },
+    {
+      "name": "board",
+      "file": "stills/board.png",
+      "path": "stills/board.png",
+      "scene": "SH-07",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "board",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "看板四列：待办 5 / 进行中 2 / 评审 2 / 完成 8，四列都有卡"
+    },
+    {
+      "name": "report",
+      "file": "stills/report.png",
+      "path": "stills/report.png",
+      "scene": "SH-07",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "report",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [
+        {
+          "label": "本周",
+          "reason": "当前就在本周，按钮按产品逻辑禁用（周报页）"
+        }
+      ],
+      "content": "周报（10月12日–10月18日）：本周总结 / 关键进展 / 会议 / 风险与阻塞 / 下周计划，无任何 fallback 空状态"
+    },
+    {
+      "name": "settings-ai",
+      "file": "stills/settings-ai.png",
+      "path": "stills/settings-ai.png",
+      "scene": "SH-08",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [
+        {
+          "label": "保存修改",
+          "reason": "设置页无未保存改动时的常态置灰"
+        },
+        {
+          "label": "本机内置",
+          "reason": "产品如实置灰：浏览器版没有内置模型推理能力（web/src/lib/builtinModels.ts:15），旁注「需要 macOS 桌面版」"
+        },
+        {
+          "label": "↻ 立即同步",
+          "reason": "日历未配置 ICS 地址时的常态置灰"
+        }
+      ],
+      "content": "设置：AI 运行在哪里三选一（「本机内置」如实置灰并标注需要 macOS 桌面版）+ 数据去向自检"
+    },
+    {
+      "name": "data-flow",
+      "file": "stills/data-flow.png",
+      "path": "stills/data-flow.png",
+      "scene": "SH-08",
+      "w": 3840,
+      "h": 2160,
+      "size": "3840x2160",
+      "viewport": "1920x1080",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [
+        {
+          "label": "保存修改",
+          "reason": "设置页无未保存改动时的常态置灰"
+        },
+        {
+          "label": "本机内置",
+          "reason": "产品如实置灰：浏览器版没有内置模型推理能力（web/src/lib/builtinModels.ts:15），旁注「需要 macOS 桌面版」"
+        },
+        {
+          "label": "↻ 立即同步",
+          "reason": "日历未配置 ICS 地址时的常态置灰"
+        }
+      ],
+      "content": "设置 · 数据去向卡：✓ 会议内容全部留在本机（两条链路都判为本机）"
+    },
+    {
+      "name": "mobile-today",
+      "file": "stills/mobile-today.png",
+      "path": "stills/mobile-today.png",
+      "scene": "SH-09",
+      "w": 1170,
+      "h": 2532,
+      "size": "1170x2532",
+      "viewport": "390x844",
+      "deviceScaleFactor": 3,
+      "route": {
+        "view": "today",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "移动端 390×844 今天页"
+    },
+    {
+      "name": "ipad-board",
+      "file": "stills/ipad-board.png",
+      "path": "stills/ipad-board.png",
+      "scene": "SH-09",
+      "w": 2732,
+      "h": 2048,
+      "size": "2732x2048",
+      "viewport": "1366x1024",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "board",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "iPad 横版 1366×1024 看板（四列同屏）"
+    },
+    {
+      "name": "ipad-portrait",
+      "file": "stills/ipad-portrait.png",
+      "path": "stills/ipad-portrait.png",
+      "scene": "SH-09",
+      "w": 1536,
+      "h": 2048,
+      "size": "1536x2048",
+      "viewport": "768x1024",
+      "deviceScaleFactor": 2,
+      "route": {
+        "view": "todos",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "iPad 竖版 768×1024 任务 · 今日焦点（3:4，正合 tablet-frame 内屏 612×816）"
+    }
+  ],
+  "clips": [
+    {
+      "name": "record-start",
+      "file": "clips/record-start.webm",
+      "path": "clips/record-start.webm",
+      "scene": "SH-03",
+      "duration_s": 7.12,
+      "w": 1920,
+      "h": 1080,
+      "route": null,
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "今天页 → 点「● 开始录音」→ 进入会中速记，手打两条关键词"
+    },
+    {
+      "name": "live-caption",
+      "file": "clips/live-caption.webm",
+      "path": "clips/live-caption.webm",
+      "scene": "SH-03",
+      "duration_s": 8.44,
+      "w": 1920,
+      "h": 1080,
+      "route": null,
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "会中实时字幕一条条长出来（速记 + 电平条同屏）"
+    },
+    {
+      "name": "polish",
+      "file": "clips/polish.webm",
+      "path": "clips/polish.webm",
+      "scene": "SH-04",
+      "duration_s": 5.44,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "会议详情 → 点「重新整理」→ 笔记从速记骨架变四段式，会议待办出现（含原文引用与建议 KR）"
+    },
+    {
+      "name": "transcript-speakers",
+      "file": "clips/transcript-speakers.webm",
+      "path": "clips/transcript-speakers.webm",
+      "scene": "SH-05",
+      "duration_s": 4.96,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "meeting-detail",
+        "taskMode": "focus",
+        "meetingId": "m-q4-plan"
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "转录 Tab：说话人 1/2/3，点时间戳跳播并高亮该段"
+    },
+    {
+      "name": "okr-views",
+      "file": "clips/okr-views.webm",
+      "path": "clips/okr-views.webm",
+      "scene": "SH-06",
+      "duration_s": 6,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "todos",
+        "taskMode": "strategy",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "任务页视角切换：今日焦点 → 本季 OKR → 战略树"
+    },
+    {
+      "name": "okr-attach",
+      "file": "clips/okr-attach.webm",
+      "path": "clips/okr-attach.webm",
+      "scene": "SH-06",
+      "duration_s": 4.24,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "todos",
+        "taskMode": "strategy",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "战略视图：把 Inbox 里的任务拖到项目 KR 上归位"
+    },
+    {
+      "name": "board-drag",
+      "file": "clips/board-drag.webm",
+      "path": "clips/board-drag.webm",
+      "scene": "SH-07",
+      "duration_s": 4,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "board",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "看板：卡片从「待办」拖到「进行中」"
+    },
+    {
+      "name": "report",
+      "file": "clips/report.webm",
+      "path": "clips/report.webm",
+      "scene": "SH-07",
+      "duration_s": 4.6,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "report",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [
+        {
+          "label": "本周",
+          "reason": "当前就在本周，按钮按产品逻辑禁用（周报页）"
+        }
+      ],
+      "content": "周报：滚到风险与阻塞 / 下周计划 → 复制 Markdown → 已复制 ✓"
+    },
+    {
+      "name": "settings-ai",
+      "file": "clips/settings-ai.webm",
+      "path": "clips/settings-ai.webm",
+      "scene": "SH-08",
+      "duration_s": 7,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [
+        {
+          "label": "保存修改",
+          "reason": "设置页无未保存改动时的常态置灰"
+        },
+        {
+          "label": "本机内置",
+          "reason": "产品如实置灰：浏览器版没有内置模型推理能力（web/src/lib/builtinModels.ts:15），旁注「需要 macOS 桌面版」"
+        },
+        {
+          "label": "↻ 立即同步",
+          "reason": "日历未配置 ICS 地址时的常态置灰"
+        }
+      ],
+      "content": "设置：三选一切换（云端 API → 自建本地服务；「本机内置」如实置灰不可点）→ 数据去向自检如实变化"
+    },
+    {
+      "name": "export-zip",
+      "file": "clips/export-zip.webm",
+      "path": "clips/export-zip.webm",
+      "scene": "SH-09",
+      "duration_s": 6,
+      "w": 1920,
+      "h": 1080,
+      "route": {
+        "view": "settings",
+        "taskMode": "focus",
+        "meetingId": null
+      },
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [
+        {
+          "label": "保存修改",
+          "reason": "设置页无未保存改动时的常态置灰"
+        },
+        {
+          "label": "本机内置",
+          "reason": "产品如实置灰：浏览器版没有内置模型推理能力（web/src/lib/builtinModels.ts:15），旁注「需要 macOS 桌面版」"
+        },
+        {
+          "label": "↻ 立即同步",
+          "reason": "日历未配置 ICS 地址时的常态置灰"
+        }
+      ],
+      "content": "设置 · 数据：导出 .zip 全量备份成功（进度文案 → 已导出 …KB · N 段音频）"
+    },
+    {
+      "name": "record-start-clean",
+      "file": "clips/record-start-clean.webm",
+      "path": "clips/record-start-clean.webm",
+      "scene": "SH-03",
+      "duration_s": 7.36,
+      "w": 1920,
+      "h": 1080,
+      "route": null,
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "干净版：隐藏浏览器能力提示条的 record-start（本条目取自 *-clean 素材（HIDE_CAPTURE_BANNER=1））"
+    },
+    {
+      "name": "live-caption-clean",
+      "file": "clips/live-caption-clean.webm",
+      "path": "clips/live-caption-clean.webm",
+      "scene": "SH-03",
+      "duration_s": 8.48,
+      "w": 1920,
+      "h": 1080,
+      "route": null,
+      "has_empty_state": false,
+      "has_browser_banner": false,
+      "zero_count_hits": [],
+      "error_hits": [],
+      "onboarding_hits": [],
+      "disabled_items": [],
+      "content": "干净版：隐藏浏览器能力提示条的 live-caption（本条目取自 *-clean 素材（HIDE_CAPTURE_BANNER=1））"
+    }
+  ],
+  "contract": {
+    "still_desktop": "viewport 1920x1080 · deviceScaleFactor 2 → 3840x2160",
+    "still_mobile": "viewport 390x844 · deviceScaleFactor 3 → 1170x2532",
+    "still_ipad_landscape": "viewport 1366x1024 · deviceScaleFactor 2 → 2732x2048",
+    "still_ipad_portrait": "viewport 768x1024 · deviceScaleFactor 2 → 1536x2048（3:4，合 tablet-frame 内屏 612x816）",
+    "clip": "viewport 1920x1080 · deviceScaleFactor 1 · recordVideo.size 1920x1080 · 每条 4–9s · 结尾静置 ≥1.2s",
+    "measured_by": "ffprobe 实测（本文件所有 w/h/duration_s）+ verify-frames.py 像素自检"
+  },
+  "disclosure": [
+    "演示数据由 promo/scripts/capture/lib/seed.mjs 直接写入 IndexedDB `shibei`（字段照 web/src/types.ts），完整存档见 seed/*.json；不是真实用户数据，也没有真实录音内容（audioChunks 里是页面内合成的静音 WAV，用于让「录音回放」不是空状态）。",
+    "实时字幕的中文文本**不是真实识别结果**：headless Chromium 没有可用的中文 ASR 后端，采集环境注入 window.SpeechRecognition 桩喂脚本化 onresult 事件，但驱动的是产品真实代码路径 web/src/lib/liveCaption.ts（useCaption store / kv live_caption_<id> / 面板累积滚动 / on·blocked·unsupported 状态机）。",
+    "假麦克风不是真人说话：--use-file-for-fake-audio-capture 指向 promo/scripts/capture/lib/fake-mic.mjs 现场合成的类人声 WAV，使电平条全程可见（Chromium 自带假设备只在开头约 3s 有声，会让电平条趴平）。",
+    "polish 片段的 LLM 调用换成本地确定性响应（seed/polish-llm-response.json）：本机无云端 Key，跑的是真实 pipeline/summarize.ts（含旧 pending_review 待办清理与重建、标题回写、原文引用定位）。",
+    "录音时产品会如实显示「浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版…」。默认素材保留它；*-clean 素材隐藏它，供 SH-03 成片选用（桌面版本身能录系统声音，成片用干净版不构成虚假宣称）。",
+    "DB 已置 onboarding_done_v1=true，并在采集时按掉 Onboarding 首帧渲染竞态（等价于点面板上的 ✕），保证画面里不出现引导浮层。",
+    "本机 MiniMax 视觉复核（understand_image）本轮配额用尽、Gemini/Codex 通道亦不可用，所以逐帧目视改由 clean 自检（DOM 断言）+ verify-frames.py（像素断言）+ Lead 抽检承担；未做任何贴字或改文案。"
+  ],
+  "verify": {
+    "problems": [],
+    "ok": true
+  }
+}

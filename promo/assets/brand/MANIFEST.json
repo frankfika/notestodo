@@ -1,0 +1,541 @@
+{
+  "project": "NotesToGO · 拾贝 产品宣传片",
+  "owner": "brand",
+  "task": "task-2",
+  "generated_at": "2026-10-18T19:29:54+08:00",
+  "generator": "promo/scripts/brand/make_brand_assets.py",
+  "contract": "promo/STORYBOARD.md §2 设计真值 / §3 SH-01·02·09·10 / §4.2 素材契约",
+  "canvas": {
+    "w": 1920,
+    "h": 1080,
+    "fps_target": 30,
+    "safe_frame_px": 96,
+    "grid_px": 4
+  },
+  "design_tokens": {
+    "bg_paper": "#FBF8F2",
+    "bg_raise": "#FEFCF9",
+    "line": "#E3DFD8",
+    "text_1_ink": "#3A3128",
+    "text_3_muted": "#7A7168",
+    "accent_orange": "#C0571E",
+    "dark": "#26221E",
+    "radii": {
+      "s": 12,
+      "m": 16,
+      "l": 24
+    }
+  },
+  "fonts": {
+    "resolved_path": "/Users/fangchen/Library/Fonts/NotoSansSC-Variable.ttf",
+    "family": "Noto Sans SC (variable)",
+    "variable": true,
+    "weights_used": [
+      "Regular",
+      "Medium",
+      "SemiBold",
+      "ExtraBold"
+    ],
+    "note": "STORYBOARD 指定的 /System/Library/Fonts/NotoSansSC-Variable.ttf 在本机不存在；实际使用 ~/Library/Fonts/NotoSansSC-Variable.ttf（Noto Sans SC 可变字体，weight 轴 100–900，按命名实例取字重）。PingFang 未在 /System/Library/Fonts/ 下找到独立字体文件，未使用。",
+    "no_emoji": true
+  },
+  "files": [
+    "bg-paper-1920x1080.png",
+    "title-card-1920x1080.png",
+    "end-card-1920x1080.png",
+    "cover-16x9.png",
+    "lower-third-live.png",
+    "hook-lines/hook-1.png",
+    "hook-lines/hook-2.png",
+    "phone-frame.png",
+    "tablet-frame.png"
+  ],
+  "assets": [
+    {
+      "file": "bg-paper-1920x1080.png",
+      "path": "promo/assets/brand/bg-paper-1920x1080.png",
+      "scene": [
+        "SH-01",
+        "SH-02",
+        "SH-10",
+        "底"
+      ],
+      "purpose": "纸色底 + 极淡横格线 + 极轻纸纹噪点；SH-01/02/10 与卡片类素材的公共底，可直接作全片底层",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGB",
+      "has_alpha": false,
+      "note": "底色 #FBF8F2；横格线 #E3DFD8（55% 不透明）× 44px 间距（4pt 网格倍数）；噪点标准差约 1.7 级；四角压暗约 3 级",
+      "regions": {
+        "full_bleed": [
+          0,
+          0,
+          1920,
+          1080
+        ]
+      }
+    },
+    {
+      "file": "title-card-1920x1080.png",
+      "path": "promo/assets/brand/title-card-1920x1080.png",
+      "scene": [
+        "SH-02"
+      ],
+      "purpose": "品牌亮相全屏卡：字标 NotesToGO + 橘点 + 副标 + 一句话主张",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGB",
+      "has_alpha": false,
+      "text": [
+        "NotesToGO",
+        "拾贝 · 会议速记 × 嵌套 OKR",
+        "会中只记关键词，散会后一键成稿"
+      ],
+      "note": "含纸底与横格线，可与 bg-paper 无缝 crossfade；内容全部落在 96px 安全框内",
+      "regions": {
+        "wordmark_block": [
+          434,
+          360,
+          1486,
+          496
+        ],
+        "orange_dot": [
+          434,
+          408,
+          474,
+          448
+        ],
+        "safe_content": [
+          434,
+          360,
+          1486,
+          715
+        ]
+      }
+    },
+    {
+      "file": "end-card-1920x1080.png",
+      "path": "promo/assets/brand/end-card-1920x1080.png",
+      "scene": [
+        "SH-10"
+      ],
+      "purpose": "收尾全屏卡：字标 + slogan + 仓库地址 + 本地优先/开源",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGB",
+      "has_alpha": false,
+      "text": [
+        "NotesToGO",
+        "每个行动项，落到正确的 KR 上",
+        "github.com/frankfika/notestodo",
+        "本地优先 · 开源"
+      ],
+      "note": "含纸底与横格线；底部信息行距下边缘 >= 120px",
+      "regions": {
+        "safe_content": [
+          602,
+          334,
+          1318,
+          960
+        ]
+      }
+    },
+    {
+      "file": "cover-16x9.png",
+      "path": "promo/assets/brand/cover-16x9.png",
+      "scene": [
+        "封面",
+        "文章头图",
+        "notestogo-promo-16x9.mp4 封面"
+      ],
+      "purpose": "海报式封面：左栏字标 + 一句话主张 + 橘点/橘线，右侧预留产品截图位",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGB",
+      "has_alpha": false,
+      "text": [
+        "NotesToGO",
+        "开会时只记关键词，",
+        "散会后一键成稿",
+        "每个行动项，落到正确的 KR 上",
+        "github.com/frankfika/notestodo",
+        "本地优先 · 开源 · PWA 可安装"
+      ],
+      "screenshot_well": {
+        "x": 912,
+        "y": 244,
+        "w": 880,
+        "h": 495,
+        "radius": 24,
+        "aspect": "16:9（880:495）",
+        "hint": "如需装入真实截图：ffmpeg -i capture/stills/today.png 先 scale=880:495 再 overlay=x=912:y=244；不装也可直接当封面用（右侧为留白面板）"
+      },
+      "regions": {
+        "safe_content": [
+          128,
+          236,
+          1792,
+          976
+        ]
+      }
+    },
+    {
+      "file": "lower-third-live.png",
+      "path": "promo/assets/brand/lower-third-live.png",
+      "scene": [
+        "SH-03"
+      ],
+      "purpose": "会中功能要点条（lower-third）：白卡片 + 左侧橘色竖条 + 要点文案",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGBA",
+      "has_alpha": true,
+      "text": [
+        "速记优先 · 实时字幕 · 电平可见"
+      ],
+      "overlay": "整幅 1920x1080 直接叠在最上层（x=0,y=0）；内容已固定在左下安全区",
+      "card_rect": {
+        "x": 116,
+        "y": 880,
+        "w": 636,
+        "h": 84,
+        "radius": 16
+      },
+      "note": "分隔符「·」用品牌橘强调；卡片不透明白 #FEFCF9，四周为全透明像素",
+      "regions": {
+        "card": [
+          116,
+          880,
+          752,
+          964
+        ]
+      }
+    },
+    {
+      "file": "hook-lines/hook-1.png",
+      "path": "promo/assets/brand/hook-lines/hook-1.png",
+      "scene": [
+        "SH-01"
+      ],
+      "purpose": "SH-01 第 1 句大字（0:00–0:04 淡入）",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGBA",
+      "has_alpha": true,
+      "text": [
+        "开会时，你到底是在参与讨论，"
+      ],
+      "overlay": "整幅 1920x1080 直接叠在 bg-paper 上（x=0,y=0），整句居中于画面中心 (960,540)，可用 ffmpeg fade / overlay 做逐句淡入淡出",
+      "note": "透明底仅含文字墨迹；字号 116px（缩到 1/2 仍可读）；字距 3px；整句按「真实墨迹」光学居中（行尾全角标点的字身留白不计入），实测左右留白 167/167 与 580/579，视觉完全对称；墨迹范围已校验在 96px 安全框内",
+      "regions": {
+        "ink_bbox": [
+          167.0,
+          482.5,
+          1753.0,
+          597.5
+        ]
+      }
+    },
+    {
+      "file": "hook-lines/hook-2.png",
+      "path": "promo/assets/brand/hook-lines/hook-2.png",
+      "scene": [
+        "SH-01"
+      ],
+      "purpose": "SH-01 第 2 句大字（0:04–0:08 淡入）；「抄笔记」用品牌橘强调",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGBA",
+      "has_alpha": true,
+      "text": [
+        "还是在抄笔记？"
+      ],
+      "overlay": "整幅 1920x1080 直接叠在 bg-paper 上（x=0,y=0），整句居中于画面中心 (960,540)，可用 ffmpeg fade / overlay 做逐句淡入淡出",
+      "note": "透明底仅含文字墨迹；字号 116px（缩到 1/2 仍可读）；字距 3px；整句按「真实墨迹」光学居中（行尾全角标点的字身留白不计入），实测左右留白 167/167 与 580/579，视觉完全对称；墨迹范围已校验在 96px 安全框内",
+      "regions": {
+        "ink_bbox": [
+          579.5,
+          484.5,
+          1340.5,
+          595.5
+        ]
+      }
+    },
+    {
+      "file": "phone-frame.png",
+      "path": "promo/assets/brand/phone-frame.png",
+      "scene": [
+        "SH-09"
+      ],
+      "purpose": "iPhone 竖版透明机身框，内屏镂空，用于把真实截图装进设备",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGBA",
+      "has_alpha": true,
+      "screen_rect": {
+        "x": 770,
+        "y": 128,
+        "w": 380,
+        "h": 824,
+        "radius": 38,
+        "aspect": "380:824"
+      },
+      "device_bbox": {
+        "x": 754,
+        "y": 112,
+        "w": 412,
+        "h": 856,
+        "radius": 54
+      },
+      "bezel_px": 16,
+      "screenshot_source": "capture/stills/mobile-today.png（viewport 390x844 @dsf3 = 1170x2532，按 380:824 等比缩放）",
+      "screen_rect_note": "内屏矩形内 alpha 均为 0（仅边界 1~2px 保留抗锯齿过渡，实测最大 alpha=1），可直接作为 ffmpeg overlay 的目标区域：先把截图 scale 到 w:h，再叠本帧 PNG，机身圆角会自动盖住截图四角。",
+      "ffmpeg_hint": "# 截图先缩放并贴到 770,128，再把本帧整幅叠在最上层\n-i 截图 -i phone-frame.png -filter_complex [0:v]scale=380:824[s];[1:v]format=rgba[f];color=c=0xFBF8F2:s=1920x1080[bg];[bg][s]overlay=770:128[t];[t][f]overlay=0:0",
+      "screenshot_pixels": {
+        "w": 380,
+        "h": 824,
+        "from": "capture/stills/*.png（3840x2160 或 1170x2532）按此尺寸等比缩放"
+      },
+      "note": "画面正中；内屏 380x824（比例 0.46117，与 390:844 = 0.46209 相差 0.2%，肉眼不可辨）。叠加顺序：先贴截图，再叠本帧 PNG（内屏区域为全透明，可透视截图）。机身连同柔和投影全部落在 96px 安全框内。若需与 iPad 并排，见 manifest.frames_side_by_side。",
+      "regions": {
+        "screen_transparent": [
+          770,
+          128,
+          1150,
+          952
+        ],
+        "device": [
+          754,
+          112,
+          1166,
+          968
+        ]
+      },
+      "device_name": "phone",
+      "safe_margin_px": {
+        "left": 754,
+        "right": 754,
+        "top": 112,
+        "bottom": 112
+      }
+    },
+    {
+      "file": "tablet-frame.png",
+      "path": "promo/assets/brand/tablet-frame.png",
+      "scene": [
+        "SH-09"
+      ],
+      "purpose": "iPad透明机身框，内屏镂空，用于把真实截图装进设备",
+      "size": [
+        1920,
+        1080
+      ],
+      "mode": "RGBA",
+      "has_alpha": true,
+      "screen_rect": {
+        "x": 654,
+        "y": 132,
+        "w": 612,
+        "h": 816,
+        "radius": 28,
+        "aspect": "612:816"
+      },
+      "device_bbox": {
+        "x": 636,
+        "y": 114,
+        "w": 648,
+        "h": 852,
+        "radius": 46
+      },
+      "bezel_px": 18,
+      "screenshot_source": "capture/stills/ipad-board.png（建议按 612:816 等比裁切/缩放）",
+      "screen_rect_note": "内屏矩形内 alpha 均为 0（仅边界 1~2px 保留抗锯齿过渡，实测最大 alpha=1），可直接作为 ffmpeg overlay 的目标区域：先把截图 scale 到 w:h，再叠本帧 PNG，机身圆角会自动盖住截图四角。",
+      "ffmpeg_hint": "# 截图先缩放并贴到 654,132，再把本帧整幅叠在最上层\n-i 截图 -i tablet-frame.png -filter_complex [0:v]scale=612:816[s];[1:v]format=rgba[f];color=c=0xFBF8F2:s=1920x1080[bg];[bg][s]overlay=654:132[t];[t][f]overlay=0:0",
+      "screenshot_pixels": {
+        "w": 612,
+        "h": 816,
+        "from": "capture/stills/*.png（3840x2160 或 1170x2532）按此尺寸等比缩放"
+      },
+      "note": "画面正中；内屏 612x816（= 768:1024 精确 3:4）。叠加顺序同上。机身连同柔和投影全部落在 96px 安全框内。若需并排，见 manifest.frames_side_by_side。",
+      "regions": {
+        "screen_transparent": [
+          654,
+          132,
+          1266,
+          948
+        ],
+        "device": [
+          636,
+          114,
+          1284,
+          966
+        ]
+      },
+      "device_name": "tablet",
+      "safe_margin_px": {
+        "left": 636,
+        "right": 636,
+        "top": 114,
+        "bottom": 114
+      }
+    }
+  ],
+  "safe_frame_check": {
+    "violations": [],
+    "boxes": {
+      "title-card-1920x1080.png": [
+        434,
+        360,
+        1486,
+        715
+      ],
+      "end-card-1920x1080.png": [
+        602,
+        334,
+        1318,
+        960
+      ],
+      "cover-16x9.png": [
+        128,
+        236,
+        1792,
+        976
+      ],
+      "lower-third-live.png": [
+        116,
+        880,
+        752,
+        964
+      ],
+      "hook-1.png": [
+        167,
+        482,
+        1753,
+        598
+      ],
+      "hook-2.png": [
+        579,
+        484,
+        1341,
+        596
+      ],
+      "phone-frame.png": [
+        754,
+        112,
+        1166,
+        968
+      ],
+      "tablet-frame.png": [
+        636,
+        114,
+        1284,
+        966
+      ]
+    }
+  },
+  "frames_side_by_side": {
+    "recommended": "整幅平移（保留柔和投影）：两张帧图都是 1920x1080 全画布，直接给 overlay 一个负/正 x 偏移即可，投影会随设备一起移动。目标布局：两设备水平居中并排、间距 180px、左右留白各 340px、垂直位置不动。",
+    "phone": {
+      "png_overlay_at": [
+        -414,
+        0
+      ],
+      "device_then": [
+        340,
+        112,
+        412,
+        856
+      ],
+      "screen_rect_then": [
+        356,
+        128,
+        380,
+        824
+      ],
+      "ffmpeg": "[bg][1:v]overlay=-414:0[b1]"
+    },
+    "tablet": {
+      "png_overlay_at": [
+        296,
+        0
+      ],
+      "device_then": [
+        932,
+        114,
+        648,
+        852
+      ],
+      "screen_rect_then": [
+        950,
+        132,
+        612,
+        816
+      ],
+      "ffmpeg": "[b1][2:v]overlay=296:0[b2]"
+    },
+    "alternative_crop": {
+      "note": "先按 device_bbox 裁片再摆放（同样可用：裁片坐标 + 目标位置 = 内屏坐标）。注意：裁剪会连同设备外的柔和投影一起裁掉，画面会显得设备「贴」在纸面上。",
+      "phone": {
+        "crop_from": [
+          754,
+          112,
+          412,
+          856
+        ],
+        "place_at": [
+          340,
+          112
+        ],
+        "screen_rect_then": [
+          356,
+          128,
+          380,
+          824
+        ]
+      },
+      "tablet": {
+        "crop_from": [
+          636,
+          114,
+          648,
+          852
+        ],
+        "place_at": [
+          932,
+          114
+        ],
+        "screen_rect_then": [
+          950,
+          132,
+          612,
+          816
+        ]
+      }
+    },
+    "screenshot_first": "顺序：先叠截图（到 screen_rect_then），再叠机身帧 PNG，机身圆角自动盖住截图四角。"
+  },
+  "review_aid": "_review/ 目录：contact-sheet.png（九宫格总览）、frame-overlay-test.png（内屏接口端到端验证）、hook-pair.png、lower-third-on-bg.png、crop-*.png（逐字核对裁切）—— 全部仅复核用，不参与成片",
+  "handoff": {
+    "cover_for_build": "cover-16x9.png 需由 build 复制到 promo/build/out/cover-16x9.png（STORYBOARD §1 交付路径）",
+    "overlay_rule": "所有透明素材都是 1920x1080 全画布，叠放时统一 x=0,y=0，无需计算偏移",
+    "subtitle_note": "SH-03 要点条 lower-third-live.png 与屏幕下方烧入字幕 CAP 位置不同（卡片在 y=880~964），同屏出现时字幕请压在更下方或错开时间",
+    "smoke_test": "promo/scripts/brand/ffmpeg-frame-smoke.sh —— 用真实 ffmpeg 把测试截图叠进机身框并逐像素校验（内屏内容 / 圆角遮挡 / 投影 / 安全框），build 可直接照抄其中的 filter_complex 写法",
+    "regenerate": "promo/scripts/brand/make_brand_assets.py（确定性，固定随机种子）→ promo/scripts/brand/verify_brand_assets.py（全部断言）→ promo/scripts/brand/review_previews.py（复核图）"
+  }
+}

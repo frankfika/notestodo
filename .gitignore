@@ -6,3 +6,9 @@ dist/
 *.local
 test-results/
 playwright-report/
+
+# promo 中间产物
+promo/audio/_scratch/
+promo/build/_tmp/
+promo/capture/.video-tmp/
+__pycache__/

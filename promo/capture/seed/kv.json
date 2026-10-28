@@ -1,0 +1,32 @@
+{
+  "settings": {
+    "ai_mode": "cloud",
+    "llm_provider": "openai-compatible",
+    "llm_base_url": "https://api.minimax.io/v1",
+    "llm_api_key": "sk-demo-9f3a2c7e1b4d5a6082",
+    "llm_model": "MiniMax-M2.7",
+    "asr_mode": "cloud",
+    "asr_provider": "minimax",
+    "asr_base_url": "https://api.minimaxi.com",
+    "asr_api_key": "sk-demo-4c81be7a2d6f0395",
+    "asr_model": "asr-1.0",
+    "local_llm_base_url": "http://127.0.0.1:11434/v1",
+    "local_llm_api_key": "",
+    "local_llm_model": "llama3.2",
+    "local_asr_base_url": "http://127.0.0.1:8080/v1",
+    "local_asr_api_key": "",
+    "local_asr_model": "whisper-1",
+    "builtin_llm_model": "gemma-4-e4b",
+    "builtin_asr_model": "whisper-large-v3-turbo",
+    "model_source": "auto",
+    "hotwords": "拾贝\nNotesToGO\nOKR\n一次成稿\nKR\n重新整理",
+    "delete_remote_audio": true,
+    "theme": "light",
+    "calendar_ics_urls": [],
+    "knowledge_folders": [
+      "/Users/fangchen/Documents/拾贝知识库"
+    ]
+  },
+  "onboarding_done_v1": true,
+  "live_caption_enabled": true
+}

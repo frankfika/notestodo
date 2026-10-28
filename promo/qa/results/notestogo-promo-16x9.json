@@ -1,0 +1,250 @@
+{
+  "target": "promo/build/out/notestogo-promo-16x9.mp4",
+  "spec": "sync",
+  "worst": "PASS",
+  "meta": {
+    "srt": "promo/script/subtitles-zh.srt",
+    "vo_dir": "promo/audio/vo",
+    "vo_filtered_by_timeline": [
+      "vo-01",
+      "vo-02",
+      "vo-03",
+      "vo-04",
+      "vo-05",
+      "vo-06",
+      "vo-07",
+      "vo-08",
+      "vo-09",
+      "vo-10"
+    ],
+    "vo_files": [
+      "promo/audio/vo/vo-01.wav",
+      "promo/audio/vo/vo-02.wav",
+      "promo/audio/vo/vo-03.wav",
+      "promo/audio/vo/vo-04.wav",
+      "promo/audio/vo/vo-05.wav",
+      "promo/audio/vo/vo-06.wav",
+      "promo/audio/vo/vo-07.wav",
+      "promo/audio/vo/vo-08.wav",
+      "promo/audio/vo/vo-09.wav",
+      "promo/audio/vo/vo-10.wav"
+    ],
+    "video_audio_samples_16k": 1439744,
+    "vo_locations": [
+      {
+        "ok": true,
+        "lag_s": 0.4,
+        "ncc": 0.9811020249394234,
+        "vo_onset_in_file_s": 0.2,
+        "vo_speech_start_in_video_s": 0.6,
+        "search_range_s": 84.4776875,
+        "vo_id": "vo-01"
+      },
+      {
+        "ok": true,
+        "lag_s": 6.372,
+        "ncc": 0.9684133315041731,
+        "vo_onset_in_file_s": 0.135,
+        "vo_speech_start_in_video_s": 6.507,
+        "search_range_s": 84.0084375,
+        "vo_id": "vo-02"
+      },
+      {
+        "ok": true,
+        "lag_s": 12.473,
+        "ncc": 0.9778589456089215,
+        "vo_onset_in_file_s": 0.135,
+        "vo_speech_start_in_video_s": 12.608,
+        "search_range_s": 78.1923125,
+        "vo_id": "vo-03"
+      },
+      {
+        "ok": true,
+        "lag_s": 24.384,
+        "ncc": 0.9741355362090757,
+        "vo_onset_in_file_s": 0.16,
+        "vo_speech_start_in_video_s": 24.544,
+        "search_range_s": 77.74125,
+        "vo_id": "vo-04"
+      },
+      {
+        "ok": true,
+        "lag_s": 36.748,
+        "ncc": 0.9706826045142422,
+        "vo_onset_in_file_s": 0.17,
+        "vo_speech_start_in_video_s": 36.918,
+        "search_range_s": 84.1193125,
+        "vo_id": "vo-05"
+      },
+      {
+        "ok": true,
+        "lag_s": 42.89,
+        "ncc": 0.9692019087518071,
+        "vo_onset_in_file_s": 0.18,
+        "vo_speech_start_in_video_s": 43.07,
+        "search_range_s": 78.3195,
+        "vo_id": "vo-06"
+      },
+      {
+        "ok": true,
+        "lag_s": 54.675,
+        "ncc": 0.9779665001435851,
+        "vo_onset_in_file_s": 0.17,
+        "vo_speech_start_in_video_s": 54.845,
+        "search_range_s": 82.458875,
+        "vo_id": "vo-07"
+      },
+      {
+        "ok": true,
+        "lag_s": 62.47,
+        "ncc": 0.9775628364453658,
+        "vo_onset_in_file_s": 0.14,
+        "vo_speech_start_in_video_s": 62.61,
+        "search_range_s": 77.2848125,
+        "vo_id": "vo-08"
+      },
+      {
+        "ok": true,
+        "lag_s": 75.289,
+        "ncc": 0.977148002001837,
+        "vo_onset_in_file_s": 0.16,
+        "vo_speech_start_in_video_s": 75.449,
+        "search_range_s": 82.04275,
+        "vo_id": "vo-09"
+      },
+      {
+        "ok": true,
+        "lag_s": 83.35,
+        "ncc": 0.9574063480580041,
+        "vo_onset_in_file_s": 0.135,
+        "vo_speech_start_in_video_s": 83.485,
+        "search_range_s": 83.557125,
+        "vo_id": "vo-10"
+      }
+    ],
+    "pairs": [
+      {
+        "vo_id": "vo-01",
+        "measured_vo_start_s": 0.6,
+        "ncc": 0.981,
+        "srt_start_s": 0.47,
+        "srt_text": "开会时，你在讨论，还是在抄笔记？",
+        "declared_vo_start_s": 0.0,
+        "delta_srt_vs_measured_s": -0.13,
+        "delta_declared_vs_measured_s": -0.6
+      },
+      {
+        "vo_id": "vo-02",
+        "measured_vo_start_s": 6.507,
+        "ncc": 0.968,
+        "srt_start_s": 6.442,
+        "srt_text": "NotesToGO 拾贝 · 会中只记关键词，散会后一键成稿",
+        "declared_vo_start_s": 5.972,
+        "delta_srt_vs_measured_s": -0.065,
+        "delta_declared_vs_measured_s": -0.535
+      },
+      {
+        "vo_id": "vo-03",
+        "measured_vo_start_s": 12.608,
+        "ncc": 0.978,
+        "srt_start_s": 12.543,
+        "srt_text": "⌘⇧R 一键开录 · 会中只记关键词，回车即存",
+        "declared_vo_start_s": 12.073,
+        "delta_srt_vs_measured_s": -0.065,
+        "delta_declared_vs_measured_s": -0.535
+      },
+      {
+        "vo_id": "vo-04",
+        "measured_vo_start_s": 24.544,
+        "ncc": 0.974,
+        "srt_start_s": 24.455,
+        "srt_text": "一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用",
+        "declared_vo_start_s": 23.985,
+        "delta_srt_vs_measured_s": -0.089,
+        "delta_declared_vs_measured_s": -0.559
+      },
+      {
+        "vo_id": "vo-05",
+        "measured_vo_start_s": 36.918,
+        "ncc": 0.971,
+        "srt_start_s": 36.818,
+        "srt_text": "转录带说话人区分 · 谁在什么时候说了什么",
+        "declared_vo_start_s": 36.348,
+        "delta_srt_vs_measured_s": -0.1,
+        "delta_declared_vs_measured_s": -0.57
+      },
+      {
+        "vo_id": "vo-06",
+        "measured_vo_start_s": 43.07,
+        "ncc": 0.969,
+        "srt_start_s": 42.96,
+        "srt_text": "嵌套 OKR · 战略 → 季度 → 项目 → 任务",
+        "declared_vo_start_s": 42.49,
+        "delta_srt_vs_measured_s": -0.11,
+        "delta_declared_vs_measured_s": -0.58
+      },
+      {
+        "vo_id": "vo-07",
+        "measured_vo_start_s": 54.845,
+        "ncc": 0.978,
+        "srt_start_s": 54.745,
+        "srt_text": "看板拖拽换列 · 自动周报一键复制",
+        "declared_vo_start_s": 54.275,
+        "delta_srt_vs_measured_s": -0.1,
+        "delta_declared_vs_measured_s": -0.57
+      },
+      {
+        "vo_id": "vo-08",
+        "measured_vo_start_s": 62.61,
+        "ncc": 0.978,
+        "srt_start_s": 62.54,
+        "srt_text": "桌面版内置模型 · 断网可用 · 数据去向如实自检",
+        "declared_vo_start_s": 62.07,
+        "delta_srt_vs_measured_s": -0.07,
+        "delta_declared_vs_measured_s": -0.54
+      },
+      {
+        "vo_id": "vo-09",
+        "measured_vo_start_s": 75.449,
+        "ncc": 0.977,
+        "srt_start_s": 75.359,
+        "srt_text": "PWA 可安装（iPhone / iPad / Mac）· 一键导出 .zip",
+        "declared_vo_start_s": 74.889,
+        "delta_srt_vs_measured_s": -0.09,
+        "delta_declared_vs_measured_s": -0.56
+      },
+      {
+        "vo_id": "vo-10",
+        "measured_vo_start_s": 83.485,
+        "ncc": 0.957,
+        "srt_start_s": 83.42,
+        "srt_text": "github.com/frankfika/notestodo · 本地优先 · 开源",
+        "declared_vo_start_s": 82.95,
+        "delta_srt_vs_measured_s": -0.065,
+        "delta_declared_vs_measured_s": -0.535
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "S6.4",
+      "title": "解析字幕文件",
+      "status": "PASS",
+      "detail": "",
+      "expected": "≥1 条字幕",
+      "actual": "10 条",
+      "command": "python3 -c \"parse_srt('promo/script/subtitles-zh.srt')\"",
+      "evidence": "[\n {\n  \"index\": \"1\",\n  \"start_s\": 0.47,\n  \"end_s\": 6.222,\n  \"text\": \"开会时，你在讨论，还是在抄笔记？\"\n },\n {\n  \"index\": \"2\",\n  \"start_s\": 6.442,\n  \"end_s\": 12.223,\n  \"text\": \"NotesToGO 拾贝 · 会中只记关键词，散会后一键成稿\"\n },\n {\n  \"index\": \"3\",\n  \"start_s\": 12.543,\n  \"end_s\": 24.135,\n  \"text\": \"⌘⇧R 一键开录 · 会中只记关键词，回车即存\"\n }\n]"
+    },
+    {
+      "id": "S6.5",
+      "title": "字幕起点 vs 成片中 VO 起点（互相关实测）",
+      "status": "PASS",
+      "detail": "全部条目互相关置信度 ≥0.15",
+      "expected": "每条 |偏差| < 300 ms（标称 -80 ms = 字幕领先人声）",
+      "actual": "最大 |偏差| 130 ms（10 条）；与标称口径最大偏离 50 ms",
+      "command": "/opt/homebrew/bin/ffmpeg … -f f32le -  # 解码混音与各 VO，归一化互相关定位",
+      "evidence": "[\n {\n  \"vo_id\": \"vo-01\",\n  \"measured_vo_start_s\": 0.6,\n  \"ncc\": 0.981,\n  \"srt_start_s\": 0.47,\n  \"srt_text\": \"开会时，你在讨论，还是在抄笔记？\",\n  \"declared_vo_start_s\": 0.0,\n  \"delta_srt_vs_measured_s\": -0.13,\n  \"delta_declared_vs_measured_s\": -0.6\n },\n {\n  \"vo_id\": \"vo-02\",\n  \"measured_vo_start_s\": 6.507,\n  \"ncc\": 0.968,\n  \"srt_start_s\": 6.442,\n  \"srt_text\": \"NotesToGO 拾贝 · 会中只记关键词，散会后一键成稿\",\n  \"declared_vo_start_s\": 5.972,\n  \"delta_srt_vs_measured_s\": -0.065,\n  \"delta_declared_vs_measured_s\": -0.535\n },\n {\n  \"vo_id\": \"vo-03\",\n  \"measured_vo_start_s\": 12.608,\n  \"ncc\": 0.978,\n  \"srt_start_s\": 12.543,\n  \"srt_text\": \"⌘⇧R 一键开录 · 会中只记关键词，回车即存\",\n  \"declared_vo_start_s\": 12.073,\n  \"delta_srt_vs_measured_s\": -0.065,\n  \"delta_declared_vs_measured_s\": -0.535\n },\n {\n  \"vo_id\": \"vo-04\",\n  \"measured_vo_start_s\": 24.544,\n  \"ncc\": 0.974,\n  \"srt_start_s\": 24.455,\n  \"srt_text\": \"一次调用 = 标题 + 纪要 + 待办 · 每条带原文引用\",\n  \"declared_vo_start_s\": 23.985,\n  \"delta_srt_vs_measured_s\": -0.089,\n  \"delta_declared_vs_measured_s\": -0.559\n },\n {\n  \"vo_id\": \"vo-05\",\n  \"measured_vo_start_s\": 36.918,\n  \"ncc\": 0.971,\n  \"srt_start_s\": 36.818,\n  \"srt_text\": \"转录带说话人区分 · 谁在什么时候说了什么\",\n  \"declared_vo_start_s\": 36.348,\n  \"delta_srt_vs_measured_s\": -0.1,\n  \"delta_declared_vs_measured_s\": -0.57\n },\n {\n  \"vo_id\": \"vo-06\",\n  \"measured_vo_start_s\": 43.07,\n  \"ncc\": 0.969,\n  \"srt_start_s\": 42.96,\n  \"srt_text\": \"嵌套 OKR · 战略 → 季度 → 项目 → 任务\",\n  \"declared_vo_start_s\": 42.49,\n  \"delta_srt_vs_measured_s\": -0.11,\n  \"delta_declared_vs_measured_s\": -0.58\n },\n {\n  \"vo_id\": \"vo-07\",\n  \"measured_vo_start_s\": 54.845,\n  \"ncc\": 0.978,\n  \"srt_start_s\": 54.745,\n  \"srt_text\": \"看板拖拽换列 · 自动周报一键复制\",\n  \"declared_vo_start_s\": 54.275,\n  \"delta_srt_vs_measured_s\": -0.1,\n  \"delta_declared_vs_measured_s\": -0.57\n },\n {\n  \"vo_id\": \"vo-08\",\n  \"measured_vo_start_s\": 62.61,\n  \"ncc\": 0.978,\n  \"srt_start_s\": 62.54,\n  \"srt_text\": \"桌面版内置模型 · 断网可用 · 数据去向如实自检\",\n  \"declared_vo_start_s\": 62.07,\n  \"delta_srt_vs_measured_s\": -0.07,\n  \"delta_declared_vs_measured_s\": -0.54\n },\n {\n  \"vo_id\": \"vo-09\",\n  \"measured_vo_start_s\": 75.449,\n  \"ncc\": 0.977,\n  \"srt_start_s\": 75.359,\n  \"srt_text\": \"PWA 可安装（iPhone / iPad / Mac）· 一键导出 .zip\",\n  \"declared_vo_start_s\": 74.889,\n  \"delta_srt_vs_measured_s\": -0.09,\n  \"delta_declared_vs_measured_s\": -0.56\n },\n {\n  \"vo_id\": \"vo-10\",\n  \"measured_vo_start_s\": 83.485,\n  \"ncc\": 0.957,\n  \"srt_start_s\": 83.42,\n  \"srt_text\": \"github.com/frankfika/notestodo · 本地优先 · 开源\",\n  \"declared_vo_start_s\": 82.95,\n  \"delta_srt_vs_measured_s\": -0.065,\n  \"delta_declared_vs_measured_s\": -0.535\n }\n]"
+    }
+  ]
+}
