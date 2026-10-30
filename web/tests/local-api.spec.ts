@@ -28,6 +28,7 @@ async function seed(page: Page): Promise<void> {
     await db.tags.put({ id: 'tag1', name: '工作', created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 })
     await db.tagBindings.put({ id: 'b1', tag_id: 'tag1', target_type: 'todo', target_id: 't1', created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 })
     await db.notes.put({ id: 'n1', title: '会议纪要', body_md: '# 本周\n- 对齐 OKR', todo_ids: [], pinned: false, created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 })
+    await db.notes.put({ id: 'nDel', title: '已删笔记', body_md: '不该被看见', todo_ids: [], pinned: false, created_at: ts, updated_at: ts, deleted_at: ts, sync_version: 0 })
   })
 }
 
@@ -60,11 +61,13 @@ test('任务：列表过滤 / 创建（含层级校验）/ 更新 / 子树软删
   const created = r.body as { id: string; parent_id: string | null; kind: string }
   expect(created.parent_id).toBeNull()
 
-  // 创建：挂到合法父节点 + 非法父节点被拒
+  // 创建：挂到合法父节点 + 非法父节点被拒（task 挂 task 现在合法 = 大任务拆小任务）
   r = await call(page, 'POST', '/todos', { title: '挂到 KR', parent_id: 'KR' })
   expect(r.status).toBe(201)
   expect((r.body as { parent_id: string }).parent_id).toBe('KR')
-  r = await call(page, 'POST', '/todos', { title: '非法挂载', parent_id: 't1' })
+  r = await call(page, 'POST', '/todos', { title: '大任务拆小', parent_id: 't1' })
+  expect(r.status).toBe(201)
+  r = await call(page, 'POST', '/todos', { title: '不存在父', parent_id: 'ghost' })
   expect(r.status).toBe(400)
   r = await call(page, 'POST', '/todos', { title: '   ' })
   expect(r.status).toBe(400)
@@ -78,10 +81,10 @@ test('任务：列表过滤 / 创建（含层级校验）/ 更新 / 子树软删
   r = await call(page, 'PATCH', '/todos/不存在', { status: 'done' })
   expect(r.status).toBe(404)
 
-  // 子树软删：O → KR → {t1, 刚创建的"挂到 KR"} 全走，tag 绑定同步软删
+  // 子树软删：O → KR → t1（t1 下还有新建的"大任务拆小"）全走，tag 绑定同步软删
   r = await call(page, 'DELETE', '/todos/O')
   expect(r.status).toBe(200)
-  expect((r.body as { deleted: number }).deleted).toBe(4)
+  expect((r.body as { deleted: number }).deleted).toBe(5)
   const after = await page.evaluate(async () => {
     const { db } = await import('/src/db/db.ts')
     const todos = await db.todos.toArray()
@@ -89,7 +92,7 @@ test('任务：列表过滤 / 创建（含层级校验）/ 更新 / 子树软删
     return { deleted: todos.filter((t) => t.deleted_at !== null).map((t) => t.id), bindingDeleted: binding?.deleted_at != null }
   })
   expect(after.deleted).toEqual(expect.arrayContaining(['O', 'KR', 't1']))
-  expect(after.deleted).toHaveLength(4)
+  expect(after.deleted).toHaveLength(5)
   expect(after.bindingDeleted).toBe(true)
 })
 
@@ -109,6 +112,10 @@ test('笔记：列表 / 搜索 / 创建 / 详情；错误路径', async ({ page 
   expect((r.body as { body_md: string }).body_md).toBe('## 内容')
   r = await call(page, 'GET', '/notes/不存在')
   expect(r.status).toBe(404)
+  // 软删笔记：列表不出现，详情 404
+  const ids = (r.body && (await call(page, 'GET', '/notes')).body) as { id: string }[]
+  expect(ids.map((n) => n.id)).not.toContain('nDel')
+  expect((await call(page, 'GET', '/notes/nDel')).status).toBe(404)
 
   // 坏 JSON body / 未知路由
   const bad = await page.evaluate(async () => {
