@@ -50,8 +50,10 @@ export default function NoteDetailPage(): JSX.Element {
   useEffect(() => {
     setDraftBody(note?.body_md ?? '')
     setDraftTitle(note?.title ?? '')
-    // 编辑器按 note.id 重挂载，正文不回灌编辑器，draftBody 只作存盘基准
-  }, [note?.id, note?.body_md, note?.title])
+    // 只在打开笔记时灌一次草稿；保存回写引起的 body_md 变化不回灌，
+    // 否则「保存期间继续输入」的末尾字符既不落盘也不标脏（丢字窗口）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.id])
 
   const dirty = !!note && (draftBody !== note.body_md || draftTitle !== note.title)
 

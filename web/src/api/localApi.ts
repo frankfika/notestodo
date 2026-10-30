@@ -158,6 +158,7 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
   // GET /notes?q=
   if (req.method === 'GET' && segments.length === 1 && segments[0] === 'notes') {
     let rows = await db.notes.toArray()
+    rows = rows.filter((n) => n.deleted_at === null)
     const kw = (q.get('q') ?? '').trim().toLowerCase()
     if (kw) rows = rows.filter((n) => `${n.title}\n${n.body_md}`.toLowerCase().includes(kw))
     rows = rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
@@ -187,7 +188,7 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
   // GET /notes/:id
   if (req.method === 'GET' && segments.length === 2 && segments[0] === 'notes') {
     const note = await db.notes.get(segments[1])
-    if (!note) return { status: 404, body: { error: '笔记不存在' } }
+    if (!note || note.deleted_at !== null) return { status: 404, body: { error: '笔记不存在' } }
     return { status: 200, body: { id: note.id, title: note.title, body_md: note.body_md, todo_ids: note.todo_ids, pinned: note.pinned, created_at: note.created_at, updated_at: note.updated_at } }
   }
 

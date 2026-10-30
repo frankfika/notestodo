@@ -250,6 +250,9 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
 
   // 卸载时清掉加在 PM 节点上的指示 class
   useEffect(() => clearDropMark, [])
+  const rafMouse = useRef(0)
+  const pendingMouse = useRef<{ x: number; y: number } | null>(null)
+  useEffect(() => () => { if (rafMouse.current) cancelAnimationFrame(rafMouse.current) }, [])
 
   return (
     <div
@@ -257,15 +260,23 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
       className="note-editor relative"
       onMouseMove={(e) => {
         if (dragSrc.current) return
-        const b = locateBlock(e.clientX, e.clientY)
-        hoverBlock.current = b
-        if (!b || !wrapRef.current) {
-          if (handleMirror.current) setHandle(null)
-          return
-        }
-        const top = b.el.getBoundingClientRect().top - wrapRef.current.getBoundingClientRect().top
-        const prev = handleMirror.current
-        if (!prev || prev.pos !== b.pos || Math.abs(prev.top - top) > 1) setHandle({ top, pos: b.pos })
+        // rAF 节流：posAtCoords 每 mousemove 都跑在大文档下会卡，一帧一次足够跟手
+        pendingMouse.current = { x: e.clientX, y: e.clientY }
+        if (rafMouse.current) return
+        rafMouse.current = requestAnimationFrame(() => {
+          rafMouse.current = 0
+          const p = pendingMouse.current
+          if (!p) return
+          const b = locateBlock(p.x, p.y)
+          hoverBlock.current = b
+          if (!b || !wrapRef.current) {
+            if (handleMirror.current) setHandle(null)
+            return
+          }
+          const top = b.el.getBoundingClientRect().top - wrapRef.current.getBoundingClientRect().top
+          const prev = handleMirror.current
+          if (!prev || prev.pos !== b.pos || Math.abs(prev.top - top) > 1) setHandle({ top, pos: b.pos })
+        })
       }}
       onMouseLeave={() => { if (!dragSrc.current) setHandle(null) }}
       onDragOver={(e) => {

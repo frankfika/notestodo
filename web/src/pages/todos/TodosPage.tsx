@@ -48,6 +48,8 @@ interface Ctx {
   period: string
   tagFilter: string | null
   tagIdsByTodo: Map<string, string[]>
+  /** tag id → Tag，行级渲染直接用（替代每行一条 liveQuery） */
+  tagById: Map<string, { id: string; name: string }>
   setTagFilter: (id: string | null) => void
 }
 
@@ -110,9 +112,10 @@ export default function TodosPage(): JSX.Element {
       period,
       tagFilter,
       tagIdsByTodo,
+      tagById: new Map(allTags.map((t) => [t.id, { id: t.id, name: t.name }])),
       setTagFilter,
     }
-  }, [raw, period, tagFilter, tagIdsByTodo])
+  }, [raw, period, tagFilter, tagIdsByTodo, allTags])
 
   // 外部跳转聚焦（如会议待办 → OKR）：切到 Strategy 才能看到任意层级
   useEffect(() => {
@@ -406,15 +409,17 @@ function StrategyView({ ctx }: { ctx: Ctx }): JSX.Element {
           )}
           <TreeDnd ctx={ctx}>
             <InboxStrip ctx={ctx} />
-            {tabOs.map((o) => (
-              <div key={o.id} className={o.id === active ? '' : 'hidden'} role="tabpanel">
+            {/* 只挂载当前 tab 的面板：未激活的树不渲染（行级 liveQuery 也不会订阅）。
+                折叠状态在全局 store，切回来原样恢复。 */}
+            {tabOs.filter((o) => o.id === active).map((o) => (
+              <div key={o.id} role="tabpanel">
                 <ul className="space-y-3">
                   <li><OkrNode node={o} ctx={ctx} depth={0} /></li>
                 </ul>
               </div>
             ))}
-            {otherRoots.length > 0 && (
-              <div className={active === '__other' ? '' : 'hidden'} role="tabpanel">
+            {otherRoots.length > 0 && active === '__other' && (
+              <div role="tabpanel">
                 <ul className="space-y-3">
                   {otherRoots.map((o) => <li key={o.id}><OkrNode node={o} ctx={ctx} depth={0} /></li>)}
                 </ul>
@@ -844,15 +849,12 @@ function TodoLine({ todo, ctx, showParent, addOptions = [], onAdd }: {
     async () => todo.origin_note_id ? await db.notes.get(todo.origin_note_id) : undefined,
     [todo.origin_note_id ?? ''],
   )
-  const rowTags = useLiveQuery(
-    async () => {
-      const bindings = await db.tagBindings.where('[target_type+target_id]').equals(['todo', todo.id]).toArray()
-      const ids = bindings.filter((b) => b.deleted_at === null).map((b) => b.tag_id)
-      if (ids.length === 0) return []
-      return db.tags.where('id').anyOf(ids).toArray()
-    },
-    [todo.id],
-  ) ?? []
+  const rowTags = useMemo(
+    () => (ctx.tagIdsByTodo.get(todo.id) ?? [])
+      .map((id) => ctx.tagById.get(id))
+      .filter((t): t is { id: string; name: string } => !!t),
+    [ctx.tagIdsByTodo, ctx.tagById, todo.id],
+  )
   const parent = showParent && todo.parent_id ? ctx.byId.get(todo.parent_id) : undefined
   const hasKids = (ctx.kids.get(todo.id) ?? []).some((t) => t.deleted_at === null)
   const showProgress = !isTask || hasKids
@@ -1042,10 +1044,20 @@ const useDrag = create<{ activeId: string | null; overId: string | null; zone: D
   () => ({ activeId: null, overId: null, zone: null, level: 0 }),
 )
 
-/** 折叠状态提升到 store：拖拽悬停自动展开需要能改它；缺省 = 展开 */
+/** 折叠状态提升到 store：拖拽悬停自动展开需要能改它；缺省 = 展开。
+ *  已删除节点的折叠状态会随页面刷新清掉；同一 tab 会话内条目有上限，不会无限长。 */
+const MAX_OPEN_ENTRIES = 500
 const useOpen = create<{ map: Record<string, boolean> }>(() => ({ map: {} }))
 const setNodeOpen = (id: string, open: boolean): void => {
-  useOpen.setState((s) => ({ map: { ...s.map, [id]: open } }))
+  useOpen.setState((s) => {
+    const map = { ...s.map, [id]: open }
+    const keys = Object.keys(map)
+    // ponytail: 简单截断最旧的键（插入序≈Object 枚举序）；500 棵树远超一屏，够了
+    for (let i = 0; keys.length > MAX_OPEN_ENTRIES && i < keys.length - MAX_OPEN_ENTRIES; i++) {
+      if (keys[i] !== id) delete map[keys[i]]
+    }
+    return { map }
+  })
 }
 
 async function applyPatches(patches: Patch[], all: Todo[]): Promise<void> {

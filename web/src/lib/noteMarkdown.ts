@@ -87,8 +87,12 @@ md.core.ruler.after('github-task-lists', 'shibei-task-tokens', (state) => {
   return false
 })
 
-const parserFor = (schema: Schema): MarkdownParser =>
-  new MarkdownParser(schema, md as never, {
+const parserCache = new WeakMap<Schema, MarkdownParser>()
+
+function parserFor(schema: Schema): MarkdownParser {
+  const cached = parserCache.get(schema)
+  if (cached) return cached
+  const parser = new MarkdownParser(schema, md as never, {
     paragraph: { block: 'paragraph' },
     // MarkdownView 只渲染 h1–h3，更深的标题降级为三级，避免丢内容
     heading: { block: 'heading', getAttrs: (tok) => ({ level: Math.min(3, Number(tok.tag.slice(1))) }) },
@@ -111,6 +115,9 @@ const parserFor = (schema: Schema): MarkdownParser =>
     link: { mark: 'link', getAttrs: (tok) => ({ href: tok.attrGet('href') ?? '' }) },
     wiki_link: { mark: 'wikiLink', getAttrs: (tok) => ({ title: tok.attrGet('title') ?? '' }) },
   })
+  parserCache.set(schema, parser)
+  return parser
+}
 
 export function parseBodyToDoc(schema: Schema, bodyMd: string): PMNode {
   return parserFor(schema).parse(bodyMd || '')
