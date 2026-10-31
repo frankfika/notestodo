@@ -46,6 +46,7 @@ export default function NoteDetailPage(): JSX.Element {
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
   const editorRef = useRef<Editor | null>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setDraftBody(note?.body_md ?? '')
@@ -55,6 +56,11 @@ export default function NoteDetailPage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note?.id])
 
+  // 空页邀请：全新页面打开即聚焦标题（无向导），正文占位符引导输入 /
+  useEffect(() => {
+    if (note && !note.title && !note.body_md) titleRef.current?.focus()
+  }, [note?.id])
+
   const dirty = !!note && (draftBody !== note.body_md || draftTitle !== note.title)
 
   // debounce 存盘
@@ -62,7 +68,7 @@ export default function NoteDetailPage(): JSX.Element {
     if (!note || !dirty) return
     const t = setTimeout(() => {
       void db.notes.update(note.id, {
-        title: draftTitle || '未命名笔记',
+        title: draftTitle,
         body_md: draftBody,
         updated_at: now(),
       })
@@ -125,6 +131,16 @@ export default function NoteDetailPage(): JSX.Element {
     await db.notes.update(note.id, { pinned: !note.pinned, updated_at: now() })
   }
 
+  /** 块「移动到…」：编辑器已删除块并给出其 markdown，这里追加进目标页面 */
+  async function moveBlockToNote(blockMd: string, targetId: string): Promise<void> {
+    const target = await db.notes.get(targetId)
+    if (!target || !blockMd.trim()) return
+    await db.notes.update(targetId, {
+      body_md: (target.body_md ? target.body_md.replace(/\s+$/, '') + '\n\n' : '') + blockMd.trim(),
+      updated_at: now(),
+    })
+  }
+
   if (!noteId || !note) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -146,9 +162,10 @@ export default function NoteDetailPage(): JSX.Element {
         <div className="flex items-center gap-2 mb-4">
           <button onClick={goNotes} className="icon-btn -ml-2" aria-label="返回">←</button>
           <input
+            ref={titleRef}
             value={draftTitle}
             onChange={(e) => setDraftTitle(e.target.value)}
-            placeholder="标题"
+            placeholder="无标题"
             className="flex-1 bg-transparent text-2xl font-semibold text-text-1 outline-none placeholder:text-text-3"
           />
           <span className="text-[11px] text-text-3">
@@ -173,6 +190,8 @@ export default function NoteDetailPage(): JSX.Element {
             onChange={setDraftBody}
             onReady={(ed) => { editorRef.current = ed }}
             onWikiOpen={openWiki}
+            currentNoteId={note.id}
+            onMoveBlockToNote={(md, targetId) => void moveBlockToNote(md, targetId)}
           />
         </div>
 

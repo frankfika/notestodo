@@ -1,10 +1,12 @@
 import { useUI, type ViewName } from '../state/ui'
 import { useRecorder } from '../state/recorder'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isTauri } from '../lib/tauri'
 import { DownloadIndicator } from './BuiltinModels'
+import { createPage } from '../lib/notes'
+import type { ID, Note } from '../types'
 
 // 只留 4 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
 const NAV: { view: ViewName; label: string; icon: string }[] = [
@@ -21,6 +23,87 @@ function navOf(v: ViewName): ViewName {
   if (v === 'board' || v === 'report') return 'todos'
   if (v === 'templates') return 'settings'
   return v
+}
+
+/**
+ * 页面树（PR1 IA）：自由页面按 parent_id 嵌套，会议纪要留在「会议」里不进树。
+ * 默认全展开（个人笔记量级），点击 chevron 折叠；hover 行尾 ＋ 新建子页面。
+ */
+function PageTree(): JSX.Element {
+  const notes = useLiveQuery(
+    () => db.notes.filter((n) => !n.meeting_id && n.deleted_at === null).toArray(),
+    [],
+  ) ?? []
+  const goNote = useUI((s) => s.goNote)
+  const view = useUI((s) => s.view)
+  const currentId = useUI((s) => s.noteId)
+  const [collapsed, setCollapsed] = useState<ReadonlySet<ID>>(new Set())
+
+  const childrenOf = (pid: ID | null): Note[] =>
+    notes
+      .filter((n) => (n.parent_id ?? null) === pid)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.updated_at.localeCompare(a.updated_at))
+
+  const toggle = (id: ID): void =>
+    setCollapsed((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const newPage = async (pid: ID | null): Promise<void> => {
+    goNote(await createPage(pid))
+  }
+
+  const renderLevel = (pid: ID | null, depth: number): ReactNode =>
+    childrenOf(pid).map((n) => {
+      const kids = childrenOf(n.id)
+      const open = !collapsed.has(n.id)
+      return (
+        <li key={n.id}>
+          <div
+            className={`group flex items-center h-7 rounded-[8px] pr-1 text-[13px] cursor-pointer transition-colors ${
+              view === 'note-detail' && currentId === n.id ? 'bg-bg-raise text-text-1 font-medium' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
+            }`}
+            style={{ paddingLeft: 8 + depth * 14 }}
+            onClick={() => goNote(n.id)}
+          >
+            <button
+              type="button"
+              aria-label={open ? '折叠' : '展开'}
+              className={`w-4 shrink-0 text-[9px] text-text-3 transition-transform ${kids.length ? '' : 'invisible'} ${open ? '' : '-rotate-90'}`}
+              onClick={(e) => { e.stopPropagation(); toggle(n.id) }}
+            >▾</button>
+            <span className="flex-1 min-w-0 truncate">{n.title || '无标题'}</span>
+            <button
+              type="button"
+              aria-label="新建子页面"
+              title="新建子页面"
+              className="opacity-0 group-hover:opacity-100 shrink-0 w-5 text-text-3 hover:text-accent"
+              onClick={(e) => { e.stopPropagation(); void newPage(n.id) }}
+            >＋</button>
+          </div>
+          {open && kids.length > 0 && <ul>{renderLevel(n.id, depth + 1)}</ul>}
+        </li>
+      )
+    })
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col mt-3">
+      <div className="flex items-center px-4 mb-1">
+        <span className="text-[11px] tracking-wide text-text-3">页面</span>
+        <button
+          type="button"
+          aria-label="新建页面"
+          title="新建页面"
+          className="ml-auto text-text-3 hover:text-accent text-sm leading-none"
+          onClick={() => void newPage(null)}
+        >＋</button>
+      </div>
+      <ul className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">{renderLevel(null, 0)}</ul>
+    </div>
+  )
 }
 
 export default function Sidebar() {
@@ -55,7 +138,7 @@ export default function Sidebar() {
   return (
     <aside className="
       hidden md:flex                          /* 移动端隐藏（由 BottomTabBar 接管） */
-      w-[208px] shrink-0 flex-col border-r border-line bg-bg-sidebar
+      w-[232px] shrink-0 flex-col border-r border-line bg-bg-sidebar
     ">
       {/* 桌面版留出的 macOS 红绿灯区域：仅 Tauri 时变成拖拽区，不挡按钮点击 */}
       {isTauri() && <div data-tauri-drag-region aria-hidden className="h-5 shrink-0" />}
@@ -78,7 +161,7 @@ export default function Sidebar() {
 
       <div className="px-3"><DownloadIndicator /></div>
 
-      <nav className="px-2 mt-2 space-y-0.5">
+      <nav className="px-2 mt-2 space-y-0.5 shrink-0">
         {NAV.map((item) => {
           const active = navOf(view) === item.view
           return (
@@ -102,6 +185,8 @@ export default function Sidebar() {
           )
         })}
       </nav>
+
+      <PageTree />
 
       <div className="mt-auto p-2">
         <button

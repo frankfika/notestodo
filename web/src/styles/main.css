@@ -371,3 +371,45 @@ body {
 }
 .slash-menu button.active { background: var(--bg-overlay); }
 .slash-menu button .hint { font-size: 11px; }
+
+/* 块手柄菜单（转换为 / 颜色 / 评论桩 / 移动到 / 删除） */
+.block-menu {
+  position: absolute;
+  left: 1.6rem;
+  z-index: 50;
+  width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.3rem;
+}
+.block-menu ul { list-style: none; margin: 0; padding: 0; }
+.block-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.32rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-1);
+  cursor: pointer;
+  text-align: left;
+}
+.block-menu button:hover:not(:disabled) { background: var(--bg-overlay); }
+
+/* 块颜色（BlockColor 扩展的 data-color attr） */
+.color-dot { width: 12px; height: 12px; border-radius: 4px; background: var(--text-2); flex-shrink: 0; }
+.color-dot.color-gray { background: #9b9a97; } .color-dot.color-brown { background: #64473a; }
+.color-dot.color-orange { background: #d9730d; } .color-dot.color-yellow { background: #cb912f; }
+.color-dot.color-green { background: #448361; } .color-dot.color-blue { background: #337ea9; }
+.color-dot.color-purple { background: #9065b0; } .color-dot.color-red { background: #d44c47; }
+.note-editor [data-color="gray"] { color: #9b9a97; }
+.note-editor [data-color="brown"] { color: #64473a; }
+.note-editor [data-color="orange"] { color: #d9730d; }
+.note-editor [data-color="yellow"] { color: #cb912f; }
+.note-editor [data-color="green"] { color: #448361; }
+.note-editor [data-color="blue"] { color: #337ea9; }
+.note-editor [data-color="purple"] { color: #9065b0; }
+.note-editor [data-color="red"] { color: #d44c47; }

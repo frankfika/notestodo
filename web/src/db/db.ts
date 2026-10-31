@@ -63,6 +63,10 @@ export class ShibeiDB extends Dexie {
     this.version(5).stores({
       scribbles: 'id, meeting_id, [meeting_id+created_at]',
     })
+    // v6: 页面树 —— Note.parent_id（会议纪要不进树，无需索引会议归属变化）
+    this.version(6).stores({
+      notes: 'id, meeting_id, updated_at, parent_id',
+    })
   }
 }
 

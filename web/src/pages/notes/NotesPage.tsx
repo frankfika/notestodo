@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'
-import { fmtDateTime, now, uid } from '../../lib/id'
-import type { Note } from '../../types'
+import { fmtDateTime } from '../../lib/id'
+import { createPage } from '../../lib/notes'
 import EmptyState from '../../components/EmptyState'
 
 /**
@@ -26,22 +26,7 @@ export default function NotesPage(): JSX.Element {
   const goNote = useUI((s) => s.goNote)
 
   async function createNote(): Promise<void> {
-    const id = uid()
-    const ts = now()
-    const note: Note = {
-      id,
-      title: '未命名笔记',
-      body_md: '',
-      meeting_id: undefined,
-      todo_ids: [],
-      pinned: false,
-      created_at: ts,
-      updated_at: ts,
-      deleted_at: null,
-      sync_version: 0,
-    }
-    await db.notes.add(note)
-    goNote(id)
+    goNote(await createPage(null))
   }
 
   return (
