@@ -292,6 +292,13 @@ export interface AppSettings {
   theme: 'dark' | 'light' | 'system'
   // 日历
   calendar_ics_urls: string[]
+  // GitHub 导入（issues → 任务）
+  github_token: string
+  /** 'owner/name' 格式 */
+  github_repo: string
+  // 飞书导入（日历日程 → 会议壳）
+  feishu_app_id: string
+  feishu_app_secret: string
   // 知识库（Phase-2 item 5）— 字符串路径列表，AI 索引用的本地文件夹
   knowledge_folders: string[]
   // 开放 API（仅桌面版）：本机 HTTP 服务，Raycast / 快捷指令 / 脚本读写任务和笔记
@@ -325,6 +332,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   delete_remote_audio: true,
   theme: 'light',
   calendar_ics_urls: [],
+  github_token: '',
+  github_repo: '',
+  feishu_app_id: '',
+  feishu_app_secret: '',
   knowledge_folders: [],
   api_enabled: false,
   api_port: 17893,

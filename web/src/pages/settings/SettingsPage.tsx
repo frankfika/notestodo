@@ -20,6 +20,8 @@ import { invoke } from '../../lib/tauriInvoke'
 import { setApiEnabled } from '../../api/localApi'
 import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
 import { reindexKnowledge } from '../../lib/knowledge'
+import { importGithubIssues } from '../../lib/github'
+import { importFeishuEvents } from '../../lib/feishu'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -318,6 +320,53 @@ export default function SettingsPage(): JSX.Element {
           />
         </Section>
 
+        <Section title="GitHub" desc="把某个仓库的 open issues 导入为任务（按 issue 链接去重，重复导入不会翻倍）。">
+          <FieldRow label="仓库">
+            <input
+              className="input font-mono"
+              value={settings.github_repo}
+              onChange={(e) => patch({ github_repo: e.target.value })}
+              placeholder="owner/name"
+            />
+          </FieldRow>
+          <FieldRow label="Token" hint="私有仓库需要；公开仓库可留空">
+            <PasswordInput
+              value={settings.github_token}
+              onChange={(v) => patch({ github_token: v })}
+              placeholder="ghp_...（可留空）"
+            />
+          </FieldRow>
+          <ImportButton
+            label="导入 issues"
+            disabled={dirty}
+            run={() => importGithubIssues(settings, db)}
+            onFlash={flash}
+          />
+        </Section>
+
+        <Section title="飞书" desc="用自建应用的 App ID / Secret 拉主日历未来 7 天日程，生成会议壳（无音频），按日程 ID 去重。">
+          <FieldRow label="App ID">
+            <input
+              className="input font-mono"
+              value={settings.feishu_app_id}
+              onChange={(e) => patch({ feishu_app_id: e.target.value })}
+              placeholder="cli_..."
+            />
+          </FieldRow>
+          <FieldRow label="App Secret">
+            <PasswordInput
+              value={settings.feishu_app_secret}
+              onChange={(v) => patch({ feishu_app_secret: v })}
+            />
+          </FieldRow>
+          <ImportButton
+            label="导入日程"
+            disabled={dirty}
+            run={() => importFeishuEvents(settings, db)}
+            onFlash={flash}
+          />
+        </Section>
+
         <Section title="开放 API" desc="桌面版本机起 HTTP 服务（127.0.0.1），让 Raycast / 快捷指令 / 脚本读写任务和笔记。改动立即生效。">
           <OpenApiRow settings={settings} onApply={(p) => void applyApi(p)} flash={flash} />
         </Section>
@@ -583,6 +632,44 @@ function ConnectionTestRow({ kind, settings, dirty }: { kind: 'llm' | 'asr'; set
           {result.ok ? '✓ ' : '✕ '}{result.message}
         </span>
       )}
+    </div>
+  )
+}
+
+/** 导入按钮：跑 run() 并报「导入了 N 条，跳过 M 条」。dirty 时置灰（未保存的 token/repo 还没落库）。 */
+function ImportButton({ label, disabled, run, onFlash }: {
+  label: string
+  disabled?: boolean
+  run: () => Promise<{ imported: number; skipped: number }>
+  onFlash: (msg: string) => void
+}): JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  async function go(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    setResult(null)
+    try {
+      const r = await run()
+      setResult(`导入了 ${r.imported} 条，跳过 ${r.skipped} 条`)
+      onFlash(`${label}完成`)
+    } catch (e: unknown) {
+      setResult('失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <button
+        onClick={() => void go()}
+        disabled={busy || disabled}
+        className="btn-outline text-xs h-8 px-3"
+        title={disabled ? '有未保存的修改 — 先保存再导入' : undefined}
+      >
+        {busy ? '导入中…' : label}
+      </button>
+      {result && <span className="text-xs text-text-2">{result}</span>}
     </div>
   )
 }
