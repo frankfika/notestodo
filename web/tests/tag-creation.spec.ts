@@ -1,18 +1,19 @@
 /**
- * Tag 创建/绑定 e2e — 用户在 TodoRow 的「加标签」输入框里输入名字 + Enter，
- * 走 TagPicker.commit：找现有同名 tag（case-insensitive），或新建 tag，
- * 然后写 TagBinding。
+ * Tag 创建/绑定 e2e — 任务树行 → 行尾 ⋯ 菜单（title="更多操作"）→ 菜单内
+ * TagPicker「加标签…」输入框 → 输入名字 + Enter，走 TagPicker.commit：
+ * 找现有同名 tag（case-insensitive），或新建 tag，然后写 TagBinding。
  *
  * 需求 #3「可以充分发挥 tags」闭环：写标签 → DB 持久化。
- * （过滤行可见性由 round 21 的 tag 过滤 e2e 覆盖）
+ * （过滤行可见性由 smoke 的笔记 tag 筛选 e2e 覆盖；TodoRow 组件已删，
+ *  TodoRow 时代的独立 EditPopover 路径不复存在。）
  *
- * 用 toBeAttached 而非 toBeVisible，因为 onboarding 卡片可能短暂遮挡。
+ * 菜单内的 input 用 toBeAttached 断言（下拉面板浮层可能被引导卡短暂遮挡）。
  */
 import { test, expect } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
-test('Tag 创建：TodoRow TagPicker 输入 → 新 tag + 绑定', async ({ page }) => {
+test('Tag 创建：任务行 ⋯ 菜单 → 标签输入 → 新 tag + 绑定', async ({ page }) => {
   test.setTimeout(30_000)
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
@@ -44,17 +45,14 @@ test('Tag 创建：TodoRow TagPicker 输入 → 新 tag + 绑定', async ({ page
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
   await page.waitForTimeout(600)
 
-  // 1) Hover + click edit (EditPopover 打开)
-  const todoRow = page.locator('div.group:has-text("Tag 创建测试任务")').first()
+  // 1) 任务树行 → hover 出行尾 ⋯ → 点开菜单（标签输入框直接在菜单里）
+  const todoRow = page.locator('div[data-todo]:has-text("Tag 创建测试任务")').first()
   await todoRow.scrollIntoViewIfNeeded()
   await todoRow.hover()
   await page.waitForTimeout(400)
-  // ⋯ 菜单 → 编辑
-  await todoRow.locator('button[aria-label="更多操作"]').first().click({ timeout: 8_000 })
-  await page.getByRole('menuitem', { name: '编辑' }).click()
-  await page.waitForTimeout(1000)
+  await todoRow.locator('button[title="更多操作"]').click({ timeout: 8_000 })
 
-  // 2) TagPicker input 出现（onboarding 卡片可能短暂遮挡，用 attached 而非 visible）
+  // 2) 菜单内 TagPicker input 出现
   const tagInput = page.locator('input[placeholder="加标签…"]').first()
   await expect(tagInput).toBeAttached({ timeout: 8_000 })
 

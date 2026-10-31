@@ -2,15 +2,14 @@
  * Shibei · 端到端 smoke test
  *
  * 用 playwright + 真实 Chromium 浏览器，验证：
- *   1. 首页加载并显示侧栏 + Today
+ *   1. 首页（任务树）加载并显示侧栏
  *   2. ⌘K 唤出命令面板
- *   3. 所有一级页面（会议/笔记/待办/模板）能加载且无运行时报错
+ *   3. 所有一级页面（会议/任务/笔记/设置）+ 二级页（看板/周报/模板）能加载且无运行时报错
  *   4. 创建一条 Note 后列表出现
  *   5. ⌘⇧R 录音热键不会让浏览器栈崩（无麦克风授权时 engine 进入 error 态）
  *
  * 运行（先启动 dev server）：
- *   pnpm dev & sleep 4 && SHIBEI_URL=http://127.0.0.1:5173 \
- *     node node_modules/@playwright/test/cli.js test tests/smoke.spec.ts
+ *   SHIBEI_URL=http://127.0.0.1:5173 npx playwright test tests/smoke.spec.ts
  */
 import { test, expect } from '@playwright/test'
 
@@ -24,12 +23,19 @@ async function dismissOnboarding(page: import('@playwright/test').Page): Promise
   }
 }
 
+/** 侧栏一级导航（exact 匹配 — '笔记' 不能撞上 '新建笔记本'） */
+async function nav(page: import('@playwright/test').Page, label: string): Promise<void> {
+  await page.locator('aside').getByRole('button', { name: label, exact: true }).click()
+}
+
 test.describe('Shibei shell smoke', () => {
-  test('首页加载并显示侧栏 + Today', async ({ page }) => {
+  test('首页加载并显示侧栏 + 任务树', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)
     await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
-    await expect(page.locator('h1', { hasText: '今天' })).toBeVisible()
+    // Today 页已删，默认落地页是任务树
+    await expect(page.getByRole('button', { name: '树', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '＋ 新建任务' })).toBeVisible()
     await page.screenshot({ path: 'tests/screenshots/01-today.png', fullPage: true })
   })
 
@@ -50,23 +56,26 @@ test.describe('Shibei shell smoke', () => {
     await dismissOnboarding(page)
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
-    for (const label of ['会议', '笔记', '任务', '设置']) {
-      await page.locator('aside').getByRole('button', { name: label }).click()
+    for (const label of ['会议', '任务', '笔记', '设置']) {
+      await nav(page, label)
       await page.waitForTimeout(200)
     }
-    // 二级页：看板 / 周报（任务内）、模板（设置内）
+    // 二级页：纪要模板（设置内）、看板（任务内）、周报（看板循环卡进入）
     await page.getByRole('button', { name: '纪要模板 →' }).click()
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
-    await page.getByRole('tab', { name: '看板' }).click()
-    await page.getByRole('button', { name: '周报 →' }).click()
     await page.waitForTimeout(200)
+    await nav(page, '任务')
+    await page.getByRole('button', { name: '看板 →' }).click()
+    await page.waitForTimeout(600) // BoardPage 挂载时会补建本周周报循环卡
+    await page.locator('article', { hasText: '写本周周报' }).first().click()
+    await page.waitForTimeout(300)
+    await expect(page.locator('h1', { hasText: '周报' })).toBeVisible({ timeout: 5000 })
     await expect(errors, errors.join('\n')).toHaveLength(0)
   })
 
   test('创建一条 Note 后列表出现', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)
-    await page.getByRole('button', { name: '笔记' }).click()
+    await nav(page, '笔记')
     // 顶部 "+ 新建笔记" 按钮
     const topNew = page.getByRole('button', { name: '+ 新建笔记' }).first()
     await topNew.waitFor({ state: 'visible', timeout: 5000 })
@@ -74,6 +83,7 @@ test.describe('Shibei shell smoke', () => {
     // 进入 NoteDetail，等待详情页加载
     await page.locator('button[aria-label="返回"]').first().waitFor({ state: 'visible', timeout: 5000 })
     await page.locator('button[aria-label="返回"]').first().click()
+    // 空标题笔记在列表里显示为「未命名笔记」
     await expect(page.locator('text=未命名笔记').first()).toBeVisible({ timeout: 5000 })
     await page.screenshot({ path: 'tests/screenshots/03-notes.png', fullPage: true })
   })
@@ -95,14 +105,13 @@ test.describe('Shibei shell smoke', () => {
     await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
   })
 
-  test('新建一个 Objective 时 持久化到 IndexedDB', async ({ page }) => {
+  test('新建一个任务时 持久化到 IndexedDB', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await nav(page, '任务')
     await page.waitForTimeout(300)
 
-    await page.getByRole('tab', { name: '战略' }).click()
-    const newBtn = page.getByRole('button', { name: /新建战略 O/ }).first()
+    const newBtn = page.getByRole('button', { name: '＋ 新建任务' })
     await newBtn.waitFor({ state: 'visible', timeout: 5000 })
     const beforeCount = await page.evaluate(async () => {
       return new Promise<number>((res) => {
@@ -117,9 +126,7 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await newBtn.click()
-    await page.getByPlaceholder(/战略 O 标题/).fill('新工作目标')
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(800)
+    await page.waitForTimeout(500)
     const afterCount = await page.evaluate(async () => {
       return new Promise<number>((res) => {
         const req = indexedDB.open('shibei')
@@ -133,8 +140,31 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     expect(afterCount).toBe(beforeCount + 1)
-    // 新建的 Objective 应该出现在页面上
+
+    // 双击行内标题改名（新行是空标题 → 显示「（无标题）」）并回车保存
+    const newTitle = page.locator('div[data-todo]').last().locator('span[title="双击改名"]')
+    await newTitle.dblclick()
+    await page.locator('div[data-todo]').last().locator('input').fill('新工作目标')
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(500)
+    // 新建的标题应该出现在页面上 + 落库
     await expect(page.locator('text=新工作目标').first()).toBeVisible({ timeout: 3000 })
+    const saved = await page.evaluate(async () => {
+      return new Promise<string>((res) => {
+        const req = indexedDB.open('shibei')
+        req.onsuccess = () => {
+          const db = req.result
+          const tx = db.transaction('todos', 'readonly')
+          const g = tx.objectStore('todos').getAll()
+          g.onsuccess = () => {
+            const hit = (g.result as Array<{ title: string }>).find((t) => t.title === '新工作目标')
+            res(hit?.title ?? '')
+          }
+        }
+        req.onerror = () => res('')
+      })
+    })
+    expect(saved).toBe('新工作目标')
   })
 
   test('未录音时音频条不应出现（idle 状态下 DOM 不渲染）', async ({ page }) => {
@@ -148,30 +178,24 @@ test.describe('Shibei shell smoke', () => {
   test('首次用户动作自动关闭 onboarding（AI-native 信号：无需再手把手）', async ({ page }) => {
     await page.goto(BASE)
     // 不要 dismiss — 让 onboarding 第一次显示
-    // 触发第一个真实动作 — 创建 Objective
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    // 触发第一个真实动作 — 创建任务（bootstrap 监听 todos.creating 自动收引导）
+    await nav(page, '任务')
     await page.waitForTimeout(300)
-    await page.getByRole('tab', { name: '战略' }).click()
-    const newBtn = page.getByRole('button', { name: /新建战略 O/ }).first()
-    await newBtn.waitFor({ state: 'visible', timeout: 5000 })
-    await newBtn.click()
-    await page.getByPlaceholder(/战略 O 标题/).fill('新工作目标')
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(800)
-    // onboarding 卡片应该自动消失
-    const onboardingCard = page.locator('text=欢迎使用拾贝').first()
-    await expect(onboardingCard).toHaveCount(0, { timeout: 2000 })
+    await page.getByRole('button', { name: '＋ 新建任务' }).click()
+    await page.waitForTimeout(1000)
+    // onboarding 卡片应该自动消失（卡片头「拾贝 · 新用户引导」不再渲染）
+    await expect(page.locator('text=新用户引导')).toHaveCount(0, { timeout: 3000 })
   })
 
   test('快捷键提示跟随平台（mac=⌘ / 其他=⌃）', async ({ page }) => {
     // Playwright 在 macOS 跑 → navigator.platform 含 'mac'，应输出 ⌘
+    // 提示现在在 onboarding 引导卡里（Topbar 已删）
     await page.goto(BASE)
-    await dismissOnboarding(page)
+    const kbd = page.locator('.kbd').first()
+    await expect(kbd).toBeVisible({ timeout: 8000 })
     const isMac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))
     const expected = isMac ? '⌘' : '⌃'
-    // Topbar 上 ⌘K 按钮里有正确的符号
-    const topbar = await page.locator('button:has(span.kbd)').first().innerText()
-    expect(topbar).toContain(expected)
+    expect(await kbd.innerText()).toContain(expected)
   })
 
   test('PWA manifest / index.html、icons、sw 均可响应', async ({ page }) => {
@@ -224,15 +248,15 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await page.goto(BASE)
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await nav(page, '任务')
     await page.waitForTimeout(500)
-    // 来源会议链接可见 → 点击 → 跳到会议详情
+    // 来源会议 chip 可见 → 点击 → 跳到会议详情
     const link = page.getByRole('button', { name: /E2E 来源会议/ }).first()
     await expect(link).toBeVisible({ timeout: 5000 })
     await link.click()
     await page.waitForTimeout(600)
-    // 会议详情页应显示该会议标题
-    await expect(page.locator('text=E2E 来源会议').first()).toBeVisible({ timeout: 5000 })
+    // 会议详情页标题在 input 里（aria-label="会议标题"），不是纯文本
+    await expect(page.locator('input[aria-label="会议标题"]')).toHaveValue('E2E 来源会议', { timeout: 5000 })
   })
 
   test('待办可跳回来源笔记（note-todo 闭环，需求 #4）', async ({ page }) => {
@@ -263,7 +287,7 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await page.goto(BASE)
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await nav(page, '任务')
     await page.waitForTimeout(500)
     const link = page.getByRole('button', { name: /E2E 来源笔记/ }).first()
     await expect(link).toBeVisible({ timeout: 5000 })
@@ -274,10 +298,10 @@ test.describe('Shibei shell smoke', () => {
       .catch(() => expect(page.locator('input').first()).toHaveValue(/E2E 来源笔记/, { timeout: 5000 }))
   })
 
-  test('tag 过滤：点击 tag chip 只显示绑定该 tag 的任务（充分发挥 tags）', async ({ page }) => {
+  test('tag 过滤：点击 tag chip 只显示绑定该 tag 的页面（充分发挥 tags）', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)
-    // 注入 2 条 todo + 1 个 tag + 绑定（只绑任务 A）
+    // 注入 2 条笔记 + 1 个 tag + 绑定（只绑页面 A）— 任务页 tag 筛选已移除，笔记页保留
     await page.evaluate(async () => {
       const nowIso = new Date().toISOString()
       const id = () => crypto.randomUUID()
@@ -288,21 +312,23 @@ test.describe('Shibei shell smoke', () => {
         const req = indexedDB.open('shibei')
         req.onsuccess = () => {
           const db = req.result
-          const tx = db.transaction(['tags', 'tagBindings', 'todos'], 'readwrite')
+          const tx = db.transaction(['tags', 'tagBindings', 'notes'], 'readwrite')
           tx.objectStore('tags').put({
             id: tagId, name: 'urgent', color: '#888',
             created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
           })
-          tx.objectStore('todos').put({
-            id: aId, kind: 'task', parent_id: null, title: 'TaggedA-带标签任务', status: 'open',
-            source: 'manual', created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          tx.objectStore('notes').put({
+            id: aId, title: 'TaggedA-带标签页面', body_md: '内容A',
+            pinned: false, todo_ids: [],
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
           })
-          tx.objectStore('todos').put({
-            id: bId, kind: 'task', parent_id: null, title: 'PlainB-无标签任务', status: 'open',
-            source: 'manual', created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
+          tx.objectStore('notes').put({
+            id: bId, title: 'PlainB-无标签页面', body_md: '内容B',
+            pinned: false, todo_ids: [],
+            created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
           })
           tx.objectStore('tagBindings').put({
-            id: id(), tag_id: tagId, target_type: 'todo', target_id: aId,
+            id: id(), tag_id: tagId, target_type: 'note', target_id: aId,
             created_at: nowIso, updated_at: nowIso, deleted_at: null, sync_version: 0,
           })
           tx.oncomplete = () => res()
@@ -311,16 +337,16 @@ test.describe('Shibei shell smoke', () => {
       })
     })
     await page.goto(BASE)
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await nav(page, '笔记')
     await page.waitForTimeout(600)
-    // tag 行出现 → 点击 #urgent
-    const tagChip = page.getByRole('button', { name: /^#urgent/ }).first()
+    // tag 筛选条出现 → 点击 #urgent
+    const tagChip = page.getByRole('button', { name: /^#urgent$/ }).first()
     await expect(tagChip).toBeVisible({ timeout: 5000 })
     await tagChip.click()
     await page.waitForTimeout(500)
-    // 只剩带标签的任务
-    await expect(page.locator('text=TaggedA-带标签任务').first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('text=PlainB-无标签任务')).toHaveCount(0, { timeout: 3000 })
+    // 只剩带标签的页面
+    await expect(page.locator('text=TaggedA-带标签页面').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=PlainB-无标签页面')).toHaveCount(0, { timeout: 3000 })
   })
 
   test('导出 → 清空 → 导入 roundtrip：数据完整恢复（数据主权）', async ({ page }) => {
@@ -354,6 +380,9 @@ test.describe('Shibei shell smoke', () => {
     await page.goto(BASE)
     await page.getByRole('button', { name: '设置' }).first().click()
     await page.waitForTimeout(400)
+    // 导入导出在「外观与数据」分组里
+    await page.getByRole('button', { name: '外观与数据' }).click()
+    await page.waitForTimeout(300)
 
     // 1) 导出：拦截 download，saveAs 到稳定路径（artifacts 临时路径 readFileSync 后会干扰 setFiles）
     const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
@@ -377,7 +406,7 @@ test.describe('Shibei shell smoke', () => {
     await page.waitForTimeout(1500)
 
     // 3) 验证数据完整恢复：会议与待办都在
-    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await nav(page, '任务')
     await page.waitForTimeout(500)
     await expect(page.locator('text=Roundtrip 任务').first()).toBeVisible({ timeout: 5000 })
     const restored = await page.evaluate(async () => {

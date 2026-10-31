@@ -45,6 +45,7 @@ function PageTree(): JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<ID>>(new Set())
   const [dragPageId, setDragPageId] = useState<ID | null>(null)
   const [dropTarget, setDropTarget] = useState<ID | null>(null) // 行 id 或 'nb:<id>'/'root'
+  const [renamingNb, setRenamingNb] = useState<ID | null>(null)
 
   /** 防成环：target 是不是 dragged 的子孙 */
   const isDescendant = (draggedId: ID, targetId: ID): boolean => {
@@ -107,13 +108,13 @@ function PageTree(): JSX.Element {
   }
 
   const newNotebook = async (): Promise<void> => {
-    const name = window.prompt('笔记本名称')?.trim()
-    if (!name) return
     const ts = new Date().toISOString()
+    const id = uid()
     await db.notebooks.add({
-      id: uid(), name, icon: '📓', sort_order: Date.now(),
+      id, name: '未命名笔记本', icon: '📓', sort_order: Date.now(),
       created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
     })
+    setRenamingNb(id)
   }
 
   const renderLevel = (pid: ID | null, depth: number, notebookId: ID | null): ReactNode =>
@@ -156,10 +157,15 @@ function PageTree(): JSX.Element {
       )
     })
 
-  const renameNotebook = async (nb: { id: ID; name: string }): Promise<void> => {
-    const name = window.prompt('重命名笔记本', nb.name)?.trim()
-    if (!name || name === nb.name) return
-    await db.notebooks.update(nb.id, { name, updated_at: new Date().toISOString() })
+  const renameNotebook = (nb: { id: ID; name: string }): void => {
+    setRenamingNb(nb.id)
+  }
+
+  const commitRenameNb = async (nb: { id: ID; name: string }, name: string): Promise<void> => {
+    setRenamingNb(null)
+    const v = name.trim()
+    if (!v || v === nb.name) return
+    await db.notebooks.update(nb.id, { name: v, updated_at: new Date().toISOString() })
   }
 
   const deleteNotebook = async (nb: { id: ID; name: string }): Promise<void> => {
@@ -175,7 +181,23 @@ function PageTree(): JSX.Element {
       onDragLeave={() => setDropTarget((t) => (t === `sec:${dropKey ?? 'root'}` ? null : t))}
       onDrop={(e) => { e.preventDefault(); void dropOnSection(dropKey) }}
     >
-      <span className="text-[11px] tracking-wide text-text-3 truncate">{label}</span>
+      {nb && renamingNb === nb.id ? (
+        <input
+          autoFocus
+          defaultValue={nb.name}
+          aria-label="笔记本名称"
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') setRenamingNb(null)
+          }}
+          onBlur={(e) => void commitRenameNb(nb, e.target.value)}
+          className="input !h-5 !py-0 px-1 text-[11px] flex-1 min-w-0"
+        />
+      ) : (
+        <span className="text-[11px] tracking-wide text-text-3 truncate">{label}</span>
+      )}
       {nb && (
         <span className="ml-1 opacity-0 group-hover/nb:opacity-100 flex gap-0.5">
           <button type="button" title="重命名" className="text-text-3 hover:text-accent text-[10px]" onClick={() => void renameNotebook(nb)}>✎</button>

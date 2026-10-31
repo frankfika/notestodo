@@ -56,7 +56,7 @@ test('笔记详情：编辑 + 插入待办 + 关联任务列表（笔记 ↔ 待
   await page.waitForTimeout(600)
 
   // 1) 笔记详情页加载：标题输入框 + 块编辑器（TipTap，所见即所得渲染 body_md）
-  const titleInput = page.locator('input[placeholder="标题"]').first()
+  const titleInput = page.locator('input[placeholder="无标题"]').first()
   await expect(titleInput).toBeVisible({ timeout: 5000 })
   await expect(titleInput).toHaveValue('原始标题')
   const ed = page.locator('.note-editor .ProseMirror').first()
