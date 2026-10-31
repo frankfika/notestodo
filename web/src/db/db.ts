@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type {
-  AudioChunk, ChatMessage, KnowledgeEntry, Meeting, Note, PinnedAssistCard, QueueJob, Scribble,
+  AudioChunk, BlockComment, ChatMessage, KnowledgeEntry, Meeting, Note, PinnedAssistCard, QueueJob, Scribble,
   Summary, SummaryTemplate, Tag, TagBinding, Todo, Transcript,
 } from '../types'
 
@@ -23,6 +23,7 @@ export class ShibeiDB extends Dexie {
   pinnedAssistCards!: Table<PinnedAssistCard, string>
   // Phase-4: 会中速记 bullet（时间轴对齐），Polish 读它拼成笔记骨架
   scribbles!: Table<Scribble, string>
+  comments!: Table<BlockComment, string>
 
   constructor() {
     super('shibei')
@@ -66,6 +67,10 @@ export class ShibeiDB extends Dexie {
     // v6: 页面树 —— Note.parent_id（会议纪要不进树，无需索引会议归属变化）
     this.version(6).stores({
       notes: 'id, meeting_id, updated_at, parent_id',
+    })
+    // v7: 块评论
+    this.version(7).stores({
+      comments: 'id, note_id, [note_id+created_at]',
     })
   }
 }

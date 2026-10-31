@@ -158,6 +158,17 @@ export interface Todo extends EntityMeta {
   recurring?: 'weekly-report'
 }
 
+// ── 评论（块级，锚定引文）─────────────────────────────────────────────────────
+
+/** 块评论：anchor 用块的文本引文（块被编辑后引文可能失配，属可接受降级） */
+export interface BlockComment extends EntityMeta {
+  note_id: ID
+  /** 评论时块的前 80 字引文，用于在页面里定位上下文 */
+  quote: string
+  text: string
+  resolved: boolean
+}
+
 // ── 标签 ─────────────────────────────────────────────────────────────────────
 
 export interface Tag extends EntityMeta {

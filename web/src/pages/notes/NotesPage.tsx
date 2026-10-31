@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'
 import { fmtDateTime } from '../../lib/id'
 import { createPage } from '../../lib/notes'
 import EmptyState from '../../components/EmptyState'
+import CollectionTable from './CollectionTable'
 
 /**
  * 笔记列表：左侧全部笔记；右侧「新建笔记」按钮。
@@ -24,6 +25,12 @@ export default function NotesPage(): JSX.Element {
     })
   }, [notesRaw])
   const goNote = useUI((s) => s.goNote)
+  const [view, setView] = useState<'list' | 'table'>('list')
+  // 表格视图只收自由页面（非会议笔记、未删除）
+  const tableNotes = useMemo(
+    () => notesRaw.filter((n) => !n.meeting_id && !n.deleted_at),
+    [notesRaw],
+  )
 
   async function createNote(): Promise<void> {
     goNote(await createPage(null))
@@ -37,12 +44,42 @@ export default function NotesPage(): JSX.Element {
             <div className="section-title">NOTES</div>
             <h1 className="text-2xl font-semibold text-text-1 mt-1">笔记</h1>
           </div>
-          <button onClick={() => void createNote()} className="btn-primary text-sm h-9 px-4">
-            + 新建笔记
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-[10px] border border-line bg-bg-raise p-0.5 text-xs">
+              {(['list', 'table'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`h-7 px-3 rounded-lg transition-colors ${
+                    view === v ? 'bg-bg-overlay text-text-1 font-medium' : 'text-text-3 hover:text-text-1'
+                  }`}
+                >
+                  {v === 'list' ? '列表' : '表格'}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => void createNote()} className="btn-primary text-sm h-9 px-4">
+              + 新建笔记
+            </button>
+          </div>
         </div>
 
-        {notes.length === 0 ? (
+        {view === 'table' ? (
+          tableNotes.length === 0 ? (
+            <div className="card">
+              <EmptyState
+                icon="✎"
+                title="还没有笔记"
+                hint="把会议之外的灵感记在这里；插入待办能从笔记直接挂到 OKR 体系。"
+                action={
+                  <button onClick={() => void createNote()} className="btn-primary h-8 text-xs">+ 新建笔记</button>
+                }
+              />
+            </div>
+          ) : (
+            <CollectionTable notes={tableNotes} />
+          )
+        ) : notes.length === 0 ? (
           <div className="card">
             <EmptyState
               icon="✎"
@@ -67,7 +104,7 @@ export default function NotesPage(): JSX.Element {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-text-1 truncate">{n.title || '未命名笔记'}</div>
                     <div className="text-[11px] text-text-3 truncate mt-0.5">
-                      {n.body_md ? n.body_md.replace(/[#>*_`\-]/g, '').slice(0, 80) : '空白'}
+                      {n.body_md ? n.body_md.replace(/<!--[\s\S]*?-->/g, '').replace(/[#>*_`\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) : '空白'}
                     </div>
                   </div>
                   <span className="text-[11px] text-text-3 shrink-0">{fmtDateTime(n.updated_at)}</span>

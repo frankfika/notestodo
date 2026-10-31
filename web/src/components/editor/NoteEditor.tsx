@@ -23,6 +23,8 @@ export interface NoteEditorProps {
   currentNoteId?: ID
   /** 块移动回调：编辑器已删除块并把块的 markdown 交给页面追加到目标 */
   onMoveBlockToNote?: (blockMd: string, targetNoteId: ID) => void
+  /** 块评论：quote 是评论时块的前 80 字引文 */
+  onAddComment?: (quote: string, text: string) => void
 }
 
 // ── 斜杠菜单 / Turn into 共用的块定义 ─────────────────────────────
@@ -153,7 +155,7 @@ function buildBlock(itemId: string, paras: PMNode[]): PMNode[] {
 // ponytail: 选中多个块的框选不做；跨块文本选择原生支持，块级拖动是单块。
 // 需要多块框选时参考 BlockNote 的块选择插件，那是一个独立的 PM 插件量级。
 
-export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiOpen, currentNoteId, onMoveBlockToNote }: NoteEditorProps): JSX.Element {
+export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiOpen, currentNoteId, onMoveBlockToNote, onAddComment }: NoteEditorProps): JSX.Element {
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onReadyRef = useRef(onReady)
@@ -172,9 +174,10 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
   const dragSrc = useRef<{ pos: number } | null>(null)
   const markedEl = useRef<HTMLElement | null>(null)
 
-  // 块手柄菜单：root → turn/color/move 子面板
-  const [menu, setMenu] = useState<{ top: number; pos: number; section: 'root' | 'turn' | 'color' | 'move' } | null>(null)
+  // 块手柄菜单：root → turn/color/move/comment 子面板
+  const [menu, setMenu] = useState<{ top: number; pos: number; section: 'root' | 'turn' | 'color' | 'move' | 'comment' } | null>(null)
   const [moveTargets, setMoveTargets] = useState<Note[]>([])
+  const [commentDraft, setCommentDraft] = useState('')
 
   // 斜杠菜单：controller 挂 ref，Suggestion 的 render 回调跨组件生命周期调用它
   const [slash, setSlash] = useState<{ items: SlashItem[]; index: number; rect: { left: number; top: number } | null } | null>(null)
@@ -397,6 +400,15 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
     onMoveRef.current?.(md, targetId)
   }
 
+  function submitComment(pos: number): void {
+    const text = commentDraft.trim()
+    const node = editor?.state.doc.nodeAt(pos)
+    if (!text || !node) return
+    onAddComment?.(node.textContent.slice(0, 80), text)
+    setCommentDraft('')
+    setMenu(null)
+  }
+
   function openMoveSection(): void {
     setMenu((m) => m && { ...m, section: 'move' })
     void db.notes
@@ -492,14 +504,16 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
       >⋮⋮</button>
 
       {menu && (
-        <div ref={menuRef} className="block-menu card shadow-lg" style={{ top: menu.top + 24 }} role="menu" aria-label="块菜单">
+        <div ref={menuRef} className="block-menu card shadow-lg" style={{ top: menu.top + 24, width: menu.section === 'comment' ? 260 : undefined }} role="menu" aria-label="块菜单">
           {menu.section === 'root' && (
             <ul>
               {turnTargets.length > 0 && (
                 <li><button type="button" role="menuitem" onClick={() => setMenu({ ...menu, section: 'turn' })}>转换为<span className="ml-auto text-text-3">▸</span></button></li>
               )}
               <li><button type="button" role="menuitem" onClick={() => setMenu({ ...menu, section: 'color' })}>颜色<span className="ml-auto text-text-3">▸</span></button></li>
-              <li><button type="button" role="menuitem" disabled className="opacity-50 cursor-not-allowed">评论<span className="ml-auto text-[10px] text-text-3">即将推出</span></button></li>
+              {onAddComment && (
+                <li><button type="button" role="menuitem" onClick={() => setMenu({ ...menu, section: 'comment' })}>评论<span className="ml-auto text-text-3">▸</span></button></li>
+              )}
               {onMoveBlockToNote && (
                 <li><button type="button" role="menuitem" onClick={openMoveSection}>移动到…<span className="ml-auto text-text-3">▸</span></button></li>
               )}
@@ -532,8 +546,25 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
               ))}
             </ul>
           )}
-          {menu.section === 'move' && (
-            <ul>
+          {menu.section === 'comment' && (
+            <div className="px-1.5 py-1">
+              <div className="px-1 pb-1 text-[11px] text-text-3 truncate">「{menuNode?.textContent.slice(0, 40) || '空块'}…」</div>
+              <textarea
+                autoFocus
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitComment(menu.pos) }}
+                placeholder="写下评论…（⌘↵ 提交）"
+                rows={3}
+                className="input w-full text-[13px] resize-none"
+              />
+              <div className="flex justify-end gap-1 pt-1.5">
+                <button type="button" className="btn-ghost text-xs h-7" onClick={() => setMenu({ ...menu, section: 'root' })}>取消</button>
+                <button type="button" className="btn-primary text-xs h-7" disabled={!commentDraft.trim()} onClick={() => submitComment(menu.pos)}>评论</button>
+              </div>
+            </div>
+          )}
+          {menu.section === 'move' && (            <ul>
               <li><button type="button" className="text-text-3" onClick={() => setMenu({ ...menu, section: 'root' })}>← 移动到…</button></li>
               {moveTargets.length === 0 && <li className="px-3 py-2 text-[12px] text-text-3">没有其它页面</li>}
               {moveTargets.map((n) => (

@@ -20,8 +20,25 @@ import {
 } from 'prosemirror-markdown'
 import type { Node as PMNode, Schema } from 'prosemirror-model'
 
-const md = new MarkdownIt({ html: false, linkify: false })
+const md = new MarkdownIt({ html: true, linkify: false })
 md.use(taskLists, { enabled: true })
+
+// 块颜色持久化：`<!-- color:red -->` 独占一行的 html_block 是给下一块的 attr 注释。
+// 这里把它从 token 流摘掉并把颜色 attr 挂到下一块的 open token 上。
+// 其它 html_block 一律忽略（与 html:false 行为一致，不引入 XSS 面——HTML 从不进文档）。
+md.core.ruler.push('shibei-block-color', (state) => {
+  const toks = state.tokens
+  const re = /^<!--\s*color:(\w+)\s*-->\s*$/
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i]
+    if (t.type !== 'html_block') continue
+    const m = t.content.trim().match(re)
+    if (m && toks[i + 1] && /(_open$|^(fence|code_block|hr)$)/.test(toks[i + 1].type)) toks[i + 1].attrSet('color', m[1])
+    toks.splice(i, 1)
+    i--
+  }
+  return false
+})
 
 // [[双链]] → wiki_link_open / text / wiki_link_close（Obsidian 语法；mark 见 components/editor/wikiLink.ts）
 md.inline.ruler.before('link', 'wiki_link', (state, silent) => {
@@ -92,18 +109,19 @@ const parserCache = new WeakMap<Schema, MarkdownParser>()
 function parserFor(schema: Schema): MarkdownParser {
   const cached = parserCache.get(schema)
   if (cached) return cached
+  const colorOf = (tok: { attrGet: (n: string) => string | null }): { color: string | null } => ({ color: tok.attrGet('color') })
   const parser = new MarkdownParser(schema, md as never, {
-    paragraph: { block: 'paragraph' },
+    paragraph: { block: 'paragraph', getAttrs: colorOf },
     // MarkdownView 只渲染 h1–h3，更深的标题降级为三级，避免丢内容
-    heading: { block: 'heading', getAttrs: (tok) => ({ level: Math.min(3, Number(tok.tag.slice(1))) }) },
-    blockquote: { block: 'blockquote' },
-    code_block: { block: 'codeBlock', noCloseToken: true },
-    fence: { block: 'codeBlock', getAttrs: (tok) => ({ language: tok.info || null }), noCloseToken: true },
+    heading: { block: 'heading', getAttrs: (tok) => ({ level: Math.min(3, Number(tok.tag.slice(1))), ...colorOf(tok) }) },
+    blockquote: { block: 'blockquote', getAttrs: colorOf },
+    code_block: { block: 'codeBlock', noCloseToken: true, getAttrs: colorOf },
+    fence: { block: 'codeBlock', getAttrs: (tok) => ({ language: tok.info || null, ...colorOf(tok) }), noCloseToken: true },
     hr: { node: 'horizontalRule' },
-    bullet_list: { block: 'bulletList' },
-    ordered_list: { block: 'orderedList', getAttrs: (tok) => ({ start: Number(tok.attrGet('start')) || 1 }) },
+    bullet_list: { block: 'bulletList', getAttrs: colorOf },
+    ordered_list: { block: 'orderedList', getAttrs: (tok) => ({ start: Number(tok.attrGet('start')) || 1, ...colorOf(tok) }) },
     list_item: { block: 'listItem' },
-    task_list: { block: 'taskList' },
+    task_list: { block: 'taskList', getAttrs: colorOf },
     task_item: { block: 'taskItem', getAttrs: (tok) => ({ checked: tok.attrGet('checked') === 'true' }) },
     // 插件的 checkbox 是无 _open/_close 的裸 token，必须标 noCloseToken 才会注册同名 handler
     html_inline: { ignore: true, noCloseToken: true },
@@ -167,21 +185,30 @@ function renderList(state: MarkdownSerializerState, node: PMNode, delim: string,
   st.inTightList = prevTight
 }
 
+/** 带 color attr 的块前面写一行 `<!-- color:x -->`（解析端认这个语法，Obsidian 里不可见） */
+function writeColor(state: MarkdownSerializerState, node: PMNode): void {
+  if (node.attrs.color) state.write(`<!-- color:${String(node.attrs.color)} -->\n`)
+}
+
 const serializer = new MarkdownSerializer(
   {
     paragraph(state, node) {
+      writeColor(state, node)
       state.renderInline(node)
       state.closeBlock(node)
     },
     heading(state, node) {
+      writeColor(state, node)
       state.write(state.repeat('#', node.attrs.level) + ' ')
       state.renderInline(node, false)
       state.closeBlock(node)
     },
     blockquote(state, node) {
+      writeColor(state, node)
       state.wrapBlock('> ', null, node, () => state.renderContent(node))
     },
     codeBlock(state, node) {
+      writeColor(state, node)
       const backticks = node.textContent.match(/`{3,}/gm)
       const fence = backticks ? backticks.sort().slice(-1)[0] + '`' : '```'
       state.write(fence + (node.attrs.language || '') + '\n')
@@ -205,9 +232,11 @@ const serializer = new MarkdownSerializer(
       state.text(node.text!, !(state as unknown as { inAutolink?: boolean }).inAutolink)
     },
     bulletList(state, node) {
+      writeColor(state, node)
       renderList(state, node, '  ', () => '- ')
     },
     orderedList(state, node) {
+      writeColor(state, node)
       const start: number = node.attrs.start ?? 1
       const maxW = String(start + node.childCount - 1).length
       const space = state.repeat(' ', maxW + 2)
@@ -220,6 +249,7 @@ const serializer = new MarkdownSerializer(
       state.renderContent(node)
     },
     taskList(state, node) {
+      writeColor(state, node)
       renderList(state, node, '  ', () => '- ')
     },
     taskItem(state, node) {
