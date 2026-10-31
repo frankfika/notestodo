@@ -358,7 +358,7 @@ export default function NoteDetailPage(): JSX.Element {
               {backlinks.map((n) => (
                 <li key={n.id}>
                   <button onClick={() => goNote(n.id)} className="w-full text-left px-4 py-2.5 text-sm text-text-1 hover:bg-bg-overlay">
-                    {n.title || '未命名笔记'}
+                    {n.title || '无标题'}
                   </button>
                 </li>
               ))}

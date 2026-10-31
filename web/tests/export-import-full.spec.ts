@@ -132,6 +132,10 @@ test('完整数据 roundtrip：10 张表全部恢复', async ({ page }) => {
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goSettings: () => void } } }).__uiStore?.getState().goSettings())
   await page.waitForTimeout(500)
 
+  // 导入导出在「外观与数据」分组里
+  await page.getByRole('button', { name: '外观与数据' }).click()
+  await page.waitForTimeout(300)
+
   // 导出
   const dlPromise = page.waitForEvent('download', { timeout: 15_000 })
   await page.getByRole('button', { name: '导出 .zip' }).click()

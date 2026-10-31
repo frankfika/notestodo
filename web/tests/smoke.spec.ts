@@ -23,9 +23,17 @@ async function dismissOnboarding(page: import('@playwright/test').Page): Promise
   }
 }
 
-/** 侧栏一级导航（exact 匹配 — '笔记' 不能撞上 '新建笔记本'） */
+/**
+ * 侧栏一级导航。会议/任务/笔记在 <nav> 里（scope 住避免撞上页面树的
+ * 「新建笔记本」按钮）；按钮可访问名含图标字符（如 "✎ 笔记"），用子串匹配。
+ * 设置在 nav 外的底部。
+ */
 async function nav(page: import('@playwright/test').Page, label: string): Promise<void> {
-  await page.locator('aside').getByRole('button', { name: label, exact: true }).click()
+  if (label === '设置') {
+    await page.locator('aside').getByRole('button', { name: label }).click()
+  } else {
+    await page.locator('aside nav').getByRole('button', { name: label }).click()
+  }
 }
 
 test.describe('Shibei shell smoke', () => {
@@ -83,8 +91,8 @@ test.describe('Shibei shell smoke', () => {
     // 进入 NoteDetail，等待详情页加载
     await page.locator('button[aria-label="返回"]').first().waitFor({ state: 'visible', timeout: 5000 })
     await page.locator('button[aria-label="返回"]').first().click()
-    // 空标题笔记在列表里显示为「未命名笔记」
-    await expect(page.locator('text=未命名笔记').first()).toBeVisible({ timeout: 5000 })
+    // 空标题笔记在列表里显示为「无标题」（列表/侧栏/详情面包屑统一文案）
+    await expect(page.locator('main').locator('text=无标题').first()).toBeVisible({ timeout: 5000 })
     await page.screenshot({ path: 'tests/screenshots/03-notes.png', fullPage: true })
   })
 
@@ -144,7 +152,7 @@ test.describe('Shibei shell smoke', () => {
     // 双击行内标题改名（新行是空标题 → 显示「（无标题）」）并回车保存
     const newTitle = page.locator('div[data-todo]').last().locator('span[title="双击改名"]')
     await newTitle.dblclick()
-    await page.locator('div[data-todo]').last().locator('input').fill('新工作目标')
+    await page.locator('div[data-todo]').last().locator('input.input').fill('新工作目标')
     await page.keyboard.press('Enter')
     await page.waitForTimeout(500)
     // 新建的标题应该出现在页面上 + 落库
@@ -344,9 +352,10 @@ test.describe('Shibei shell smoke', () => {
     await expect(tagChip).toBeVisible({ timeout: 5000 })
     await tagChip.click()
     await page.waitForTimeout(500)
-    // 只剩带标签的页面
-    await expect(page.locator('text=TaggedA-带标签页面').first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('text=PlainB-无标签页面')).toHaveCount(0, { timeout: 3000 })
+    // 只剩带标签的页面（scope 到 main — 侧栏页面树也会渲染标题文本）
+    const main = page.locator('main')
+    await expect(main.locator('text=TaggedA-带标签页面').first()).toBeVisible({ timeout: 5000 })
+    await expect(main.locator('text=PlainB-无标签页面')).toHaveCount(0, { timeout: 3000 })
   })
 
   test('导出 → 清空 → 导入 roundtrip：数据完整恢复（数据主权）', async ({ page }) => {

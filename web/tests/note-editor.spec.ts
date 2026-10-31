@@ -202,10 +202,16 @@ test.describe('笔记块编辑器', () => {
     const handle = page.locator('.block-handle')
     await expect(handle).toBeVisible({ timeout: 3_000 })
 
-    // 点击手柄（不拖动）→ NodeSelection，块高亮
+    // 点击手柄（不拖动）→ 打开块菜单（当前交互：点击=菜单，拖动=移动块）
     await handle.click({ force: true })
     await page.waitForTimeout(200)
-    await expect(ed.locator('.ProseMirror-selectednode')).toHaveCount(1)
+    await expect(page.locator('.block-menu')).toBeVisible()
+    // 关菜单（菜单有 document mousedown 监听，点正文任意处即收）
+    // 注意：点手柄后鼠标停在左侧槽里，rAF mousemove 会把 hoverBlock 清空，
+    // dragstart 会因此退出 —— 必须重新悬停第一段再走合成拖动
+    await ed.click()
+    await firstP.hover()
+    await page.waitForTimeout(150) // 等 rAF 把 hoverBlock 指回第一段
 
     // 拖动手柄 → 第二段中段（下半区 = 放它后面）
     // Playwright 真实鼠标不保证触发 HTML5 drag（与 okr-tree-ux 同款问题），

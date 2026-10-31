@@ -61,7 +61,7 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
         <thead>
           <tr className="border-b border-line">
             {header('标题', 'title')}
-            <th className="text-left text-[11px] font-semibold uppercase text-text-3 tracking-[0.06em] px-5 py-2.5 w-28">笔记本</th>
+            <th className="text-left text-[11px] font-semibold uppercase text-text-3 tracking-[0.06em] px-5 py-2.5 w-28 whitespace-nowrap">笔记本</th>
             {header('更新时间', 'updated_at', 'w-40')}
             {header('置顶', 'pinned', 'w-20')}
           </tr>
@@ -76,7 +76,7 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
               className="hover:bg-bg-overlay/40 transition-colors cursor-pointer"
             >
               <td className="px-5 py-3 text-sm font-medium text-text-1 truncate max-w-0 w-full">
-                {n.pinned ? '▣ ' : ''}{n.title || '未命名笔记'}
+                {n.pinned ? '▣ ' : ''}{n.title || '无标题'}
               </td>
               <td className="px-5 py-3 text-[11px] text-text-3 whitespace-nowrap">{nbName(n.notebook_id)}</td>
               <td className="px-5 py-3 text-[11px] text-text-3 whitespace-nowrap">{fmtDateTime(n.updated_at)}</td>
@@ -88,7 +88,7 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
 
       {peek && (
         <div className="card absolute top-0 left-[calc(100%+12px)] w-72 p-4 pointer-events-none shadow-md z-10">
-          <div className="text-sm font-medium text-text-1 mb-1.5 truncate">{peek.title || '未命名笔记'}</div>
+          <div className="text-sm font-medium text-text-1 mb-1.5 truncate">{peek.title || '无标题'}</div>
           <div className="text-xs text-text-2 leading-relaxed whitespace-pre-wrap">
             {stripMd(peek.body_md) || '空白'}
           </div>

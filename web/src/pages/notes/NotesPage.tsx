@@ -178,7 +178,7 @@ export default function NotesPage(): JSX.Element {
                       {n.meeting_id ? '◆' : n.pinned ? '▣' : '✎'}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-text-1 truncate">{n.title || '未命名笔记'}</div>
+                      <div className="text-sm font-medium text-text-1 truncate">{n.title || '无标题'}</div>
                       <div className="text-[11px] text-text-3 truncate mt-0.5">
                         {path && <span className="text-text-2">{path} · </span>}
                         {n.body_md ? n.body_md.replace(/<!--[\s\S]*?-->/g, '').replace(/[#>*_`\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) : '空白'}

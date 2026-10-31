@@ -1,24 +1,35 @@
 /**
- * Tag 计数 bug 修复 e2e — 软删除 todo 时级联软删除 tagBindings
+ * Tag 计数语义 e2e — 删除任务时级联清理 tagBinding → 计数减一
  *
- * 之前 bug：remove() 只把 todo.status 设 cancelled，但不动 tagBindings。
- * 结果：tagUsageCount 把已删 todo 的 binding 计入 → 过滤行显示「#tag 2」但只有 1 个活跃 todo。
+ * 历史背景：曾因 remove() 不清理 tagBindings 导致 tagUsageCount 把已删
+ * todo 的 binding 计入。现在的实现（todoRowOps.softDeleteTree）在删除任务
+ * 子树时直接硬删对应 tagBindings（where('[target_type+target_id]').delete()），
+ * 「删除任务后 tag 计数减一」的语义仍然成立。
  *
- * 修复：remove() 同时把所有 tagBindings.deleted_at 设为 now()（软删除）。
- * tagIdsByTodo 自然过滤掉 deleted_at != null 的 binding → 计数准确。
+ * 断言路径按当前 UI：
+ *   - 计数展示在 设置 → 外观与数据 → 标签（TagManager「N 处引用」），
+ *     任务页的 tag 过滤 chip 已移除。
+ *   - 删除入口在任务树行的 ⋯ 菜单（title="更多操作"）→ 删除（confirm 自动接受）。
  *
  * 测试：
- *   1. Seed 1 tag + 2 todo（都绑这个 tag）
- *   2. 打开 TodosPage → 过滤行显示 #tag 2（先确认 bug 场景出现）
- *   3. UI 上删第二个 todo
- *   4. 重新渲染 → 过滤行显示 #tag 1（修复生效）
+ *   1. Seed 1 tag + 2 todo（都绑这个 tag）→ reload（外部写库需要重启才进 liveQuery）
+ *   2. TagManager 显示 #counted 2 处引用
+ *   3. UI 上删第二个 todo（⋯ 菜单）
+ *   4. TagManager 显示 1 处引用；DB 中 todo2 的 binding 已被硬删（0 行）
  */
 import { test, expect } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
+async function gotoTagManager(page: import('@playwright/test').Page): Promise<void> {
+  await page.locator('aside').getByRole('button', { name: '设置' }).click()
+  await page.waitForTimeout(400)
+  await page.getByRole('button', { name: '外观与数据' }).click()
+  await page.waitForTimeout(300)
+}
+
 test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', async ({ page }) => {
-  test.setTimeout(30_000)
+  test.setTimeout(45_000)
   page.on('dialog', (dialog) => void dialog.accept()) // accept delete confirm
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
@@ -64,30 +75,34 @@ test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', asy
     return todo2Id
   })
 
-  // 导航到 TodosPage
-  await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
-  await page.waitForTimeout(600)
+  // 外部 IndexedDB 写入不会刷新运行中的 liveQuery — reload 让 app 带着种子数据重启
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(800)
+  const x2 = page.locator('button[aria-label="关闭"]').first()
+  if (await x2.isVisible({ timeout: 1500 }).catch(() => false)) await x2.click()
 
-  // 1) 修复前/后对比：seed 后 chip 显示 #counted 2（修复 bug 触发条件）
-  let chipText = await page.locator('button:has-text("#counted")').first().innerText()
-  expect(chipText).toMatch(/2/) // bug 状态下应见 2
+  // 1) TagManager：#counted 显示 2 处引用（bug 场景出现：两个活跃绑定）
+  await gotoTagManager(page)
+  await expect(page.getByText('2 处引用')).toBeVisible({ timeout: 5_000 })
 
-  // 2) 「将被删除的任务」的 ⋯ 菜单 → 删除
-  const todoRow = page.locator('div.group:has-text("将被删除的任务")').first()
+  // 2) 任务树 →「将被删除的任务」的 ⋯ 菜单 → 删除
+  await page.locator('aside nav').getByRole('button', { name: '任务' }).click()
+  await page.waitForTimeout(500)
+  const todoRow = page.locator('div[data-todo]:has-text("将被删除的任务")').first()
   await todoRow.scrollIntoViewIfNeeded()
   await todoRow.hover()
   await page.waitForTimeout(300)
-  await todoRow.locator('button[aria-label="更多操作"]').first().click({ timeout: 8_000 })
-  await page.getByRole('menuitem', { name: '删除' }).click()
-  await page.waitForTimeout(1500)
+  await todoRow.locator('button[title="更多操作"]').click({ timeout: 8_000 })
+  await todoRow.getByText('删除', { exact: true }).click()
+  await page.waitForTimeout(1000) // confirm 已自动接受，软删子树 + 硬删 bindings
 
-  // 3) 修复后：chip 应显示 #counted 1
-  chipText = await page.locator('button:has-text("#counted")').first().innerText()
-  expect(chipText).toMatch(/1/) // 修复后只计 activeTodo
-  expect(chipText).not.toMatch(/2/)
+  // 3) 修复后：#counted 只剩 1 处引用
+  await gotoTagManager(page)
+  await expect(page.getByText('1 处引用')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('2 处引用')).toHaveCount(0)
 
-  // 4) 验证 DB: todo2 的 binding deleted_at !== null
-  const bindingState = await page.evaluate(async (t2id) => new Promise<{ deleted: number; active: number }>((res, rej) => {
+  // 4) 验证 DB: todo2 的 binding 已被硬删（当前实现是 delete，不是软删标记）
+  const bindingCount = await page.evaluate(async (t2id) => new Promise<number>((res, rej) => {
     const req = indexedDB.open('shibei')
     req.onerror = () => rej(new Error('idxb'))
     req.onsuccess = () => {
@@ -95,17 +110,10 @@ test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', asy
       const tx = db.transaction(['tagBindings'], 'readonly')
       const all = tx.objectStore('tagBindings').getAll()
       all.onsuccess = () => {
-        const arr = (all.result as Array<{ target_id: string; deleted_at: string | null }>).filter(
-          (x) => x.target_id === t2id,
-        )
-        res({
-          deleted: arr.filter((x) => x.deleted_at !== null).length,
-          active: arr.filter((x) => x.deleted_at === null).length,
-        })
+        res((all.result as Array<{ target_id: string }>).filter((x) => x.target_id === t2id).length)
       }
       setTimeout(() => rej(new Error('readback-timeout')), 5_000)
     }
   }), todo2Id)
-  expect(bindingState.deleted).toBe(1)
-  expect(bindingState.active).toBe(0)
+  expect(bindingCount).toBe(0)
 })

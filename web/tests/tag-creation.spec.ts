@@ -41,6 +41,12 @@ test('Tag 创建：任务行 ⋯ 菜单 → 标签输入 → 新 tag + 绑定', 
     return id
   })
 
+  // 外部 IndexedDB 写入不会刷新运行中的 liveQuery — reload 让 app 带着种子数据重启
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(800)
+  const x2 = page.locator('button[aria-label="关闭"]').first()
+  if (await x2.isVisible({ timeout: 1500 }).catch(() => false)) await x2.click()
+
   // 导航到 TodosPage
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
   await page.waitForTimeout(600)
