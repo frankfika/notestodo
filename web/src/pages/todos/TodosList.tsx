@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { db } from '../../db/db'
 import { now, thisFriday, today as todayIso } from '../../lib/id'
 import type { Todo } from '../../types'
+import OriginChip from '../../components/OriginChip'
 import { EditableTitle, TodoMenu } from './todoRowOps'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
@@ -63,6 +64,7 @@ function Row({ t, byId, all }: { t: Todo; byId: Map<string, Todo>; all: Todo[] }
           <div className="truncate text-[11px] text-text-3">{crumbs.join(' › ')}</div>
         )}
       </div>
+      <OriginChip t={t} />
       {t.due_date && <span className={`text-[11px] font-mono shrink-0 ${dueCls}`}>{fmtDue(t.due_date)}</span>}
       <TodoMenu t={t} all={all} />
     </div>

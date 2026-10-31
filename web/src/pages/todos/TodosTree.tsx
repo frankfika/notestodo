@@ -4,6 +4,7 @@ import { db } from '../../db/db'
 import { now, today as todayIso, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
 import type { Todo } from '../../types'
+import OriginChip from '../../components/OriginChip'
 import { EditableTitle, TodoMenu } from './todoRowOps'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
@@ -140,6 +141,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
         />
         <EditableTitle t={t} className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`} />
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
+        <OriginChip t={t} />
         <DueBadge due={t.due_date} />
         <button
           onClick={() => void addChild(t)}
@@ -164,9 +166,10 @@ export default function TodosTree(): JSX.Element {
   const [dragId, setDragId] = useState<string | null>(null)
   const focusId = useUI((s) => s.todoFocusId)
 
-  // 从看板等跳进来：展开祖先 + 滚到该行
+  // 从看板等跳进来：展开祖先 + 滚到该行。消费一次就清掉 focusId，避免 effect 反复跑
   useEffect(() => {
     if (!focusId) return
+    useUI.setState({ todoFocusId: null })
     setCollapsed((s) => {
       const n = new Set(s)
       let p = byId.get(focusId)?.parent_id
@@ -175,7 +178,8 @@ export default function TodosTree(): JSX.Element {
     })
     const t = setTimeout(() => document.querySelector(`[data-todo="${focusId}"]`)?.scrollIntoView({ block: 'center' }), 50)
     return () => clearTimeout(t)
-  }, [focusId, byId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId])
 
   const addRoot = async (): Promise<void> => {
     const ts = now()

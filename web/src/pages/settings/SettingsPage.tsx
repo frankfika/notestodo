@@ -18,6 +18,7 @@ import { useUI } from '../../state/ui'
 import { isTauri } from '../../lib/tauri'
 import { invoke } from '../../lib/tauriInvoke'
 import { setApiEnabled } from '../../api/localApi'
+import { now } from '../../lib/id'
 import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystemAudio'
 import { reindexKnowledge } from '../../lib/knowledge'
 import { importGithubIssues } from '../../lib/github'
@@ -175,6 +176,17 @@ export default function SettingsPage(): JSX.Element {
                     <ModelPicker kind="llm" selected={settings.builtin_llm_model} onSelect={(id) => void pickBuiltin({ builtin_llm_model: id })} />
                   ) : settings.ai_mode === 'cloud' ? (
                     <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] text-text-3">快速接入：</span>
+                        {LLM_PRESETS.map((p) => (
+                          <button
+                            key={p.label}
+                            type="button"
+                            onClick={() => patch({ llm_provider: p.provider, llm_base_url: p.base_url, llm_model: p.model })}
+                            className={`chip hover:text-accent ${settings.llm_base_url === p.base_url ? 'text-accent border-accent/50' : ''}`}
+                          >{p.label}</button>
+                        ))}
+                      </div>
                       <FieldRow label="Provider">
                         <select
                           className="input"
@@ -199,6 +211,13 @@ export default function SettingsPage(): JSX.Element {
                           onChange={(v) => patch({ llm_api_key: v })}
                           placeholder="sk-..."
                         />
+                        {!settings.llm_api_key && (
+                          <p className="text-[11px] text-text-3 mt-1">
+                            还没有 Key？去服务商控制台免费领一个：{LLM_PRESETS.map((p, i) => (
+                              <span key={p.label}>{i > 0 && ' · '}<a href={p.key_url} target="_blank" rel="noreferrer" className="text-accent hover:underline">{p.label}</a></span>
+                            ))}
+                          </p>
+                        )}
                       </FieldRow>
                       <FieldRow label="Model">
                         <input
@@ -251,6 +270,17 @@ export default function SettingsPage(): JSX.Element {
                     </>
                   ) : settings.asr_mode === 'cloud' ? (
                     <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] text-text-3">快速接入：</span>
+                        {ASR_PRESETS.map((p) => (
+                          <button
+                            key={p.label}
+                            type="button"
+                            onClick={() => patch({ asr_provider: p.provider, asr_base_url: p.base_url, asr_model: p.model })}
+                            className={`chip hover:text-accent ${settings.asr_base_url === p.base_url ? 'text-accent border-accent/50' : ''}`}
+                          >{p.label}</button>
+                        ))}
+                      </div>
                       <FieldRow label="Provider">
                         <select
                           className="input"
@@ -274,6 +304,13 @@ export default function SettingsPage(): JSX.Element {
                           value={settings.asr_api_key}
                           onChange={(v) => patch({ asr_api_key: v })}
                         />
+                        {!settings.asr_api_key && (
+                          <p className="text-[11px] text-text-3 mt-1">
+                            还没有 Key？{ASR_PRESETS.map((p, i) => (
+                              <span key={p.label}>{i > 0 && ' · '}<a href={p.key_url} target="_blank" rel="noreferrer" className="text-accent hover:underline">{p.label}</a></span>
+                            ))}
+                          </p>
+                        )}
                       </FieldRow>
                       <FieldRow label="Model">
                         <input
@@ -413,6 +450,10 @@ export default function SettingsPage(): JSX.Element {
                   <StorageStatusRow />
                 </Section>
 
+                <Section title="标签" desc="改名会同步所有引用；删除会同时解绑所有笔记 / 任务 / 会议。">
+                  <TagManager flash={flash} />
+                </Section>
+
                 <Section title="诊断">
                   <details>
                     <summary className="cursor-pointer text-sm text-text-2 hover:text-text-1">查看当前 settings JSON</summary>
@@ -446,6 +487,19 @@ const SETTINGS_GROUPS: { key: SettingsGroup; label: string }[] = [
   { key: 'appearance', label: '外观与数据' },
 ]
 
+/** 云端 LLM 一键预设：普通用户只需再粘一个 API Key */
+const LLM_PRESETS: { label: string; provider: AppSettings['llm_provider']; base_url: string; model: string; key_url: string }[] = [
+  { label: 'MiniMax', provider: 'anthropic-compatible', base_url: 'https://api.minimax.io/anthropic', model: 'MiniMax-M2.7', key_url: 'https://platform.minimaxi.com/' },
+  { label: 'DeepSeek', provider: 'openai-compatible', base_url: 'https://api.deepseek.com', model: 'deepseek-chat', key_url: 'https://platform.deepseek.com/' },
+  { label: 'OpenAI', provider: 'openai-compatible', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini', key_url: 'https://platform.openai.com/api-keys' },
+]
+
+const ASR_PRESETS: { label: string; provider: AppSettings['asr_provider']; base_url: string; model: string; key_url: string }[] = [
+  { label: 'MiniMax', provider: 'minimax', base_url: 'https://api.minimaxi.com', model: 'asr-1.0', key_url: 'https://platform.minimaxi.com/' },
+  { label: 'OpenAI Whisper', provider: 'openai-whisper', base_url: 'https://api.openai.com/v1', model: 'whisper-1', key_url: 'https://platform.openai.com/api-keys' },
+  { label: 'Deepgram', provider: 'deepgram', base_url: 'https://api.deepgram.com', model: 'nova-2', key_url: 'https://console.deepgram.com/' },
+]
+
 function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }): JSX.Element {
   return (
     <section className="card p-5 mb-4">
@@ -455,6 +509,62 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
       </div>
       <div className="space-y-3">{children}</div>
     </section>
+  )
+}
+
+function TagManager({ flash }: { flash: (msg: string) => void }): JSX.Element {
+  const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
+  const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
+  const countOf = (tagId: string): number => bindings.filter((b) => b.tag_id === tagId).length
+
+  const rename = async (tagId: string, name: string): Promise<void> => {
+    const v = name.trim()
+    const tag = tags.find((t) => t.id === tagId)
+    if (!v || !tag || v === tag.name) return
+    if (tags.some((t) => t.id !== tagId && t.name.toLowerCase() === v.toLowerCase())) {
+      flash('已存在同名标签')
+      return
+    }
+    await db.tags.update(tagId, { name: v, updated_at: now(), sync_version: tag.sync_version + 1 })
+    flash('已改名')
+  }
+
+  const remove = async (tagId: string): Promise<void> => {
+    const tag = tags.find((t) => t.id === tagId)
+    if (!tag) return
+    const n = countOf(tagId)
+    if (!window.confirm(`删除标签「${tag.name}」？${n > 0 ? `会同时解绑 ${n} 处引用。` : ''}`)) return
+    await db.tagBindings.where('tag_id').equals(tagId).delete()
+    await db.tags.delete(tagId)
+    flash('已删除标签')
+  }
+
+  if (tags.length === 0) return <p className="text-xs text-text-3">还没有标签。在笔记或任务里输入 #标签 即可创建。</p>
+  return (
+    <div className="flex flex-col divide-y divide-line">
+      {tags.map((t) => (
+        <div key={t.id} className="group flex items-center gap-2 py-1.5">
+          <span className="text-text-3 text-xs">#</span>
+          <input
+            defaultValue={t.name}
+            key={`${t.id}-${t.name}`}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') e.currentTarget.value = t.name
+            }}
+            onBlur={(e) => void rename(t.id, e.target.value)}
+            className="input !h-7 flex-1 text-sm"
+          />
+          <span className="text-[11px] text-text-3 shrink-0">{countOf(t.id)} 处引用</span>
+          <button
+            onClick={() => void remove(t.id)}
+            title="删除标签"
+            className="w-6 h-6 rounded-[6px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-danger transition-opacity"
+          >✕</button>
+        </div>
+      ))}
+    </div>
   )
 }
 

@@ -155,14 +155,14 @@ export default function NotesPage(): JSX.Element {
         {view === 'table' ? (
           tableNotes.length === 0 ? (
             <div className="card">
-              <EmptyState icon="✎" title="这个范围还没有页面" hint="切换上方笔记本/tag 筛选，或新建一页。" action={emptyAction} />
+              <EmptyState icon="✎" title="这里还没有笔记" hint="换个笔记本或标签看看，或新建一条。" action={emptyAction} />
             </div>
           ) : (
             <CollectionTable notes={tableNotes} />
           )
         ) : filtered.length === 0 ? (
           <div className="card">
-            <EmptyState icon="✎" title="这个范围还没有页面" hint="切换上方筛选，或新建一页。" action={emptyAction} />
+            <EmptyState icon="✎" title="这里还没有笔记" hint="换个筛选看看，或新建一条。" action={emptyAction} />
           </div>
         ) : (
           <ul className="card divide-y divide-line">

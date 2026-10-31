@@ -17,6 +17,7 @@ import { canPlayNatively, toWav } from '../../audio/playable'
 import { scribblesToMarkdown } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { attachTask, discardTask } from '../../lib/todoActions'
+import { deleteMeetingCascade } from '../../lib/meetingActions'
 import { MODEL_MISSING } from '../../llm/builtin'
 import { displayStatus, statusText, type DisplayStatus } from '../../lib/meetingStatus'
 import { useMissingBuiltin, missingNames } from '../../components/BuiltinModels'
@@ -161,15 +162,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
 
   async function deleteMeeting(): Promise<void> {
     if (!window.confirm(`删除「${meeting.title}」？所有关联转录、纪要、待办都会被清理。`)) return
-    await db.meetings.delete(meeting.id)
-    await db.audioChunks.where('meeting_id').equals(meeting.id).delete()
-    await db.transcripts.where('meeting_id').equals(meeting.id).delete()
-    await db.summaries.where('meeting_id').equals(meeting.id).delete()
-    await db.todos.where('meeting_id').equals(meeting.id).delete()
-    // 之前漏了 chatMessages — 累积多了会浪费磁盘 + 让关联查询变慢
-    await db.chatMessages.where('meeting_id').equals(meeting.id).delete()
-    await db.scribbles.where('meeting_id').equals(meeting.id).delete()
-    if (meeting.note_id) await db.notes.delete(meeting.note_id)
+    await deleteMeetingCascade(meeting)
     useUI.getState().goMeetings()
   }
 
@@ -197,7 +190,22 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             aria-label="返回"
           >←</button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold text-text-1 truncate">{meeting.title}</h1>
+            <input
+              defaultValue={meeting.title}
+              key={`${meeting.id}-${meeting.title}`}
+              aria-label="会议标题"
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return
+                if (e.key === 'Enter') e.currentTarget.blur()
+                if (e.key === 'Escape') e.currentTarget.value = meeting.title
+              }}
+              onBlur={(e) => {
+                const v = e.target.value.trim()
+                if (v && v !== meeting.title) void db.meetings.update(meeting.id, { title: v, updated_at: now() })
+                else e.target.value = meeting.title
+              }}
+              className="w-full text-2xl font-semibold text-text-1 bg-transparent outline-none border-b border-transparent hover:border-line focus:border-accent transition-colors"
+            />
             <div className="flex items-center gap-2 text-xs text-text-3 mt-1">
               <span>{fmtDateTime(meeting.started_at)}</span>
               <span>·</span>
@@ -1198,7 +1206,18 @@ ${summaryText}
       <div className="flex items-center gap-2 px-4 h-12 border-b border-line">
         <span className="text-text-2 text-sm">对话</span>
         <span className="chip">{messages.length}</span>
-        <button onClick={onClose} className="icon-btn ml-auto" title="关闭" aria-label="关闭">✕</button>
+        {messages.length > 0 && (
+          <button
+            onClick={() => {
+              if (window.confirm('清空这场会议的全部对话记录？')) {
+                void db.chatMessages.where('meeting_id').equals(meeting.id).delete()
+              }
+            }}
+            className="btn-ghost text-[11px] h-6 px-2 ml-auto"
+            title="清空对话记录"
+          >清空</button>
+        )}
+        <button onClick={onClose} className={`icon-btn ${messages.length > 0 ? '' : 'ml-auto'}`} title="关闭" aria-label="关闭">✕</button>
       </div>
       <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (

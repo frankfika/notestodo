@@ -1,6 +1,6 @@
 import { statusText } from '../../lib/meetingStatus'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
@@ -8,6 +8,7 @@ import { fmtClock, fmtDate, fmtDateTime, mod } from '../../lib/id'
 import type { Meeting, MeetingStatus } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import { importTranscriptText } from '../../lib/importTranscript'
+import { deleteMeetingCascade, renameMeeting } from '../../lib/meetingActions'
 
 function statusDot(s: MeetingStatus): string {
   switch (s) {
@@ -33,6 +34,8 @@ export default function MeetingsPage(): JSX.Element {
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null)
 
   // 自动选中最近一个
   const activeId = selectedId ?? meetings[0]?.id ?? null
@@ -52,6 +55,15 @@ export default function MeetingsPage(): JSX.Element {
     }
     return [...map.entries()]
   }, [meetings])
+
+  useEffect(() => {
+    if (!menuFor) return
+    const onDown = (e: MouseEvent): void => {
+      if (!(e.target as HTMLElement).closest('[data-rowmenu]')) setMenuFor(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [menuFor])
 
   return (
     <div className="h-full flex">
@@ -90,19 +102,59 @@ export default function MeetingsPage(): JSX.Element {
                 {list.map((m) => {
                   const active = activeId === m.id
                   return (
-                    <li key={m.id}>
-                      <button
-                        onClick={() => setSelectedId(m.id)}
-                        className={`w-full flex items-center gap-2.5 px-5 py-2 text-left text-sm transition-colors ${
-                          active ? 'bg-bg-overlay' : ''
-                        } hover:bg-bg-overlay/50`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusDot(m.status)}`} />
-                        <span className="flex-1 min-w-0 truncate text-text-1">{m.title}</span>
-                        <span className="text-[11px] text-text-3 font-mono tabular-nums shrink-0">
-                          {fmtClock(m.audio.duration_ms)}
-                        </span>
-                      </button>
+                    <li key={m.id} className="group relative">
+                      {renamingId === m.id ? (
+                        <div className="flex items-center gap-2.5 px-5 py-2">
+                          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusDot(m.status)}`} />
+                          <input
+                            autoFocus
+                            defaultValue={m.title}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.nativeEvent.isComposing) return
+                              if (e.key === 'Enter') e.currentTarget.blur()
+                              if (e.key === 'Escape') setRenamingId(null)
+                            }}
+                            onBlur={(e) => { void renameMeeting(m, e.target.value); setRenamingId(null) }}
+                            className="input !h-6 flex-1 min-w-0 px-1 text-sm"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedId(m.id)}
+                          className={`w-full flex items-center gap-2.5 px-5 py-2 text-left text-sm transition-colors ${
+                            active ? 'bg-bg-overlay' : ''
+                          } hover:bg-bg-overlay/50`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusDot(m.status)}`} />
+                          <span className="flex-1 min-w-0 truncate text-text-1">{m.title}</span>
+                          <span className="text-[11px] text-text-3 font-mono tabular-nums shrink-0 group-hover:hidden">
+                            {fmtClock(m.audio.duration_ms)}
+                          </span>
+                          <span
+                            onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === m.id ? null : m.id) }}
+                            className="hidden group-hover:flex w-5 h-5 items-center justify-center rounded text-text-3 hover:text-text-1 shrink-0"
+                            title="更多操作"
+                          >⋯</span>
+                        </button>
+                      )}
+                      {menuFor === m.id && (
+                        <div data-rowmenu className="card shadow-lg absolute right-2 top-8 z-50 w-36 p-1 flex flex-col gap-0.5">
+                          <button
+                            className="px-2 py-1.5 rounded-[6px] text-[13px] text-left text-text-1 hover:bg-bg-overlay transition-colors"
+                            onClick={() => { setRenamingId(m.id); setMenuFor(null) }}
+                          >重命名</button>
+                          <button
+                            className="px-2 py-1.5 rounded-[6px] text-[13px] text-left text-danger hover:bg-bg-overlay transition-colors"
+                            onClick={() => {
+                              setMenuFor(null)
+                              if (window.confirm(`删除「${m.title}」？所有关联转录、纪要、待办都会被清理。`)) {
+                                void deleteMeetingCascade(m).then(() => { if (selectedId === m.id) setSelectedId(null) })
+                              }
+                            }}
+                          >删除</button>
+                        </div>
+                      )}
                     </li>
                   )
                 })}

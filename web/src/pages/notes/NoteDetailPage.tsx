@@ -21,6 +21,7 @@ export default function NoteDetailPage(): JSX.Element {
   const goNotes = useUI((s) => s.goNotes)
   const goNote = useUI((s) => s.goNote)
   const goMeeting = useUI((s) => s.goMeeting)
+  const goTodos = useUI((s) => s.goTodos)
   const note = useLiveQuery(
     async () => noteId ? await db.notes.get(noteId) : undefined,
     [noteId ?? ''],
@@ -235,7 +236,7 @@ export default function NoteDetailPage(): JSX.Element {
             className={`btn-ghost text-xs h-7 ${note.pinned ? 'text-accent' : ''}`}
             title="置顶"
           >{note.pinned ? '已置顶' : '置顶'}</button>
-          <button onClick={() => void insertTodo()} className="btn-ghost text-xs h-7" title="基于编辑器中选中的文字新建一条 Task">
+          <button onClick={() => void insertTodo()} className="btn-ghost text-xs h-7 whitespace-nowrap shrink-0" title="基于编辑器中选中的文字新建一条 Task">
             + 插入待办
           </button>
           <OverflowMenu items={[{ label: '删除笔记', danger: true, onClick: () => void deleteNote() }]} />
@@ -298,10 +299,22 @@ export default function NoteDetailPage(): JSX.Element {
           ) : (
             <ul className="card divide-y divide-line">
               {linkedTodos.map((t) => (
-                <li key={t.id} className="px-4 py-2.5 text-sm flex items-center gap-2">
-                  <span className="text-text-3">·</span>
-                  <span className={`flex-1 ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}>{t.title}</span>
-                  <span className="chip">{t.status}</span>
+                <li key={t.id} className="px-4 py-2.5 text-sm flex items-center gap-2 group">
+                  <input
+                    type="checkbox"
+                    checked={t.status === 'done'}
+                    onChange={() => void db.todos.update(t.id, {
+                      status: t.status === 'done' ? 'open' : 'done',
+                      updated_at: now(), sync_version: t.sync_version + 1,
+                    })}
+                    className="shrink-0 accent-[var(--accent)]"
+                  />
+                  <button
+                    onClick={() => goTodos(t.id)}
+                    title="在任务树中定位"
+                    className={`flex-1 text-left truncate hover:text-accent transition-colors ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}
+                  >{t.title}</button>
+                  <span className="chip">{t.status === 'done' ? '已完成' : t.status === 'pending_review' ? '待确认' : '进行中'}</span>
                 </li>
               ))}
             </ul>

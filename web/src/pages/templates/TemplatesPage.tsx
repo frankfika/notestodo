@@ -7,7 +7,7 @@ import { emptyCustomTemplate } from '../../db/seed'
 import { getSettings } from '../../db/settings'
 import { renderTemplate } from '../../llm/prompts'
 import { callLLM } from '../../llm/client'
-import { now, uid } from '../../lib/id'
+import { fmtClock, now, uid } from '../../lib/id'
 import type { SummaryTemplate } from '../../types'
 import EmptyState from '../../components/EmptyState'
 
@@ -155,16 +155,28 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
     setDirty(false)
   }
 
+  const [trial, setTrial] = useState<{ running: boolean; out: string; err: boolean }>({ running: false, out: '', err: false })
+
   async function tryRun(): Promise<void> {
+    setTrial({ running: true, out: '', err: false })
     try {
       const settings = await getSettings()
       // 本地模型（Ollama 等）无需 Key：按当前生效配置判断，而不是只看云端 Key
       const llm = resolveLLMConfig(settings)
       if (!llm.is_local && !llm.api_key) {
-        window.alert('请先在「设置」页填好 LLM API Key。')
+        setTrial({ running: false, out: '请先在「设置」页配好模型（云端 Key 或本地模型）。', err: true })
         return
       }
-      const vars = {
+      // 优先用最近一场会议的转录试跑；没有会议就用内置示例
+      const latest = await db.meetings.orderBy('started_at').reverse().first()
+      const transcript = latest ? await db.transcripts.where('meeting_id').equals(latest.id).first() : undefined
+      const vars = transcript && latest ? {
+        'meeting.title': latest.title,
+        'meeting.date': latest.started_at.slice(0, 10),
+        'meeting.duration': fmtClock(latest.audio.duration_ms),
+        'transcript.full': transcript.segments.slice(0, 80).map((s) => `[${fmtClock(s.start_ms)}] ${s.speaker_label}: ${s.text}`).join('\n'),
+        'transcript.speakers': [...new Set(transcript.segments.map((s) => s.speaker_label))].join('、'),
+      } : {
         'meeting.title': '示例会议',
         'meeting.date': new Date().toISOString().slice(0, 10),
         'meeting.duration': '30m',
@@ -176,10 +188,10 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
         { role: 'system', content: '你是会议纪要助手。' },
         { role: 'user', content: rendered },
       ], { maxTokens: 500 })
-      window.alert('试运行结果：\n\n' + out.slice(0, 1000))
+      setTrial({ running: false, out, err: false })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      window.alert('试运行失败：' + msg)
+      setTrial({ running: false, out: `试运行失败：${msg}`, err: true })
     }
   }
 
@@ -227,11 +239,22 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <button onClick={() => void tryRun()} className="btn-outline text-sm h-9 whitespace-nowrap shrink-0">
-          ▶ 试运行
+        <button onClick={() => void tryRun()} disabled={trial.running} className="btn-outline text-sm h-9 whitespace-nowrap shrink-0">
+          {trial.running ? '运行中…' : '▶ 试运行'}
         </button>
-        <span className="text-[11px] text-text-3">用最近一次会议测试；需要先在设置里配好模型（云端 Key 或本地模型）。</span>
+        <span className="text-[11px] text-text-3">有会议就用最近一场的真实转录试跑，没有就用内置示例；需要先在设置里配好模型。</span>
       </div>
+
+      {(trial.running || trial.out) && (
+        <div className={`card mt-3 p-4 ${trial.err ? 'border-danger/40' : ''}`}>
+          <div className="section-title mb-2">试运行结果</div>
+          {trial.running ? (
+            <p className="text-sm text-text-3">调用模型中…</p>
+          ) : (
+            <pre className="text-[13px] leading-relaxed text-text-1 whitespace-pre-wrap break-words max-h-[40vh] overflow-y-auto">{trial.out}</pre>
+          )}
+        </div>
+      )}
     </div>
   )
 }

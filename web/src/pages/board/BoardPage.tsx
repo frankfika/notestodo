@@ -4,23 +4,36 @@ import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtDate, now, thisFriday, today as todayIso, uid } from '../../lib/id'
 import type { Board, Todo } from '../../types'
+import OriginChip from '../../components/OriginChip'
 
 const DONE_COL = '已完成'
 const DEFAULT_COLS = ['待办', '进行中', '待审']
 const DOTS = ['bg-text-3', 'bg-accent', 'bg-warning', 'bg-violet-500', 'bg-sky-500', 'bg-pink-500']
 const LEGACY_COL: Record<string, string> = { todo: '待办', doing: '进行中', review: '待审' }
 
-/** 没有 board 记录时自动建「默认看板」，返回其 id */
+/** 没有 board 记录时自动建「默认看板」。确定性 id 防 StrictMode/并发双建；顺带清理历史重复的空白默认看板 */
 async function ensureDefaultBoard(): Promise<void> {
-  const n = await db.boards.count()
-  if (n > 0) return
   const ts = now()
   try {
     await db.boards.add({
-      id: uid(), name: '默认看板', icon: '📋', columns: [...DEFAULT_COLS], sort_order: 0,
+      id: 'board-default', name: '默认看板', icon: '📋', columns: [...DEFAULT_COLS], sort_order: 0,
       created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
     })
-  } catch { /* 并发已建 */ }
+  } catch { /* 已存在 */ }
+  // 历史 bug 清账：同名活跃「默认看板」超过一个时，卡片归并到第一个，空的软删
+  const dups = (await db.boards.toArray()).filter((b) => b.deleted_at === null && b.name === '默认看板')
+  if (dups.length > 1) {
+    const [keep, ...rest] = dups.sort((a, b) => a.sort_order - b.sort_order)
+    for (const b of rest) {
+      const cards = await db.todos.where('board_id').equals(b.id).count()
+      if (cards === 0) {
+        await db.boards.update(b.id, { deleted_at: ts, updated_at: ts, sync_version: b.sync_version + 1 })
+      } else {
+        await db.todos.where('board_id').equals(b.id).modify({ board_id: keep.id })
+        await db.boards.update(b.id, { deleted_at: ts, updated_at: ts, sync_version: b.sync_version + 1 })
+      }
+    }
+  }
 }
 
 /** 每周自动出现的「写本周周报」循环卡。确定性 id 按周去重，天然幂等（StrictMode 双跑 / 并发都安全） */
@@ -57,8 +70,6 @@ export default function BoardPage(): JSX.Element {
 
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])
-  const meetings = useLiveQuery(() => db.meetings.toArray(), []) ?? []
-  const meetingIds = useMemo(() => new Set(meetings.map((m) => m.id)), [meetings])
 
   const t0 = todayIso()
   const cards = useMemo(() => {
@@ -239,7 +250,7 @@ export default function BoardPage(): JSX.Element {
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[11px]">
                         {kr && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[140px]">{kr.title}</span>}
                         {t.recurring && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">草稿已生成</span>}
-                        {t.source === 'meeting' && t.meeting_id && meetingIds.has(t.meeting_id) && <span className="px-1.5 py-0.5 rounded bg-bg-overlay text-text-3">● 会议</span>}
+                        <OriginChip t={t} />
                         {t.due_date && <span className={`ml-auto ${overdue ? 'text-danger' : 'text-text-3'}`}>{fmtDate(t.due_date)}</span>}
                       </div>
                     </article>

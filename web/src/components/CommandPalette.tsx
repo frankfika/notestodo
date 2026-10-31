@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../state/ui'
 import { useRecorder } from '../state/recorder'
+import { db } from '../db/db'
 import { mod } from '../lib/id'
 
 interface Item {
-  group: '动作' | '跳转' | '新建'
+  group: '动作' | '跳转' | '笔记' | '任务' | '会议'
   label: string
   hint?: string
   run: () => void | Promise<void>
@@ -20,6 +22,18 @@ export default function CommandPalette() {
   const [q, setQ] = useState('')
   const [cursor, setCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const needle = q.trim().toLowerCase()
+
+  // 内容搜索：只有输入了关键字才查库（⌘K 空态保持纯导航）
+  const hits = useLiveQuery(async () => {
+    if (!needle) return { notes: [], todos: [], meetings: [] }
+    const [notes, todos, meetings] = await Promise.all([
+      db.notes.filter((n) => n.deleted_at === null && (n.title || '').toLowerCase().includes(needle)).limit(6).toArray(),
+      db.todos.filter((t) => t.deleted_at === null && t.title.toLowerCase().includes(needle)).limit(6).toArray(),
+      db.meetings.filter((m) => m.deleted_at === null && m.title.toLowerCase().includes(needle)).limit(4).toArray(),
+    ])
+    return { notes, todos, meetings }
+  }, [needle])
 
   useEffect(() => {
     if (open) {
@@ -50,10 +64,17 @@ export default function CommandPalette() {
   }, [phase, start, stop])
 
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const contentItems: Item[] = []
+    if (hits) {
+      const go = useUI.getState()
+      for (const n of hits.notes) contentItems.push({ group: '笔记', label: n.title || '无标题', run: () => go.goNote(n.id) })
+      for (const t of hits.todos) contentItems.push({ group: '任务', label: t.title, run: () => go.goTodos(t.id) })
+      for (const m of hits.meetings) contentItems.push({ group: '会议', label: m.title, run: () => go.goMeeting(m.id) })
+    }
     if (!needle) return items
-    return items.filter((i) => i.label.toLowerCase().includes(needle) || i.group.includes(needle))
-  }, [items, q])
+    const nav = items.filter((i) => i.label.toLowerCase().includes(needle) || i.group.includes(needle))
+    return [...contentItems, ...nav]
+  }, [items, needle, hits])
 
   // 按 1-5 数字键跳转
   useEffect(() => {

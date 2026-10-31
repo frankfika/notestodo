@@ -80,9 +80,9 @@ export default function Onboarding(): JSX.Element | null {
           aria-label="最小化"
         >—</button>
         <button
-          onClick={() => void close(false)}
+          onClick={() => void close(true)}
           className="icon-btn"
-          title="关闭引导"
+          title="关闭引导（不再显示）"
           aria-label="关闭"
         >✕</button>
       </div>
@@ -108,7 +108,7 @@ export default function Onboarding(): JSX.Element | null {
           </p>
           <div className="flex items-center gap-2">
             <button onClick={() => setStep(1)} className="btn-primary text-xs h-8">选择 AI 引擎</button>
-            <button onClick={() => void close(false)} className="btn-ghost text-xs h-8">稍后</button>
+            <button onClick={() => setMinimized(true)} className="btn-ghost text-xs h-8" title="收起到右下角气泡，随时再看">稍后</button>
           </div>
         </div>
       )}

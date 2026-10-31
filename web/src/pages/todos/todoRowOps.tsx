@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { now } from '../../lib/id'
 import type { Todo } from '../../types'
+import TagPicker from '../../components/TagPicker'
 
 export async function renameTodo(t: Todo, title: string): Promise<void> {
   const v = title.trim()
@@ -49,6 +50,7 @@ export async function softDeleteTree(t: Todo, all: Todo[]): Promise<void> {
       x.sync_version += 1
     }
   })
+  await db.tagBindings.where('[target_type+target_id]').anyOf(ids.map((id): [string, string] => ['todo', id])).delete()
 }
 
 const itemCls = 'px-2 py-1.5 rounded-[6px] text-[13px] text-left text-text-1 hover:bg-bg-overlay transition-colors'
@@ -110,7 +112,11 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
           className="card shadow-lg absolute right-0 top-7 z-50 w-48 p-1 flex flex-col gap-0.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <label className="px-2 pt-1 text-[11px] text-text-3">截止日期</label>
+          <label className="px-2 pt-1 text-[11px] text-text-3">标签</label>
+          <div className="px-2 pb-1">
+            <TagPicker targetType="todo" targetId={t.id} />
+          </div>
+          <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line">截止日期</label>
           <input
             type="date"
             value={t.due_date ?? ''}
