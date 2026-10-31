@@ -39,10 +39,11 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
   }
 
   const header = (label: string, key: SortKey, className = ''): JSX.Element => (
-    <th className={`text-left text-[11px] font-semibold uppercase text-text-3 tracking-[0.06em] px-5 py-2.5 ${className}`}>
-      <button onClick={() => toggleSort(key)} className="hover:text-text-1 transition-colors">
-        {label} {sortKey === key ? (asc ? '↑' : '↓') : ''}
-      </button>
+    <th
+      onClick={() => toggleSort(key)}
+      className={`text-left text-[11px] font-semibold uppercase text-text-3 tracking-[0.06em] px-5 py-2.5 cursor-pointer select-none hover:text-text-1 transition-colors ${className}`}
+    >
+      {label} {sortKey === key ? (asc ? '↑' : '↓') : ''}
     </th>
   )
 
