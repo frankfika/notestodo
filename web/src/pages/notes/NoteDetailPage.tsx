@@ -9,6 +9,7 @@ import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
 import NoteEditor from '../../components/editor/NoteEditor'
 import { NoteAiPanel } from '../../components/editor/NoteAiPanel'
+import TagPicker from '../../components/TagPicker'
 
 /**
  * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
@@ -262,6 +263,11 @@ export default function NoteDetailPage(): JSX.Element {
             placeholder="无标题"
             className="flex-1 min-w-0 bg-transparent text-[38px] leading-[1.2] font-bold text-text-1 outline-none placeholder:text-text-3/70"
           />
+        </div>
+
+        {/* 标签：键入即建，回车绑定；列表页可按 tag 筛 */}
+        <div className="mb-3 -ml-1">
+          <TagPicker targetType="note" targetId={note.id} />
         </div>
 
         {/* 块编辑器（所见即所得，替代原 textarea + 预览分栏） */}

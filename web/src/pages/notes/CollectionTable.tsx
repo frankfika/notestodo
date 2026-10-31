@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
+import { db } from '../../db/db'
 import { fmtDateTime } from '../../lib/id'
-import type { Note } from '../../types'
+import type { Note, Notebook } from '../../types'
 
 type SortKey = 'title' | 'updated_at' | 'pinned'
 
@@ -20,6 +22,12 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
   const [sortKey, setSortKey] = useState<SortKey>('updated_at')
   const [asc, setAsc] = useState(false)
   const [peek, setPeek] = useState<Note | null>(null)
+  const notebooks = useLiveQuery(
+    () => db.notebooks.filter((nb: Notebook) => nb.deleted_at === null).toArray(),
+    [],
+  ) ?? []
+  const nbName = (id?: string | null): string =>
+    (id && notebooks.find((nb: Notebook) => nb.id === id)?.name) || '—'
 
   const rows = useMemo(() => {
     const sorted = [...notes].sort((a, b) => {
@@ -53,6 +61,7 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
         <thead>
           <tr className="border-b border-line">
             {header('标题', 'title')}
+            <th className="text-left text-[11px] font-semibold uppercase text-text-3 tracking-[0.06em] px-5 py-2.5 w-28">笔记本</th>
             {header('更新时间', 'updated_at', 'w-40')}
             {header('置顶', 'pinned', 'w-20')}
           </tr>
@@ -69,6 +78,7 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
               <td className="px-5 py-3 text-sm font-medium text-text-1 truncate max-w-0 w-full">
                 {n.pinned ? '▣ ' : ''}{n.title || '未命名笔记'}
               </td>
+              <td className="px-5 py-3 text-[11px] text-text-3 whitespace-nowrap">{nbName(n.notebook_id)}</td>
               <td className="px-5 py-3 text-[11px] text-text-3 whitespace-nowrap">{fmtDateTime(n.updated_at)}</td>
               <td className="px-5 py-3 text-[11px] text-text-3">{n.pinned ? '已置顶' : '—'}</td>
             </tr>
