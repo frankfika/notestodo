@@ -99,6 +99,10 @@ export interface Note extends EntityMeta {
   meeting_id?: ID
   todo_ids: ID[]
   pinned: boolean
+  /** 页面树：父页面 id；null/缺省 = 根页面。会议纪要（meeting_id 非空）不进树 */
+  parent_id?: ID | null
+  /** 页面树同级排序，缺省按 updated_at */
+  sort_order?: number
 }
 
 export interface Summary extends EntityMeta {
