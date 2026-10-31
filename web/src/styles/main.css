@@ -208,25 +208,24 @@ body {
 .note-editor .ProseMirror {
   outline: none;
   min-height: 40vh;
-  font-size: 15px;
-  line-height: 1.75;
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--text-1);
   caret-color: var(--accent);
 }
 
 .note-editor .ProseMirror > * + * {
-  margin-top: 0.3em;
+  margin-top: 0.25em;
 }
 
-.note-editor .ProseMirror h1 { font-size: 1.6em; font-weight: 600; line-height: 1.35; margin-top: 0.6em; }
-.note-editor .ProseMirror h2 { font-size: 1.25em; font-weight: 600; line-height: 1.4; margin-top: 0.8em; }
-.note-editor .ProseMirror h3 { font-size: 1.08em; font-weight: 600; line-height: 1.45; margin-top: 0.7em; }
+.note-editor .ProseMirror h1 { font-size: 1.875em; font-weight: 700; line-height: 1.25; margin-top: 1.2em; }
+.note-editor .ProseMirror h2 { font-size: 1.5em; font-weight: 600; line-height: 1.3; margin-top: 1.1em; }
+.note-editor .ProseMirror h3 { font-size: 1.25em; font-weight: 600; line-height: 1.35; margin-top: 1em; }
 
 .note-editor .ProseMirror blockquote {
-  border-left: 2px solid color-mix(in oklch, var(--accent) 45%, transparent);
-  padding-left: 0.8em;
-  color: var(--text-2);
-  font-style: italic;
+  border-left: 3px solid currentColor;
+  padding-left: 0.9em;
+  color: var(--text-1);
 }
 
 .note-editor .ProseMirror pre {
@@ -322,10 +321,10 @@ body {
 .note-editor .drop-before { box-shadow: inset 0 2px 0 var(--accent); border-radius: 4px; }
 .note-editor .drop-after { box-shadow: inset 0 -2px 0 var(--accent); border-radius: 4px; }
 
-/* 块手柄：悬停编辑器时出现，点击选中块、拖动移动块 */
+/* 块手柄：悬停编辑器时出现于正文左侧沟槽（Notion 位）；点击开菜单、拖动移动块 */
 .block-handle {
   position: absolute;
-  left: 0.4rem;
+  left: -1.9rem;
   padding: 0 0.15rem;
   font-size: 11px;
   letter-spacing: -2px;
@@ -375,7 +374,7 @@ body {
 /* 块手柄菜单（转换为 / 颜色 / 评论桩 / 移动到 / 删除） */
 .block-menu {
   position: absolute;
-  left: 1.6rem;
+  left: -0.6rem;
   z-index: 50;
   width: 200px;
   max-height: 320px;

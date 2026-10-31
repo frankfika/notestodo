@@ -157,46 +157,47 @@ export default function NoteDetailPage(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[1080px] mx-auto px-6 py-6">
-        {/* 顶部工具栏 */}
-        <div className="flex items-center gap-2 mb-4">
-          <button onClick={goNotes} className="icon-btn -ml-2" aria-label="返回">←</button>
-          <input
-            ref={titleRef}
-            value={draftTitle}
-            onChange={(e) => setDraftTitle(e.target.value)}
-            placeholder="无标题"
-            className="flex-1 bg-transparent text-2xl font-semibold text-text-1 outline-none placeholder:text-text-3"
-          />
-          <span className="text-[11px] text-text-3">
+      <div className="max-w-[740px] mx-auto px-10 md:px-16 pt-4 pb-24">
+        {/* 顶部工具栏：Notion 式轻量行 */}
+        <div className="flex items-center gap-1 mb-6 -ml-2 text-text-3">
+          <button onClick={goNotes} className="icon-btn" aria-label="返回">←</button>
+          <span className="flex-1" />
+          <span className="text-[12px] mr-1">
             {dirty ? '编辑中…' : `已存 ${lastSaved}`}
           </span>
           <button
             onClick={() => void togglePin()}
-            className={`btn-outline text-xs h-8 ${note.pinned ? 'text-accent border-accent/40' : ''}`}
+            className={`btn-ghost text-xs h-7 ${note.pinned ? 'text-accent' : ''}`}
             title="置顶"
           >{note.pinned ? '已置顶' : '置顶'}</button>
-          <button onClick={() => void insertTodo()} className="btn-primary text-xs h-8" title="基于编辑器中选中的文字新建一条 Task">
+          <button onClick={() => void insertTodo()} className="btn-ghost text-xs h-7" title="基于编辑器中选中的文字新建一条 Task">
             + 插入待办
           </button>
           <OverflowMenu items={[{ label: '删除笔记', danger: true, onClick: () => void deleteNote() }]} />
         </div>
 
+        {/* 页面标题：Notion 式大字 */}
+        <input
+          ref={titleRef}
+          value={draftTitle}
+          onChange={(e) => setDraftTitle(e.target.value)}
+          placeholder="无标题"
+          className="w-full bg-transparent text-[38px] leading-[1.2] font-bold text-text-1 outline-none placeholder:text-text-3/70 mb-2"
+        />
+
         {/* 块编辑器（所见即所得，替代原 textarea + 预览分栏） */}
-        <div className="card px-12 md:px-14 py-5">
-          <NoteEditor
-            key={note.id}
-            initialMarkdown={note.body_md}
-            onChange={setDraftBody}
-            onReady={(ed) => { editorRef.current = ed }}
-            onWikiOpen={openWiki}
-            currentNoteId={note.id}
-            onMoveBlockToNote={(md, targetId) => void moveBlockToNote(md, targetId)}
-          />
-        </div>
+        <NoteEditor
+          key={note.id}
+          initialMarkdown={note.body_md}
+          onChange={setDraftBody}
+          onReady={(ed) => { editorRef.current = ed }}
+          onWikiOpen={openWiki}
+          currentNoteId={note.id}
+          onMoveBlockToNote={(md, targetId) => void moveBlockToNote(md, targetId)}
+        />
 
         {/* 关联：任务 / 来源会议 / 反向链接 */}
-        <div className="mt-6">
+        <div className="mt-10 border-t border-line pt-6">
           <div className="flex items-center gap-2 mb-2">
             <div className="section-title">关联</div>
             {originMeeting && (
