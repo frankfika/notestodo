@@ -32,7 +32,7 @@ export default function OriginChip({ t }: { t: Todo }): JSX.Element | null {
           key={c.key}
           onClick={(e) => { e.stopPropagation(); c.go() }}
           title={`打开来源：${c.label.slice(2)}`}
-          className="px-1.5 py-0.5 rounded bg-bg-overlay text-text-3 text-[11px] truncate max-w-[140px] hover:text-accent transition-colors shrink-0"
+          className="px-1.5 py-0.5 rounded border border-line bg-bg-overlay text-text-2 text-[11px] truncate max-w-[140px] hover:text-accent hover:border-accent transition-colors shrink-0"
         >{c.label}</button>
       ))}
     </>

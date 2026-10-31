@@ -6,6 +6,7 @@ import { useUI } from '../../state/ui'
 import type { Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import { EditableTitle, TodoMenu } from './todoRowOps'
+import { doneLast, filterForTree, type TodoFilter } from './filter'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -63,14 +64,14 @@ function buildTree(all: Todo[]): Node[] {
     todo: t,
     children: (byParent.get(t.id) ?? [])
       .filter((c) => c.parent_id === t.id) // 防御：父指向不存在/环时只挂一遍
-      .sort((a, b) => a.sort_order - b.sort_order)
+      .sort((a, b) => doneLast(a, b) || a.sort_order - b.sort_order)
       .map(make),
   })
   const roots = (byParent.get(null) ?? []).filter((t) => !t.parent_id || !byId.has(t.parent_id) || !live(byId.get(t.parent_id)!))
   // 孤儿（父被删）也提到根层，避免从树里消失
   const orphans = all.filter(live).filter((t) => t.parent_id && (!byId.has(t.parent_id) || !live(byId.get(t.parent_id)!)))
   return [...roots.filter((t) => !t.parent_id), ...orphans]
-    .sort((a, b) => a.sort_order - b.sort_order)
+    .sort((a, b) => doneLast(a, b) || a.sort_order - b.sort_order)
     .map(make)
 }
 
@@ -158,10 +159,10 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
   )
 }
 
-export default function TodosTree(): JSX.Element {
+export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; tagByTodo: Map<string, string[]> }): JSX.Element {
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])
-  const tree = useMemo(() => buildTree(all), [all])
+  const tree = useMemo(() => buildTree(filterForTree(all, filter, tagByTodo)), [all, filter, tagByTodo])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragId, setDragId] = useState<string | null>(null)
   const focusId = useUI((s) => s.todoFocusId)
@@ -195,7 +196,11 @@ export default function TodosTree(): JSX.Element {
         <Row key={n.todo.id} node={n} depth={0} collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} />
       ))}
-      {tree.length === 0 && <div className="text-sm text-text-3 py-8 text-center">还没有任务</div>}
+      {tree.length === 0 && (
+        <div className="text-sm text-text-3 py-8 text-center">
+          {all.some(live) ? '没有符合条件的任务' : '还没有任务'}
+        </div>
+      )}
       <button onClick={() => void addRoot()} className="btn-ghost self-start mt-2">＋ 新建任务</button>
     </div>
   )

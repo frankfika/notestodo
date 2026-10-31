@@ -23,5 +23,5 @@ export async function deleteMeetingCascade(m: Meeting): Promise<void> {
   if (todoIds.length > 0) {
     await db.tagBindings.where('[target_type+target_id]').anyOf(todoIds.map((id): [string, string] => ['todo', String(id)])).delete()
   }
-  if (m.note_id) await db.notes.delete(m.note_id)
+  if (m.note_id) await db.notes.update(m.note_id, { deleted_at: now(), updated_at: now() })
 }

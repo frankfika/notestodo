@@ -23,7 +23,10 @@ export default function NoteDetailPage(): JSX.Element {
   const goMeeting = useUI((s) => s.goMeeting)
   const goTodos = useUI((s) => s.goTodos)
   const note = useLiveQuery(
-    async () => noteId ? await db.notes.get(noteId) : undefined,
+    async () => {
+      const n = noteId ? await db.notes.get(noteId) : undefined
+      return n && n.deleted_at === null ? n : undefined
+    },
     [noteId ?? ''],
   )
   const originMeeting = useLiveQuery(
@@ -38,7 +41,7 @@ export default function NoteDetailPage(): JSX.Element {
   const allNotes = useLiveQuery(() => db.notes.toArray(), []) ?? []
   const openWiki = useCallback((title: string): void => {
     const hit = [...allNotes]
-      .filter((n) => n.title.trim() === title.trim())
+      .filter((n) => n.deleted_at === null && n.title.trim() === title.trim())
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
     if (hit) goNote(hit.id)
   }, [allNotes, goNote])
@@ -91,10 +94,16 @@ export default function NoteDetailPage(): JSX.Element {
 
   const dirty = !!note && (draftBody !== note.body_md || draftTitle !== note.title)
 
-  // debounce 存盘
+  // debounce 存盘；pendingRef 记录未落盘的草稿，切换/卸载时 flush（不丢末尾输入）
+  const pendingRef = useRef<{ id: string; title: string; body: string } | null>(null)
   useEffect(() => {
-    if (!note || !dirty) return
+    if (!note || !dirty) {
+      pendingRef.current = null
+      return
+    }
+    pendingRef.current = { id: note.id, title: draftTitle, body: draftBody }
     const t = setTimeout(() => {
+      pendingRef.current = null
       void db.notes.update(note.id, {
         title: draftTitle,
         body_md: draftBody,
@@ -104,11 +113,30 @@ export default function NoteDetailPage(): JSX.Element {
     return () => clearTimeout(t)
   }, [draftBody, draftTitle, note?.id])
 
+  // 切换笔记 / 离开页面时把 pending 的草稿立即落盘
+  useEffect(() => () => {
+    const p = pendingRef.current
+    if (p) {
+      pendingRef.current = null
+      void db.notes.update(p.id, { title: p.title, body_md: p.body, updated_at: now() })
+    }
+  }, [note?.id])
+
   const linkedTodos = useLiveQuery(
     async () => noteId
       ? (await db.todos.where('origin_note_id').equals(noteId).toArray())
           // 软删除的 todo 不应继续挂在笔记「关联任务」里
           .filter((t) => t.deleted_at === null)
+      : [],
+    [noteId ?? ''],
+  ) ?? []
+
+  // 可挂到本笔记的已有任务：全部 open 任务（已挂在别篇的标注出来，选了改挂）
+  const linkableTodos = useLiveQuery(
+    async () => noteId
+      ? (await db.todos.toArray()).filter(
+          (t) => t.deleted_at === null && t.status === 'open' && t.origin_note_id !== noteId,
+        )
       : [],
     [noteId ?? ''],
   ) ?? []
@@ -128,6 +156,29 @@ export default function NoteDetailPage(): JSX.Element {
       id: crypto.randomUUID(), note_id: note.id, quote, text, resolved: false,
       created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
     })
+  }
+
+  /** 扫描正文 `- [ ]` 行批量建任务；按标题去重保证幂等 */
+  async function importChecklistTodos(): Promise<void> {
+    if (!note) return
+    const re = /^\s*[-*]\s*\[ \]\s+(.+)$/gm
+    const existing = new Set(linkedTodos.map((t) => t.title.trim()))
+    const titles: string[] = []
+    let m: RegExpExecArray | null
+    while ((m = re.exec(draftBody)) !== null) {
+      const title = m[1].trim()
+      if (title && !existing.has(title) && !titles.includes(title)) titles.push(title)
+    }
+    if (titles.length === 0) return
+    const ts = now()
+    for (const title of titles) {
+      await db.todos.add({
+        id: crypto.randomUUID(), kind: 'task', scope: null, parent_id: null, title,
+        status: 'open', source: 'note', origin_note_id: note.id,
+        sort_order: Date.now(), created_at: ts, updated_at: ts,
+        deleted_at: null, sync_version: 0,
+      })
+    }
   }
 
   async function insertTodo(): Promise<void> {
@@ -157,17 +208,15 @@ export default function NoteDetailPage(): JSX.Element {
       sync_version: 0,
     }
     await db.todos.add(todo)
-    // 同步冗余索引到 Note.todo_ids
-    await db.notes.update(note.id, {
-      todo_ids: [...(note.todo_ids ?? []), todo.id],
-      updated_at: now(),
-    })
   }
 
+  /** 软删：子页提升到被删页的父级；关联任务/评论保留，笔记可从备份恢复 */
   async function deleteNote(): Promise<void> {
     if (!note) return
-    if (!window.confirm('删除这条笔记？关联的 Todo 不会被删除，但会失去来源引用。')) return
-    await db.notes.delete(note.id)
+    if (!window.confirm('删除这条笔记？子页面会上移一层，关联任务保留。')) return
+    const ts = now()
+    await db.notes.where('parent_id').equals(note.id).modify({ parent_id: note.parent_id ?? null, updated_at: ts })
+    await db.notes.update(note.id, { deleted_at: ts, updated_at: ts })
     goNotes()
   }
 
@@ -283,87 +332,122 @@ export default function NoteDetailPage(): JSX.Element {
           onAddComment={(quote, text) => void addComment(quote, text)}
         />
 
-        {/* 关联：任务 / 来源会议 / 反向链接 */}
-        <div className="mt-10 border-t border-line pt-6">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="section-title">关联</div>
-            {originMeeting && (
+        {/* 关联：任务 / 来源会议 / 反向链接 —— 空区块默认折叠成一行，有内容自动展开 */}
+        <div className="mt-10 border-t border-line pt-3 space-y-1">
+          {originMeeting && (
+            <div className="flex items-center gap-2 px-1 py-1">
+              <span className="section-title">来源</span>
               <button onClick={() => goMeeting(originMeeting.id)} className="chip hover:text-accent" title="打开来源会议">
                 会议 · {originMeeting.title}
               </button>
-            )}
-          </div>
-          <div className="section-title mb-2 mt-3">从这条笔记创建的任务 ({linkedTodos.length})</div>
-          {linkedTodos.length === 0 ? (
-            <div className="text-xs text-text-3 px-3 py-2">还没有。选中正文片段后点「+ 插入待办」可创建一条 Task。</div>
-          ) : (
-            <ul className="card divide-y divide-line">
-              {linkedTodos.map((t) => (
-                <li key={t.id} className="px-4 py-2.5 text-sm flex items-center gap-2 group">
-                  <input
-                    type="checkbox"
-                    checked={t.status === 'done'}
-                    onChange={() => void db.todos.update(t.id, {
-                      status: t.status === 'done' ? 'open' : 'done',
-                      updated_at: now(), sync_version: t.sync_version + 1,
+            </div>
+          )}
+          <CollapsibleSection
+            title="从这条笔记创建的任务"
+            count={linkedTodos.length}
+            actions={
+              <>
+                <button
+                  onClick={() => void importChecklistTodos()}
+                  className="btn-ghost text-[11px] h-6 px-2"
+                  title="把正文里所有 - [ ] 待办行导入为任务（已导入过的按标题跳过）"
+                >导入正文待办</button>
+                {linkableTodos.length > 0 && (
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const id = e.target.value
+                      if (id && note) void db.todos.update(id, { origin_note_id: note.id, updated_at: now() })
+                    }}
+                    className="chip cursor-pointer bg-transparent outline-none text-[11px] max-w-[150px]"
+                    title="把一条已有任务关联到本笔记"
+                  >
+                    <option value="">关联已有任务…</option>
+                    {linkableTodos.map((t) => {
+                      const other = t.origin_note_id ? allNotes.find((n) => n.id === t.origin_note_id) : null
+                      return (
+                        <option key={t.id} value={t.id}>
+                          {t.title}{other ? `（现挂《${other.title || '无标题'}》）` : ''}
+                        </option>
+                      )
                     })}
-                    className="shrink-0 accent-[var(--accent)]"
-                  />
-                  <button
-                    onClick={() => goTodos(t.id)}
-                    title="在任务树中定位"
-                    className={`flex-1 text-left truncate hover:text-accent transition-colors ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}
-                  >{t.title}</button>
-                  <span className="chip">{t.status === 'done' ? '已完成' : t.status === 'pending_review' ? '待确认' : '进行中'}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* 评论：块手柄 ⋮⋮ → 评论 加的条目在这里集中看 */}
-        <div className="mt-8">
-          <div className="section-title mb-2">评论 ({comments.filter((c) => !c.resolved).length})</div>
-          {comments.length === 0 ? (
-            <div className="text-xs text-text-3 px-1 py-2">还没有评论。hover 任意块点 ⋮⋮ → 评论 即可添加。</div>
-          ) : (
-            <ul className="divide-y divide-line">
-              {comments.map((c) => (
-                <li key={c.id} className={`py-2.5 ${c.resolved ? 'opacity-50' : ''}`}>
-                  <div className="text-[11px] text-text-3 truncate border-l-2 border-line pl-2 mb-1">「{c.quote}」</div>
-                  <div className="flex items-start gap-2">
-                    <span className="flex-1 text-sm text-text-1 whitespace-pre-wrap">{c.text}</span>
+                  </select>
+                )}
+              </>
+            }
+          >
+            {linkedTodos.length === 0 ? (
+              <div className="text-xs text-text-3 px-1 py-1">选中正文片段 →「+ 插入待办」，或点「导入正文待办」。</div>
+            ) : (
+              <ul className="card divide-y divide-line">
+                {linkedTodos.map((t) => (
+                  <li key={t.id} className="px-4 py-2.5 text-sm flex items-center gap-2 group">
+                    <input
+                      type="checkbox"
+                      checked={t.status === 'done'}
+                      onChange={() => void db.todos.update(t.id, {
+                        status: t.status === 'done' ? 'open' : 'done',
+                        updated_at: now(), sync_version: t.sync_version + 1,
+                      })}
+                      className="shrink-0 accent-[var(--accent)]"
+                    />
                     <button
-                      className="btn-ghost text-[11px] h-6 px-2"
-                      onClick={() => void db.comments.update(c.id, { resolved: !c.resolved, updated_at: now() })}
-                    >{c.resolved ? '重开' : '解决'}</button>
+                      onClick={() => goTodos(t.id)}
+                      title="在任务树中定位"
+                      className={`flex-1 text-left truncate hover:text-accent transition-colors ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}
+                    >{t.title}</button>
+                    <span className="chip">{t.status === 'done' ? '已完成' : t.status === 'pending_review' ? '待确认' : '进行中'}</span>
                     <button
-                      className="btn-ghost text-[11px] h-6 px-2 text-danger"
-                      onClick={() => void db.comments.update(c.id, { deleted_at: now(), updated_at: now() })}
-                    >删除</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                      className="btn-ghost text-[11px] h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="解除与本笔记的关联（任务保留）"
+                      onClick={() => void db.todos.where('id').equals(t.id).modify((x) => { delete x.origin_note_id; x.updated_at = now() })}
+                    >解除</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CollapsibleSection>
 
-        {/* 反向链接：哪些笔记 [[链]] 到这篇（Obsidian backlinks） */}
-        <div className="mt-6">
-          <div className="section-title mb-2">反向链接 ({backlinks.length})</div>
-          {backlinks.length === 0 ? (
-            <div className="text-xs text-text-3 px-3 py-2">还没有笔记链接到这篇。在其它笔记里写 [[{note.title || '标题'}]] 即可挂上。</div>
-          ) : (
-            <ul className="card divide-y divide-line">
-              {backlinks.map((n) => (
-                <li key={n.id}>
-                  <button onClick={() => goNote(n.id)} className="w-full text-left px-4 py-2.5 text-sm text-text-1 hover:bg-bg-overlay">
-                    {n.title || '无标题'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <CollapsibleSection title="评论" count={comments.filter((c) => !c.resolved).length}>
+            {comments.length === 0 ? (
+              <div className="text-xs text-text-3 px-1 py-1">hover 任意块 → ⋮⋮ → 评论。</div>
+            ) : (
+              <ul className="divide-y divide-line">
+                {comments.map((c) => (
+                  <li key={c.id} className={`py-2.5 ${c.resolved ? 'opacity-50' : ''}`}>
+                    <div className="text-[11px] text-text-3 truncate border-l-2 border-line pl-2 mb-1">「{c.quote}」</div>
+                    <div className="flex items-start gap-2">
+                      <span className="flex-1 text-sm text-text-1 whitespace-pre-wrap">{c.text}</span>
+                      <button
+                        className="btn-ghost text-[11px] h-6 px-2"
+                        onClick={() => void db.comments.update(c.id, { resolved: !c.resolved, updated_at: now() })}
+                      >{c.resolved ? '重开' : '解决'}</button>
+                      <button
+                        className="btn-ghost text-[11px] h-6 px-2 text-danger"
+                        onClick={() => void db.comments.update(c.id, { deleted_at: now(), updated_at: now() })}
+                      >删除</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection title="反向链接" count={backlinks.length}>
+            {backlinks.length === 0 ? (
+              <div className="text-xs text-text-3 px-1 py-1">在其它笔记里写 [[{note.title || '标题'}]] 即可挂上。</div>
+            ) : (
+              <ul className="card divide-y divide-line">
+                {backlinks.map((n) => (
+                  <li key={n.id}>
+                    <button onClick={() => goNote(n.id)} className="w-full text-left px-4 py-2.5 text-sm text-text-1 hover:bg-bg-overlay">
+                      {n.title || '无标题'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CollapsibleSection>
         </div>
       </div>
 
@@ -377,6 +461,33 @@ export default function NoteDetailPage(): JSX.Element {
           />
         </aside>
       )}
+    </div>
+  )
+}
+
+/** 折叠区块：空（count=0）默认收成一行；有内容自动展开；点击标题手动切换。 */
+function CollapsibleSection({ title, count, actions, children }: {
+  title: string
+  count: number
+  actions?: React.ReactNode
+  children: React.ReactNode
+}): JSX.Element {
+  const [manual, setManual] = useState<boolean | null>(null)
+  const open = manual ?? count > 0
+  return (
+    <div>
+      <div className="flex items-center gap-1 -mx-1 px-1 rounded-[8px] hover:bg-bg-overlay transition-colors">
+        <button
+          onClick={() => setManual(!open)}
+          className="flex items-center gap-1.5 flex-1 min-w-0 py-1.5 text-left"
+          aria-expanded={open}
+        >
+          <span className={`text-text-3 text-[10px] transition-transform duration-150 ${open ? 'rotate-90' : ''}`}>▶</span>
+          <span className="section-title !mb-0">{title} ({count})</span>
+        </button>
+        {actions}
+      </div>
+      {open && <div className="mt-1 mb-3">{children}</div>}
     </div>
   )
 }

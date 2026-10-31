@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../state/ui'
 import { useRecorder } from '../state/recorder'
 import { db } from '../db/db'
-import { mod } from '../lib/id'
+import { mod, now, uid } from '../lib/id'
+import { createPage } from '../lib/notes'
 
 interface Item {
   group: '动作' | '跳转' | '笔记' | '任务' | '会议'
@@ -52,6 +53,17 @@ export default function CommandPalette() {
         : { group: '动作', label: '开始录音', hint: recHint, run: () => start() }
     return [
       recAction,
+      { group: '动作', label: '新建笔记', run: async () => go.goNote(await createPage(null, null)) },
+      { group: '动作', label: needle ? `新建任务「${q.trim()}」` : '新建任务', run: async () => {
+        const ts = now()
+        const id = uid()
+        await db.todos.add({
+          id, kind: 'task', parent_id: null, scope: null, title: q.trim() || '无标题任务',
+          status: 'open', source: 'manual', sort_order: Date.now(),
+          created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+        })
+        go.goTodos(id)
+      } },
       { group: '动作', label: '导出全部数据', run: () => void go.goSettings() },
       { group: '跳转', label: '会议', hint: '1', run: () => go.goMeetings() },
       { group: '跳转', label: '笔记', hint: '2', run: () => go.goNotes() },
@@ -61,7 +73,7 @@ export default function CommandPalette() {
       { group: '跳转', label: '模板', hint: '4', run: () => go.goTemplates() },
       { group: '跳转', label: '设置', run: () => go.goSettings() },
     ]
-  }, [phase, start, stop])
+  }, [phase, start, stop, needle])
 
   const filtered = useMemo(() => {
     const contentItems: Item[] = []

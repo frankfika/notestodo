@@ -6,6 +6,7 @@ import Sidebar, { BottomTabBar } from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
 import Onboarding from './components/Onboarding'
+import AiPanel from './components/AiPanel'
 import PermissionGuide from './components/PermissionGuide'
 import ErrorBoundary from './components/ErrorBoundary'
 import MeetingsPage from './pages/meetings/MeetingsPage'
@@ -21,6 +22,7 @@ import SettingsPage from './pages/settings/SettingsPage'
 export default function App() {
   const view = useUI((s) => s.view)
   const setCmdkOpen = useUI((s) => s.setCmdkOpen)
+  const setAiOpen = useUI((s) => s.setAiOpen)
   const start = useRecorder((s) => s.start)
   const stop = useRecorder((s) => s.stop)
   const phase = useRecorder((s) => s.phase)
@@ -48,6 +50,11 @@ export default function App() {
         setCmdkOpen(true)
         return
       }
+      if (mod && e.key.toLowerCase() === 'j') {
+        e.preventDefault()
+        setAiOpen(!useUI.getState().aiOpen)
+        return
+      }
       if (mod && e.shiftKey && e.key.toLowerCase() === 'r') {
         e.preventDefault()
         if (phase === 'recording') void stop()
@@ -57,7 +64,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setCmdkOpen, phase, start, stop])
+  }, [setCmdkOpen, setAiOpen, phase, start, stop])
 
   return (
     <ErrorBoundary>
@@ -79,6 +86,7 @@ export default function App() {
         </main>
         <BottomTabBar />
         <CommandPalette />
+        <AiPanel />
         <Onboarding />
         <PermissionGuide />
       </div>

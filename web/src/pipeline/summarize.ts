@@ -137,8 +137,9 @@ export const runSummarizePipeline = oncePerMeeting(async (meetingId: string): Pr
   const aiTitle = parsed.title.trim()
   const title = aiTitle && DEFAULT_TITLE_RE.test(meeting.title) ? aiTitle : meeting.title
   const noteBody = summaryMd
-  if (meeting.note_id && (await db.notes.get(meeting.note_id))) {
-    await db.notes.update(meeting.note_id, { title, body_md: noteBody, updated_at: now() })
+  const existingNote = meeting.note_id ? await db.notes.get(meeting.note_id) : undefined
+  if (existingNote && existingNote.deleted_at === null) {
+    await db.notes.update(meeting.note_id!, { title, body_md: noteBody, updated_at: now() })
   } else {
     const noteId = crypto.randomUUID()
     await db.notes.put({

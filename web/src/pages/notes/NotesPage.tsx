@@ -14,7 +14,7 @@ import CollectionTable from './CollectionTable'
  */
 export default function NotesPage(): JSX.Element {
   const notesRaw = useLiveQuery(
-    () => db.notes.orderBy('updated_at').reverse().toArray(),
+    async () => (await db.notes.orderBy('updated_at').reverse().toArray()).filter((n) => n.deleted_at === null),
     [],
   ) ?? []
   const notebooks = useLiveQuery(

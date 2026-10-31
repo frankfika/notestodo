@@ -33,6 +33,9 @@ interface UIStore extends RouteState {
   cmdkOpen: boolean
   setCmdkOpen: (open: boolean) => void
 
+  aiOpen: boolean
+  setAiOpen: (open: boolean) => void
+
   permGuideOpen: boolean
   setPermGuideOpen: (open: boolean) => void
 
@@ -44,7 +47,7 @@ interface UIStore extends RouteState {
 }
 
 export const useUI = create<UIStore>((set) => ({
-  view: 'todos',
+  view: 'notes',
   meetingId: null,
   noteId: null,
   todoFocusId: null,
@@ -62,6 +65,9 @@ export const useUI = create<UIStore>((set) => ({
 
   cmdkOpen: false,
   setCmdkOpen: (open) => set({ cmdkOpen: open }),
+
+  aiOpen: false,
+  setAiOpen: (open) => set({ aiOpen: open }),
 
   permGuideOpen: false,
   setPermGuideOpen: (open) => set({ permGuideOpen: open }),

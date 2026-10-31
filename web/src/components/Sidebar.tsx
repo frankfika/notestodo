@@ -393,7 +393,15 @@ export default function Sidebar() {
 
       <PageTree />
 
-      <div className="mt-auto p-2">
+      <div className="mt-auto p-2 space-y-0.5">
+        <button
+          onClick={() => useUI.getState().setAiOpen(true)}
+          className="w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors text-text-3 hover:bg-bg-overlay hover:text-text-1"
+        >
+          <span className="text-xs w-4 text-center text-accent">✦</span>
+          AI 助手
+          <span className="ml-auto text-[10px] text-text-3">⌘J</span>
+        </button>
         <button
           onClick={goSettings}
           className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors ${

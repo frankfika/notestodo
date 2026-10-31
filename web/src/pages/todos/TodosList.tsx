@@ -5,6 +5,7 @@ import { now, thisFriday, today as todayIso } from '../../lib/id'
 import type { Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import { EditableTitle, TodoMenu } from './todoRowOps'
+import { doneLast, passFilter, type TodoFilter } from './filter'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -71,23 +72,24 @@ function Row({ t, byId, all }: { t: Todo; byId: Map<string, Todo>; all: Todo[] }
   )
 }
 
-export default function TodosList(): JSX.Element {
+export default function TodosList({ filter, tagByTodo }: { filter: TodoFilter; tagByTodo: Map<string, string[]> }): JSX.Element {
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])
   const today = todayIso()
   const weekEnd = thisFriday().slice(0, 10)
 
+  const visible = useMemo(() => all.filter(live).filter((t) => passFilter(t, filter, tagByTodo)), [all, filter, tagByTodo])
   const grouped = useMemo(() => {
     const map = new Map<GroupKey, Todo[]>()
-    for (const t of all.filter(live)) {
+    for (const t of visible) {
       const g = groupOf(t, today, weekEnd)
       map.set(g, [...(map.get(g) ?? []), t])
     }
     for (const list of map.values()) {
-      list.sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.sort_order - b.sort_order)
+      list.sort((a, b) => doneLast(a, b) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.sort_order - b.sort_order)
     }
     return map
-  }, [all, today, weekEnd])
+  }, [visible, today, weekEnd])
 
   return (
     <div className="flex flex-col gap-4">
@@ -105,7 +107,11 @@ export default function TodosList(): JSX.Element {
           </section>
         )
       })}
-      {all.filter(live).length === 0 && <div className="text-sm text-text-3 py-8 text-center">还没有任务</div>}
+      {visible.length === 0 && (
+        <div className="text-sm text-text-3 py-8 text-center">
+          {all.some(live) ? '没有符合条件的任务' : '还没有任务'}
+        </div>
+      )}
     </div>
   )
 }

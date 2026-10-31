@@ -41,9 +41,11 @@ test.describe('Shibei shell smoke', () => {
     await page.goto(BASE)
     await dismissOnboarding(page)
     await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
-    // Today 页已删，默认落地页是任务树
+    // 默认落地页是笔记（中性工作台）；任务树在「任务」tab
+    await expect(page.getByRole('button', { name: '+ 新建笔记' }).first()).toBeVisible()
+    await nav(page, '任务')
     await expect(page.getByRole('button', { name: '树', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: '＋ 新建任务' })).toBeVisible()
+    await expect(page.getByPlaceholder('＋ 添加任务，回车创建（支持「明天 交方案 @张三」）')).toBeVisible()
     await page.screenshot({ path: 'tests/screenshots/01-today.png', fullPage: true })
   })
 
@@ -74,8 +76,13 @@ test.describe('Shibei shell smoke', () => {
     await nav(page, '任务')
     await page.getByRole('button', { name: '看板 →' }).click()
     await page.waitForTimeout(600) // BoardPage 挂载时会补建本周周报循环卡
-    await page.locator('article', { hasText: '写本周周报' }).first().click()
+    // 卡片单击不再跳走：hover 出 ⋯ 菜单 → 在任务树中打开
+    const card = page.locator('article', { hasText: '写本周周报' }).first()
+    await card.hover()
+    await card.locator('button', { hasText: '⋯' }).click()
+    await page.getByRole('button', { name: '在任务树中打开' }).click()
     await page.waitForTimeout(300)
+    // 周报循环卡的「打开」进周报页（recurring === 'weekly-report' → goReport）
     await expect(page.locator('h1', { hasText: '周报' })).toBeVisible({ timeout: 5000 })
     await expect(errors, errors.join('\n')).toHaveLength(0)
   })
@@ -197,8 +204,11 @@ test.describe('Shibei shell smoke', () => {
 
   test('快捷键提示跟随平台（mac=⌘ / 其他=⌃）', async ({ page }) => {
     // Playwright 在 macOS 跑 → navigator.platform 含 'mac'，应输出 ⌘
-    // 提示现在在 onboarding 引导卡里（Topbar 已删）
+    // .kbd 提示在 ⌘K 命令面板里
     await page.goto(BASE)
+    await dismissOnboarding(page)
+    await page.locator('body').click({ position: { x: 10, y: 10 } })
+    await page.keyboard.press('Meta+k')
     const kbd = page.locator('.kbd').first()
     await expect(kbd).toBeVisible({ timeout: 8000 })
     const isMac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))

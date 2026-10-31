@@ -51,12 +51,16 @@ test('Notes 列表：pinned 笔记排在最前', async ({ page }) => {
     })
   })
 
+  // 默认落地页已是笔记页（NotesPage 先于 seed 挂载）；raw indexedDB 写入
+  // 不触发 Dexie liveQuery，必须 reload 让查询重跑
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(500)
   // 导航到 NotesPage
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goNotes: () => void } } }).__uiStore?.getState().goNotes())
   await page.waitForTimeout(600)
 
-  // 列表渲染 3 条
-  const listItems = page.locator('ul li button, ul li a, ul li').filter({ hasText: /置顶笔记|笔记/ })
+  // 列表渲染 3 条（scope 到 main，避免误匹配侧栏页面树）
+  const listItems = page.locator('main ul li button, main ul li a, main ul li').filter({ hasText: /置顶笔记|笔记/ })
   await expect(listItems.first()).toBeAttached({ timeout: 5_000 })
 
   // 关键断言：第一个是「置顶笔记」（pinned=true），即使 updated_at 最旧

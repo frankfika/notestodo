@@ -77,7 +77,7 @@ export function buildMarkdownZip(notes: Note[], todos: Todo[]): Uint8Array {
 /** 拉库 → 打包 → 触发下载。返回打包结果（测试里用 buildMarkdownZip 直验内容）。 */
 export async function exportMarkdownVault(): Promise<MarkdownZipResult> {
   const [notes, todos] = await Promise.all([db.notes.toArray(), db.todos.toArray()])
-  const zipped = buildMarkdownZip(notes, todos)
+  const zipped = buildMarkdownZip(notes.filter((n) => n.deleted_at === null), todos)
   const blob = new Blob([zipped], { type: 'application/zip' })
   const url = URL.createObjectURL(blob)
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)

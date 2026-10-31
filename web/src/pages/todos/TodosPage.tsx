@@ -1,7 +1,18 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../../db/db'
+import { now, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
 import TodosTree from './TodosTree'
 import TodosList from './TodosList'
+import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
+import { parseQuickAdd } from '../../lib/quickAdd'
+
+const STATUS_TABS = [
+  ['active', '进行中'],
+  ['done', '已完成'],
+  ['all', '全部'],
+] as const
 
 /**
  * 任务页：纯嵌套任务树 + 时间分组列表（OKR 三层概念已从 UI 移除，
@@ -10,6 +21,35 @@ import TodosList from './TodosList'
 export default function TodosPage(): JSX.Element {
   const [tab, setTab] = useState<'tree' | 'list'>('tree')
   const goBoard = useUI((s) => s.goBoard)
+  const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
+  const [newTitle, setNewTitle] = useState('')
+  const [newDue, setNewDue] = useState('')
+
+  const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
+  const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
+  const tagByTodo = useMemo(() => buildTagByTodo(bindings), [bindings])
+
+  const addQuick = async (): Promise<void> => {
+    const raw = newTitle.trim()
+    if (!raw) return
+    const parsed = parseQuickAdd(raw)
+    const ts = now()
+    await db.todos.add({
+      id: uid(), kind: 'task', parent_id: null, scope: null, title: parsed.title, status: 'open',
+      source: 'manual', sort_order: Date.now(), created_at: ts, updated_at: ts,
+      deleted_at: null, sync_version: 0,
+      ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
+      ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
+    })
+    setNewTitle('')
+    setNewDue('')
+  }
+
+  const toggleTag = (id: string): void =>
+    setFilter((f) => ({
+      ...f,
+      tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id],
+    }))
 
   return (
     <div className="h-full flex flex-col">
@@ -28,8 +68,63 @@ export default function TodosPage(): JSX.Element {
           className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
         >看板 →</button>
       </div>
+
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
+        <input
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter') void addQuick()
+          }}
+          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
+          className="input !h-8 flex-1 min-w-0 text-sm"
+        />
+        <input
+          type="date"
+          value={newDue}
+          onChange={(e) => setNewDue(e.target.value)}
+          title="截止日期（可选）"
+          className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
+        />
+      </div>
+
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0 flex-wrap">
+        <input
+          value={filter.q}
+          onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
+          placeholder="搜索任务…"
+          className="input !h-7 w-40 text-xs"
+        />
+        <div className="flex items-center rounded-[8px] bg-bg-overlay p-0.5">
+          {STATUS_TABS.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setFilter((f) => ({ ...f, status: k }))}
+              className={`px-2.5 h-6 rounded-[6px] text-xs transition-colors ${
+                filter.status === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:text-text-1'
+              }`}
+            >{label}</button>
+          ))}
+        </div>
+        {tags.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {tags.map((t) => {
+              const on = filter.tagIds.includes(t.id)
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => toggleTag(t.id)}
+                  className={`chip transition-colors ${on ? '!text-accent border-current' : 'opacity-60 hover:opacity-100'}`}
+                >#{t.name}</button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-        {tab === 'tree' ? <TodosTree /> : <TodosList />}
+        {tab === 'tree' ? <TodosTree filter={filter} tagByTodo={tagByTodo} /> : <TodosList filter={filter} tagByTodo={tagByTodo} />}
       </div>
     </div>
   )

@@ -115,22 +115,20 @@ test('笔记详情：编辑 + 插入待办 + 关联任务列表（笔记 ↔ 待
       const t = tx.objectStore('todos').getAll()
       n.onsuccess = () =>
         t.onsuccess = () => {
-          const note = n.result as { todo_ids?: string[] }
           const todos = t.result as Array<{ origin_note_id?: string }>
           const linked = todos.filter((x) => x.origin_note_id === id)
           res({
             todoCount: linked.length,
             todoOriginId: linked[0]?.origin_note_id,
-            noteTodoIds: note?.todo_ids ?? [],
           })
         }
       setTimeout(() => rej(new Error('readback-timeout')), 5_000)
     }
   }), noteId)
 
+  // 关联以 todos.origin_note_id 为准（Note.todo_ids 冗余字段已停写）
   expect(link.todoCount).toBe(1)
   expect(link.todoOriginId).toBe(noteId)
-  expect(link.noteTodoIds.length).toBe(1)
 
   // 7) 切到「待办」页 → 该任务带 ✎ 来源标记（需求 #4 闭环）
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())

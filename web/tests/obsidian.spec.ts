@@ -40,7 +40,7 @@ test('[[双链]]：编辑器里渲染成内链，点击跳转；round-trip 不�
   await expect(ed.locator('span.wiki-link', { hasText: '不存在的笔记' })).toBeVisible()
   // 点击命中链接 → 跳到复盘方法
   await link.click()
-  await expect(page.locator('input[placeholder="标题"]')).toHaveValue('复盘方法')
+  await expect(page.locator('input[placeholder="无标题"]')).toHaveValue('复盘方法')
   // round-trip：不丢链、不丢别名
   await page.waitForTimeout(600)
   const saved = await page.evaluate(async () => {
@@ -62,7 +62,7 @@ test('反向链接：其它笔记 [[链]] 到这篇时出现在「关联」区�
   // 打开「会议纪要」→ 反向链接列出产品构想
   await expect(page.locator('.section-title', { hasText: '反向链接 (1)' })).toBeVisible()
   await page.locator('button', { hasText: '产品构想' }).click()
-  await expect(page.locator('input[placeholder="标题"]')).toHaveValue('产品构想')
+  await expect(page.locator('input[placeholder="无标题"]')).toHaveValue('产品构想')
 })
 
 test('Markdown 导出：笔记带 frontmatter、任务成嵌套 GFM 列表、软删不出现', async ({ page }) => {

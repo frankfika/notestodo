@@ -60,6 +60,7 @@ export default function BoardPage(): JSX.Element {
   const [boardId, setBoardId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<string | null>(null)
+  const [showAllDone, setShowAllDone] = useState(false)
 
   useEffect(() => { void (async () => { await ensureDefaultBoard(); await ensureWeeklyReportCard() })() }, [])
 
@@ -79,10 +80,21 @@ export default function BoardPage(): JSX.Element {
     return all.filter((t) => {
       if (t.kind !== 'task' || t.deleted_at !== null) return false
       if (t.status === 'cancelled' || t.status === 'pending_review') return false
-      if (t.status === 'done' && Date.parse(t.updated_at) < doneCut) return false
+      if (t.status === 'done' && !showAllDone && Date.parse(t.updated_at) < doneCut) return false
       return t.board_id ? t.board_id === board.id : isDefault
     }).sort((a, b) => a.sort_order - b.sort_order)
-  }, [all, board, boards])
+  }, [all, board, boards, showAllDone])
+
+  const olderDoneCount = useMemo(() => {
+    if (!board || showAllDone) return 0
+    const isDefault = boards[0]?.id === board.id
+    const doneCut = Date.now() - 14 * 86400_000
+    return all.filter((t) =>
+      t.kind === 'task' && t.deleted_at === null && t.status === 'done' &&
+      Date.parse(t.updated_at) < doneCut &&
+      (t.board_id ? t.board_id === board.id : isDefault),
+    ).length
+  }, [all, board, boards, showAllDone])
 
   const colOf = (t: Todo): string => {
     if (t.status === 'done') return DONE_COL
@@ -230,44 +242,138 @@ export default function BoardPage(): JSX.Element {
                     { label: '删除列', danger: true, onClick: () => void deleteCol(c) },
                   ]} />
                 )}
-                {!isDone && ci === cols.length - 2 && (
-                  <button onClick={() => void addColumn()} title="添加列"
-                    className="text-text-3 hover:text-accent text-sm leading-none">＋</button>
-                )}
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
-                {list.map((t) => {
-                  const kr = t.parent_id ? byId.get(t.parent_id) : undefined
-                  const overdue = !!t.due_date && t.due_date < t0 && t.status !== 'done'
-                  return (
-                    <article key={t.id} draggable
-                      onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move' }}
-                      onClick={() => (t.recurring === 'weekly-report' ? goReport() : goTodos(t.id))}
-                      className={`card p-3 cursor-pointer hover:shadow-md transition-shadow ${t.recurring ? 'border-accent/60' : ''} ${dragId === t.id ? 'opacity-40' : ''}`}>
-                      <div className={`text-sm leading-snug ${t.status === 'done' ? 'line-through text-text-3' : ''}`}>
-                        {t.recurring && <span className="text-accent mr-1">↻</span>}{t.title}
-                      </div>
-                      <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[11px]">
-                        {kr && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[140px]">{kr.title}</span>}
-                        {t.recurring && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">草稿已生成</span>}
-                        <OriginChip t={t} />
-                        {t.due_date && <span className={`ml-auto ${overdue ? 'text-danger' : 'text-text-3'}`}>{fmtDate(t.due_date)}</span>}
-                      </div>
-                    </article>
-                  )
-                })}
+                {list.map((t) => (
+                  <Card key={t.id} t={t} kr={t.parent_id ? byId.get(t.parent_id) : undefined}
+                    overdue={!!t.due_date && t.due_date < t0 && t.status !== 'done'}
+                    dimmed={dragId === t.id}
+                    onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move' }}
+                    onOpen={() => (t.recurring === 'weekly-report' ? goReport() : goTodos(t.id))} />
+                ))}
                 {list.length === 0 && <div className="text-xs text-text-3 text-center py-6">拖卡片到这里</div>}
+                {isDone && olderDoneCount > 0 && (
+                  <button
+                    onClick={() => setShowAllDone(true)}
+                    className="text-xs text-text-3 hover:text-accent text-center py-1.5 transition-colors"
+                  >更早的 {olderDoneCount} 条已完成 · 展开</button>
+                )}
+                {isDone && showAllDone && (
+                  <button
+                    onClick={() => setShowAllDone(false)}
+                    className="text-xs text-text-3 hover:text-accent text-center py-1.5 transition-colors"
+                  >收起</button>
+                )}
               </div>
               <QuickAdd onAdd={(title) => add(c, title)} />
             </section>
           )
         })}
+        <button onClick={() => void addColumn()} data-testid="board-add-col"
+          className="shrink-0 self-start min-w-[160px] rounded-2xl border border-dashed border-line text-text-3 text-sm py-3 hover:bg-bg-overlay hover:text-accent transition-colors">
+          ＋ 添加列
+        </button>
       </div>
     </div>
   )
 }
 
 interface MenuItem { label: string; danger?: boolean; onClick: () => void }
+
+/** 看板卡片：checkbox 完成切换、双击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
+function Card({ t, kr, overdue, dimmed, onDragStart, onOpen }: {
+  t: Todo; kr: Todo | undefined; overdue: boolean; dimmed: boolean
+  onDragStart: (e: React.DragEvent) => void; onOpen: () => void
+}): JSX.Element {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(t.title)
+  const touch = (patch: Partial<Todo>): Promise<number> =>
+    db.todos.update(t.id, { ...patch, updated_at: now(), sync_version: t.sync_version + 1 })
+
+  const saveTitle = (): void => {
+    const v = draft.trim()
+    setEditing(false)
+    if (v && v !== t.title) void touch({ title: v })
+  }
+
+  return (
+    <article draggable={!editing} onDragStart={onDragStart}
+      className={`card group p-3 hover:shadow-md transition-shadow ${t.recurring ? 'border-accent/60' : ''} ${dimmed ? 'opacity-40' : ''}`}>
+      <div className="flex items-start gap-2">
+        <input type="checkbox" checked={t.status === 'done'} title={t.status === 'done' ? '重开' : '完成'}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => void touch({ status: t.status === 'done' ? 'open' : 'done' })}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)] cursor-pointer" />
+        {editing ? (
+          <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveTitle()
+              if (e.key === 'Escape') { setDraft(t.title); setEditing(false) }
+            }}
+            className="input flex-1 !py-0.5 text-sm" />
+        ) : (
+          <div onDoubleClick={(e) => { e.stopPropagation(); setDraft(t.title); setEditing(true) }}
+            className={`flex-1 text-sm leading-snug cursor-text ${t.status === 'done' ? 'line-through text-text-3' : ''}`}>
+            {t.recurring && <span className="text-accent mr-1">↻</span>}{t.title}
+          </div>
+        )}
+        <CardMenu t={t} onTouch={touch} onOpen={onOpen}
+          onRename={() => { setDraft(t.title); setEditing(true) }} />
+      </div>
+      <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[11px]">
+        {kr && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[140px]">{kr.title}</span>}
+        {t.recurring && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">草稿已生成</span>}
+        <OriginChip t={t} />
+        {t.due_date && (
+          <span className={`ml-auto ${t.status !== 'done' && overdue ? 'text-danger' : t.due_date === todayIso() && t.status !== 'done' ? 'text-warning' : 'text-text-3'}`}>
+            {fmtDate(t.due_date)}
+          </span>
+        )}
+      </div>
+    </article>
+  )
+}
+
+/** 卡片 ⋯ 菜单：含原生日期选择 */
+function CardMenu({ t, onTouch, onOpen, onRename }: {
+  t: Todo; onTouch: (patch: Partial<Todo>) => Promise<number>; onOpen: () => void; onRename: () => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent): void => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+  const item = 'px-2 py-1.5 rounded-[6px] text-[13px] text-left hover:bg-bg-overlay transition-colors text-text-1 w-full'
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }} title="卡片操作"
+        className="w-5 h-5 rounded-[5px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 text-xs leading-none transition-opacity">⋯</button>
+      {open && (
+        <div className="card shadow-lg absolute right-0 top-6 z-50 w-44 p-1 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+          <button className={item} onClick={() => { onRename(); setOpen(false) }}>重命名</button>
+          <label className="px-2 py-1.5 text-[11px] text-text-3 flex items-center gap-2">
+            截止日期
+            <input type="date" value={t.due_date ?? ''}
+              onChange={(e) => void onTouch({ due_date: e.target.value || undefined })}
+              className="input !h-6 !px-1.5 !py-0 text-[11px] flex-1" />
+          </label>
+          <button className={item} onClick={() => { void onTouch({ status: t.status === 'done' ? 'open' : 'done' }); setOpen(false) }}>
+            {t.status === 'done' ? '标记为未完成' : '标记为已完成'}
+          </button>
+          <button className={item} onClick={() => { onOpen(); setOpen(false) }}>在任务树中打开</button>
+          <button className={`${item} text-danger`} onClick={() => {
+            if (window.confirm(`删除卡片「${t.title}」？`)) void onTouch({ deleted_at: now() })
+            setOpen(false)
+          }}>删除</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** 行内 ⋯ 小菜单（hover 父级 .group 显现） */
 function MiniMenu({ items }: { items: MenuItem[] }): JSX.Element {

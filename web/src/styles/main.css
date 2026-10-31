@@ -193,6 +193,15 @@ body {
   animation: fade-in 160ms var(--ease-out-expo);
 }
 
+/* 右侧抽屉滑入（AI 助手） */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.drawer-enter {
+  animation: slide-in-right 180ms var(--ease-out-expo);
+}
+
 /* 步骤条流转 */
 @keyframes shimmer {
   from { background-position: 200% 0; }

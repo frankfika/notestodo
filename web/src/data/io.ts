@@ -23,6 +23,7 @@ interface Manifest {
 const TABLE_NAMES = [
   'meetings', 'transcripts', 'notes', 'summaries', 'templates',
   'todos', 'tags', 'tagBindings', 'chatMessages', 'scribbles', 'kv', 'queueJobs',
+  'comments', 'notebooks', 'boards', 'knowledgeEntries', 'pinnedAssistCards',
 ] as const
 
 type TableName = (typeof TABLE_NAMES)[number]
