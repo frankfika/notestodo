@@ -102,7 +102,7 @@ test('视觉审计 — Today / Meetings / Todos / Notes / Settings', async ({ pa
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-todos.png', fullPage: false })
 
-  await page.getByRole('button', { name: '笔记' }).click()
+  await page.locator('aside').getByRole('button', { name: '✎ 笔记' }).click()
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-notes.png', fullPage: false })
 

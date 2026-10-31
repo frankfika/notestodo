@@ -1,44 +1,10 @@
 /**
- * OKR 树交互：拖拽挂到 KR / 同级排序 / 非法落点被拒 / ⋯ 菜单上移 / 拖回 Inbox。
- * 拖拽基于 dnd-kit（PointerSensor + ⠿ 手柄），合成事件用 PointerEvent，真实拖拽走 page.mouse。
+ * 任务树交互 e2e（当前 UI）：原生 HTML5 拖拽挂载 + ⋯ 菜单「移到根级」。
+ * 旧的 dnd-kit 富交互（缩进投影 / 同级拖拽排序 / 上移菜单）已随 UI 简化移除，不再测。
  */
-import { test, expect, type Page, type Locator } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
-
-/** Playwright 的真实鼠标拖拽偶发挂住，所以排序 / 非法落点用合成 PointerEvent（dnd-kit 监听 pointer*）。
- *  dx = 落点 x 距目标行左缘的绝对像素（缺省 = 行中央）；用来测缩进投影（左侧条带 = 上溯一级挂）。 */
-async function synthDrag(page: Page, fromId: string, toId: string, fy: number, dx?: number): Promise<void> {
-  await page.evaluate(async ({ fromId, toId, fy, dx }) => {
-    const handle = (id: string) => document.querySelector(`[data-todo-id="${id}"] [aria-label="拖动调整位置"]`) as HTMLElement
-    const rowOf = (id: string) => document.querySelector(`[data-todo-id="${id}"] > div`) as HTMLElement
-    const fire = (el: Element, type: string, x: number, y: number, up = false) =>
-      el.dispatchEvent(new PointerEvent(type, {
-        bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: 'mouse',
-        button: 0, buttons: up ? 0 : 1, clientX: x, clientY: y,
-      }))
-    const h = handle(fromId)
-    const hr = h.getBoundingClientRect()
-    const sx = hr.left + hr.width / 2
-    const sy = hr.top + hr.height / 2
-    fire(h, 'pointerdown', sx, sy)
-    await new Promise((r) => setTimeout(r, 50))
-    fire(document, 'pointermove', sx, sy + 10) // 越过 6px 死区
-    await new Promise((r) => setTimeout(r, 50))
-    const tr = rowOf(toId).getBoundingClientRect()
-    const tx = tr.left + (dx ?? tr.width / 2)
-    const ty = tr.top + Math.min(Math.max(tr.height * fy, 2), tr.height - 2)
-    fire(document, 'pointermove', tx, ty)
-    await new Promise((r) => setTimeout(r, 50))
-    fire(document, 'pointerup', tx, ty, true)
-  }, { fromId, toId, fy, dx })
-}
-
-async function reopen(page: Page): Promise<void> {
-  await page.reload()
-  await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goTaskMode: (m: string) => void } } }).__uiStore.getState().goTaskMode('strategy'))
-  await expect(page.locator('[data-todo-id="t1"]')).toBeVisible()
-}
 
 async function seed(page: Page): Promise<void> {
   await page.goto(BASE)
@@ -48,93 +14,61 @@ async function seed(page: Page): Promise<void> {
     await db.todos.clear()
     const ts = new Date().toISOString()
     const base = { status: 'open', source: 'manual', notes_md: '', created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 }
-    const rows = [
-      { id: 'O', kind: 'objective', scope: 'strategic', parent_id: null, title: '战略目标甲', sort_order: 10 },
-      { id: 'KR', kind: 'kr', scope: 'strategic', parent_id: 'O', title: '战略 KR 乙', sort_order: 20 },
-      { id: 'KR2', kind: 'kr', scope: 'strategic', parent_id: 'O', title: '战略 KR 戊', sort_order: 25 },
-      { id: 'QO2', kind: 'objective', scope: 'quarterly', parent_id: 'KR2', title: '季度目标己', period: '2026-Q4', sort_order: 26 },
-      { id: 'QO', kind: 'objective', scope: 'quarterly', parent_id: 'KR', title: '季度目标丙', period: '2026-Q4', sort_order: 30 },
-      { id: 'QK', kind: 'kr', scope: 'quarterly', parent_id: 'QO', title: '季度 KR 丁', period: '2026-Q4', sort_order: 40 },
-      { id: 't1', kind: 'task', scope: 'quarterly', parent_id: 'QK', title: '任务一', sort_order: 10 },
-      { id: 't2', kind: 'task', scope: 'quarterly', parent_id: 'QK', title: '任务二', sort_order: 20 },
-      { id: 't3', kind: 'task', scope: 'quarterly', parent_id: 'QK', title: '任务三', sort_order: 30 },
-      { id: 'in', kind: 'task', scope: null, parent_id: null, title: '收件箱任务', sort_order: 10 },
-    ]
-    await db.todos.bulkPut(rows.map((r) => ({ ...base, ...r })) as never)
-    ;(window as unknown as { __uiStore: { getState: () => { goTaskMode: (m: string) => void } } }).__uiStore.getState().goTaskMode('strategy')
+    await db.todos.bulkPut([
+      { id: 'p1', kind: 'task', scope: null, parent_id: null, title: '父任务', sort_order: 10, ...base },
+      { id: 'c1', kind: 'task', scope: null, parent_id: null, title: '收件箱任务', sort_order: 20, ...base },
+    ])
   })
-  await expect(page.locator('[data-todo-id="t3"]')).toBeVisible()
+  await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goTodos: () => void } } }).__uiStore.getState().goTodos())
+  await expect(page.locator('[data-todo="p1"]')).toBeVisible()
+  await expect(page.locator('[data-todo="c1"]')).toBeVisible()
 }
 
-const row = (page: Page, id: string) => page.locator(`[data-todo-id="${id}"] > div`).first()
-const handle = (page: Page, id: string) => page.locator(`[data-todo-id="${id}"] [aria-label="拖动调整位置"]`).first()
+const parentOf = (page: Page, id: string) =>
+  page.evaluate(async (id) => {
+    const { db } = await import('/src/db/db.ts')
+    return (await db.todos.get(id))?.parent_id ?? null
+  }, id)
 
-/** 用真实鼠标步骤拖拽（从 ⠿ 手柄按下 → 分步移动 → 松开），fy = 目标内纵向比例（0 顶 / 0.5 中 / 1 底） */
-async function drag(page: Page, from: Locator, to: Locator, fy = 0.5): Promise<void> {
-  const a = (await from.boundingBox())!
-  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
-  await page.mouse.down()
-  const b = (await to.boundingBox())!
-  const y = b.y + Math.min(Math.max(b.height * fy, 2), b.height - 2)
-  await page.mouse.move(b.x + b.width / 2, y, { steps: 12 })
-  await page.mouse.up()
-}
-const get = (page: Page, id: string) => page.evaluate(async (id) => {
-  const { db } = await import('/src/db/db.ts')
-  return db.todos.get(id)
-}, id)
-const order = (page: Page) => page.evaluate(async () => {
-  const { db } = await import('/src/db/db.ts')
-  return (await db.todos.where('parent_id').equals('QK').toArray()).sort((a, b) => a.sort_order - b.sort_order).map((t) => t.id)
-})
-
-test('拖拽：Inbox 任务拖到 KR 上 = 挂进去；同级拖到最前 = 排序；非法落点不生效', async ({ page }) => {
+test('拖拽：把任务拖到另一个任务上 = 挂为它的子任务；非法落点（自身）不动', async ({ page }) => {
   await seed(page)
 
-  // 1) 收件箱任务拖到「季度 KR 丁」行中间 → 挂到它下面，scope 跟随
-  await drag(page, handle(page, 'in'), row(page, 'QK'), 0.5)
-  await expect.poll(async () => (await get(page, 'in'))?.parent_id).toBe('QK')
-  expect((await get(page, 'in'))?.scope).toBe('quarterly')
-  await reopen(page)
+  // 原生 HTML5 DnD：dispatchEvent 序列（Playwright 鼠标拖拽对原生 draggable 不可靠）
+  // dragId 是 React state，dispatch 之间要让出事件循环让它 flush
+  const html5Drag = async (from: string, to: string) => page.evaluate(async ({ from, to }) => {
+    const dt = new DataTransfer()
+    const src = document.querySelector(`[data-todo="${from}"]`)!
+    const dst = document.querySelector(`[data-todo="${to}"]`)!
+    const tick = () => new Promise((r) => setTimeout(r, 50))
+    src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }))
+    await tick()
+    dst.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    await tick()
+    dst.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }))
+    src.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }))
+  }, { from, to })
+  await html5Drag('c1', 'p1')
+  await expect.poll(() => parentOf(page, 'c1')).toBe('p1')
 
-  // 2) 任务三拖到任务一的上沿 → 排到最前
-  await synthDrag(page, 't3', 't1', 0)
-  await expect.poll(() => order(page)).toEqual(['t3', 't1', 't2', 'in'])
-
-  // 3) 季度 O 拖到任务上（中间）→ 非法，不变
-  await synthDrag(page, 'QO', 't1', 0.5)
+  // 拖到自己上 = 不动
+  await html5Drag('c1', 'c1')
   await page.waitForTimeout(300)
-  expect((await get(page, 'QO'))?.parent_id).toBe('KR')
+  expect(await parentOf(page, 'c1')).toBe('p1')
 })
 
-test('缩进投影：行左侧条带 = 上溯一级挂；行中央 = 原层级（非法则不动）', async ({ page }) => {
+test('⋯ 菜单「移到根级」= 取消挂载', async ({ page }) => {
   await seed(page)
-  // 中央：QO2（季度 O）排到 QK 上沿中央 = 与 QK 同级 → 父将是季度 KR，季度 O 只接受战略 KR，不动
-  await synthDrag(page, 'QO2', 'QK', 0.1)
-  await page.waitForTimeout(300)
-  expect((await get(page, 'QO2'))?.parent_id).toBe('KR2')
-  // 左侧条带（距行左 8px < 半个缩进 14px）→ 投影上溯一级：排到 QO 之前 = 挂到 KR 下
-  await synthDrag(page, 'QO2', 'QK', 0.1, 8)
-  await expect.poll(async () => (await get(page, 'QO2'))?.parent_id).toBe('KR')
-})
+  // 先挂进去
+  await page.evaluate(async () => {
+    const { db } = await import('/src/db/db.ts')
+    await db.todos.update('c1', { parent_id: 'p1' })
+  })
+  await page.reload()
+  await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goTodos: () => void } } }).__uiStore.getState().goTodos())
+  await expect(page.locator('[data-todo="c1"]')).toBeVisible()
 
-test('大任务拆小任务：Inbox 任务拖到另一个任务上 = 挂为它的子任务', async ({ page }) => {
-  await seed(page)
-  await synthDrag(page, 'in', 't1', 0.5)
-  await expect.poll(async () => (await get(page, 'in'))?.parent_id).toBe('t1')
-  expect((await get(page, 'in'))?.scope).toBe((await get(page, 't1'))?.scope)
-})
-
-test('⋯ 菜单上移；拖回 Inbox = 取消挂载', async ({ page }) => {
-  await seed(page)
-  const more = page.locator('[data-todo-id="t2"]').getByRole('button', { name: '更多操作' }).first()
-  await page.locator('[data-todo-id="t2"]').hover()
-  await more.click()
-  await page.getByRole('menuitem', { name: '上移' }).click()
-  await expect.poll(() => order(page)).toEqual(['t2', 't1', 't3'])
-  await reopen(page)
-
-  // 收件箱有任务时 Inbox 区块就在顶部：把任务一拖进去
-  await drag(page, handle(page, 't1'), page.locator('section', { hasText: 'Inbox' }).first(), 0.5)
-  await expect.poll(async () => (await get(page, 't1'))?.parent_id).toBeNull()
+  await page.locator('[data-todo="c1"]').hover()
+  await page.locator('[data-todo="c1"] button[title="更多操作"]').click()
+  await page.getByRole('button', { name: '移到根级' }).click()
+  await expect.poll(() => parentOf(page, 'c1')).toBe(null)
 })

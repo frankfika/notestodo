@@ -101,11 +101,8 @@ test('「稍后」后手动入口仍能开（snooze 不影响 setPermGuideOpen�
   await dlg.getByRole('button', { name: '稍后' }).click()
   await expect(dlg).toHaveCount(0)
 
-  // 手动入口通过 useUI.getState().setPermGuideOpen(true) 打开；snooze 期间仍生效
-  await page.evaluate(async () => {
-    const mod = await import('/src/state/ui.ts')
-    mod.useUI.getState().setPermGuideOpen(true)
-  })
+  // 手动入口 = window.__uiStore（dynamic import '/src/state/ui.ts' 会拿到第二个模块实例，不可靠）
+  await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { setPermGuideOpen: (o: boolean) => void } } }).__uiStore.getState().setPermGuideOpen(true))
   await expect(dialog(page)).toBeVisible({ timeout: 5000 })
 })
 

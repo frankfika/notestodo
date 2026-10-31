@@ -26,7 +26,8 @@ test('Settings 主题切换：patch 时立即生效 + document class 同步', as
 
   // 导航到 Settings
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goSettings: () => void } } }).__uiStore?.getState().goSettings())
-  await page.waitForTimeout(500)
+  await page.getByRole('button', { name: '外观与数据' }).click()
+  await page.waitForTimeout(300)
 
   // 1) 默认 light → 无 html.dark
   const initiallyDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))

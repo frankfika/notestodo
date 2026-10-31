@@ -21,7 +21,8 @@ test('System 主题：OS 切换深/浅时实时跟随', async ({ page }) => {
 
   // 导航到 Settings + 选「system」
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goSettings: () => void } } }).__uiStore?.getState().goSettings())
-  await page.waitForTimeout(500)
+  await page.getByRole('button', { name: '外观与数据' }).click()
+  await page.waitForTimeout(300)
   await page.locator('select').filter({ has: page.locator('option[value="system"]') }).first().selectOption('system')
   await page.waitForTimeout(300)
 

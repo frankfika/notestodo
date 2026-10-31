@@ -31,11 +31,11 @@ test('iPhone 13 — 各页面', async ({ page }) => {
     await page.waitForTimeout(300)
     await page.screenshot({ path: `tests/screenshots/${fname}.png`, fullPage: false })
   }
-  // 看板 / 周报 并入「任务」页内切换
-  await page.getByRole('tab', { name: '看板' }).click()
+  // 看板 / 周报 是独立 view（旧 tab 已移除）
+  await page.getByRole('button', { name: '看板 →' }).click()
   await page.waitForTimeout(300)
   await page.screenshot({ path: 'tests/screenshots/mobile-board.png', fullPage: false })
-  await page.getByRole('button', { name: '周报 →' }).click()
+  await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goReport: () => void } } }).__uiStore.getState().goReport())
   await page.waitForTimeout(300)
   await page.screenshot({ path: 'tests/screenshots/mobile-report.png', fullPage: false })
 })
