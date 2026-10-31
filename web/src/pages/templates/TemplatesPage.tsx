@@ -63,8 +63,8 @@ export default function TemplatesPage(): JSX.Element {
   }
 
   return (
-    <div className="h-full flex">
-      <aside className="w-[260px] shrink-0 border-r border-line overflow-y-auto">
+    <div className="h-full flex flex-col md:flex-row">
+      <aside className="w-full md:w-[260px] shrink-0 border-b md:border-b-0 md:border-r border-line overflow-y-auto max-h-[38vh] md:max-h-none">
         <div className="px-4 py-4 border-b border-line flex items-center">
           <button onClick={() => useUI.getState().goSettings()} className="icon-btn -ml-1 mr-1 !h-7 !w-7" aria-label="返回设置" title="返回设置">←</button>
           <h1 className="text-sm font-semibold text-text-1">模板</h1>
@@ -227,7 +227,7 @@ function TemplateEditor({ template }: { template: SummaryTemplate }): JSX.Elemen
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <button onClick={() => void tryRun()} className="btn-outline text-sm h-9">
+        <button onClick={() => void tryRun()} className="btn-outline text-sm h-9 whitespace-nowrap shrink-0">
           ▶ 试运行
         </button>
         <span className="text-[11px] text-text-3">用最近一次会议测试；需要先在设置里配好模型（云端 Key 或本地模型）。</span>
