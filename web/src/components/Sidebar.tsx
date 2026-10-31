@@ -8,9 +8,8 @@ import { DownloadIndicator } from './BuiltinModels'
 import { createPage } from '../lib/notes'
 import type { ID, Note } from '../types'
 
-// 只留 4 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
+// 只留 3 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
 const NAV: { view: ViewName; label: string; icon: string }[] = [
-  { view: 'today', label: '今天', icon: '◐' },
   { view: 'meetings', label: '会议', icon: '●' },
   { view: 'todos', label: '任务', icon: '◎' },
   { view: 'notes', label: '笔记', icon: '✎' },
@@ -107,9 +106,8 @@ function PageTree(): JSX.Element {
 }
 
 export default function Sidebar() {
-  const { view, goToday, goMeetings, goNotes, goSettings } = useUI()
-  const goTasks = useUI((s) => s.goTaskMode)
-  const taskMode = useUI((s) => s.taskMode)
+  const { view, goMeetings, goNotes, goSettings } = useUI()
+  const goTodos = useUI((s) => s.goTodos)
   const phase = useRecorder((s) => s.phase)
   const recMeeting = useRecorder((s) => s.meeting)
   const startRec = useRecorder((s) => s.start)
@@ -168,7 +166,7 @@ export default function Sidebar() {
             <button
               key={item.view}
               onClick={() =>
-                ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: () => goTasks(taskMode) } as Record<string, () => void>)[item.view]()
+                ({ meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
               }
               className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
                 active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
@@ -209,9 +207,8 @@ export default function Sidebar() {
  * 保持与桌面 sidebar 一样的 chip/badge 行为。
  */
 export function BottomTabBar() {
-  const { view, goToday, goMeetings, goNotes, goSettings } = useUI()
-  const goTasks = useUI((s) => s.goTaskMode)
-  const taskMode = useUI((s) => s.taskMode)
+  const { view, goMeetings, goNotes, goSettings } = useUI()
+  const goTodos = useUI((s) => s.goTodos)
   const phase = useRecorder((s) => s.phase)
   // 只数「任务」(排除 OKR 的 O / KR)，并剔除已软删条目 — 任务 tab 徽章语义对齐
   const openTodos = useLiveQuery(
@@ -225,9 +222,8 @@ export function BottomTabBar() {
   )
 
   const items: { view: ViewName; label: string; icon: string; onClick: () => void; badge?: number | null }[] = [
-    { view: 'today', label: '今天', icon: '◐', onClick: goToday },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
-    { view: 'todos', label: '任务', icon: '◎', onClick: () => goTasks(taskMode), badge: openTodos ?? 0 },
+    { view: 'todos', label: '任务', icon: '◎', onClick: () => goTodos(), badge: openTodos ?? 0 },
     { view: 'notes', label: '笔记', icon: '✎', onClick: goNotes },
   ]
 

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 
 export type ViewName =
-  | 'today'
   | 'meetings'
   | 'meeting-detail'
   | 'notes'
@@ -12,9 +11,6 @@ export type ViewName =
   | 'templates'
   | 'settings'
 
-/** 任务页的视角：看板与三种 OKR 视图是同一份数据 */
-export type TaskMode = 'board' | 'focus' | 'quarter' | 'strategy'
-
 export interface RouteState {
   view: ViewName
   meetingId: string | null
@@ -24,18 +20,11 @@ export interface RouteState {
 
 interface UIStore extends RouteState {
   route: (r: Partial<RouteState>) => void
-  goToday: () => void
   goMeetings: () => void
   goMeeting: (meetingId: string) => void
   goNotes: () => void
   goNote: (noteId: string) => void
   goTodos: (todoFocusId?: string) => void
-  /** 任务页内切视角（看板走 board 路由，其余走 todos） */
-  taskMode: Exclude<TaskMode, 'board'>
-  goTaskMode: (m: TaskMode) => void
-  /** 战略视图当前选中的 OKR tab（O id；null = 第一个） */
-  okrTabId: string | null
-  setOkrTab: (id: string | null) => void
   goBoard: () => void
   goReport: () => void
   goTemplates: () => void
@@ -55,25 +44,18 @@ interface UIStore extends RouteState {
 }
 
 export const useUI = create<UIStore>((set) => ({
-  view: 'today',
+  view: 'todos',
   meetingId: null,
   noteId: null,
   todoFocusId: null,
 
   route: (r) => set(r),
-  goToday: () => set({ view: 'today', meetingId: null, noteId: null, todoFocusId: null }),
   goMeetings: () => set({ view: 'meetings', meetingId: null, noteId: null }),
   goMeeting: (meetingId) => set({ view: 'meeting-detail', meetingId, noteId: null }),
   goNotes: () => set({ view: 'notes', meetingId: null, noteId: null }),
   goNote: (noteId) => set({ view: 'note-detail', meetingId: null, noteId }),
   goTodos: (todoFocusId) => set({ view: 'todos', meetingId: null, noteId: null, todoFocusId: todoFocusId ?? null }),
   goBoard: () => set({ view: 'board', meetingId: null, noteId: null }),
-  taskMode: 'focus',
-  goTaskMode: (m) => set(m === 'board'
-    ? { view: 'board', meetingId: null, noteId: null }
-    : { view: 'todos', taskMode: m, meetingId: null, noteId: null, todoFocusId: null }),
-  okrTabId: null,
-  setOkrTab: (id) => set({ okrTabId: id }),
   goReport: () => set({ view: 'report', meetingId: null, noteId: null }),
   goTemplates: () => set({ view: 'templates', meetingId: null, noteId: null }),
   goSettings: () => set({ view: 'settings', meetingId: null, noteId: null }),

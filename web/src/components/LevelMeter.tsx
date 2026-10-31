@@ -1,7 +1,7 @@
 /**
  * 麦克风电平条：5 根细竖条，根据 audioLevel (0..1) 用 scaleY 实时缩放，
  * 中段在 0.6 以上变红，传达"音量在安全区 / 过载"信号。
- * 视觉简洁 — 没有数字、没有滑块；用于 RecordingBar 与 TodayPage 的录音卡。
+ * 视觉简洁 — 没有数字、没有滑块；用于 RecordingBar 的录音卡。
  */
 export interface LevelMeterProps {
   /** 0..1 RMS — typically already clamped + boosted (x2.5) in the engine */

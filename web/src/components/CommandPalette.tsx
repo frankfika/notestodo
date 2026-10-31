@@ -39,13 +39,12 @@ export default function CommandPalette() {
     return [
       recAction,
       { group: '动作', label: '导出全部数据', run: () => void go.goSettings() },
-      { group: '跳转', label: '今天', hint: '1', run: () => go.goToday() },
-      { group: '跳转', label: '会议', hint: '2', run: () => go.goMeetings() },
-      { group: '跳转', label: '笔记', hint: '3', run: () => go.goNotes() },
-      { group: '跳转', label: '待办', hint: '4', run: () => go.goTodos() },
+      { group: '跳转', label: '会议', hint: '1', run: () => go.goMeetings() },
+      { group: '跳转', label: '笔记', hint: '2', run: () => go.goNotes() },
+      { group: '跳转', label: '待办', hint: '3', run: () => go.goTodos() },
       { group: '跳转', label: '看板', run: () => go.goBoard() },
       { group: '跳转', label: '周报', run: () => go.goReport() },
-      { group: '跳转', label: '模板', hint: '5', run: () => go.goTemplates() },
+      { group: '跳转', label: '模板', hint: '4', run: () => go.goTemplates() },
       { group: '跳转', label: '设置', run: () => go.goSettings() },
     ]
   }, [phase, start, stop])
@@ -64,13 +63,12 @@ export default function CommandPalette() {
       if (e.key === 'Enter') { filtered[cursor]?.run(); setOpen(false); return }
       if (e.key === 'ArrowDown') { setCursor((c) => Math.min(c + 1, filtered.length - 1)); return }
       if (e.key === 'ArrowUp') { setCursor((c) => Math.max(0, c - 1)); return }
-      if (/^[1-5]$/.test(e.key) && !q) {
+      if (/^[1-4]$/.test(e.key) && !q) {
         const map: Record<string, () => void> = {
-          '1': useUI.getState().goToday,
-          '2': useUI.getState().goMeetings,
-          '3': useUI.getState().goNotes,
-          '4': useUI.getState().goTodos,
-          '5': useUI.getState().goTemplates,
+          '1': useUI.getState().goMeetings,
+          '2': useUI.getState().goNotes,
+          '3': useUI.getState().goTodos,
+          '4': useUI.getState().goTemplates,
         }
         map[e.key]?.(); setOpen(false)
       }
@@ -105,7 +103,7 @@ export default function CommandPalette() {
             ref={inputRef}
             value={q}
             onChange={(e) => { setQ(e.target.value); setCursor(0) }}
-            placeholder="输入以搜索 · 1-5 跳转 · Esc 关闭"
+            placeholder="输入以搜索 · 1-4 跳转 · Esc 关闭"
             className="w-full bg-transparent text-[15px] text-text-1 placeholder:text-text-3 outline-none"
           />
         </div>

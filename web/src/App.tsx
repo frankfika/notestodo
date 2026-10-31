@@ -8,7 +8,6 @@ import CommandPalette from './components/CommandPalette'
 import Onboarding from './components/Onboarding'
 import PermissionGuide from './components/PermissionGuide'
 import ErrorBoundary from './components/ErrorBoundary'
-import TodayPage from './pages/today/TodayPage'
 import MeetingsPage from './pages/meetings/MeetingsPage'
 import MeetingDetailPage from './pages/meeting/MeetingDetailPage'
 import NotesPage from './pages/notes/NotesPage'
@@ -67,7 +66,6 @@ export default function App() {
         <main className="flex-1 min-w-0 flex flex-col pb-16 md:pb-0">
           <RecordingBar />
           <div key={view} className="page-enter flex-1 min-h-0 overflow-hidden">
-            {view === 'today' && <TodayPage />}
             {view === 'meetings' && <MeetingsPage />}
             {view === 'meeting-detail' && <MeetingDetailPage />}
             {view === 'notes' && <NotesPage />}

@@ -4,7 +4,6 @@ import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtDate, now, thisFriday, today as todayIso, uid } from '../../lib/id'
 import type { Todo } from '../../types'
-import TaskModeSwitch from '../../components/TaskModeSwitch'
 
 type Col = 'todo' | 'doing' | 'review' | 'done'
 const COLS: { key: Col; label: string; dot: string }[] = [
@@ -87,7 +86,9 @@ export default function BoardPage(): JSX.Element {
           <div className="section-title">任务 · 看板</div>
           <h1 className="text-2xl font-semibold tracking-tight">看板</h1>
         </div>
-        <div className="ml-auto"><TaskModeSwitch /></div>
+        <div className="ml-auto">
+          <button onClick={() => useUI.getState().goTodos()} className="btn-ghost text-xs h-8 px-3">← 任务树</button>
+        </div>
         <div className="w-full flex gap-2">
           {FILTERS.map((f) => (
             <button key={f} onClick={() => setFilter(f)}
