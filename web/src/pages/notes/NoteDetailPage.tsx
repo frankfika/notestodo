@@ -8,6 +8,7 @@ import type { Todo } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
 import NoteEditor from '../../components/editor/NoteEditor'
+import { NoteAiPanel } from '../../components/editor/NoteAiPanel'
 
 /**
  * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
@@ -45,6 +46,7 @@ export default function NoteDetailPage(): JSX.Element {
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
+  const [aiOpen, setAiOpen] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
@@ -84,6 +86,23 @@ export default function NoteDetailPage(): JSX.Element {
       : [],
     [noteId ?? ''],
   ) ?? []
+
+  const comments = useLiveQuery(
+    async () => noteId
+      ? (await db.comments.where('note_id').equals(noteId).sortBy('created_at'))
+          .filter((c) => c.deleted_at === null)
+      : [],
+    [noteId ?? ''],
+  ) ?? []
+
+  async function addComment(quote: string, text: string): Promise<void> {
+    if (!note) return
+    const ts = now()
+    await db.comments.add({
+      id: crypto.randomUUID(), note_id: note.id, quote, text, resolved: false,
+      created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+    })
+  }
 
   async function insertTodo(): Promise<void> {
     if (!note) return
@@ -166,6 +185,11 @@ export default function NoteDetailPage(): JSX.Element {
             {dirty ? '编辑中…' : `已存 ${lastSaved}`}
           </span>
           <button
+            onClick={() => setAiOpen((v) => !v)}
+            className={`btn-ghost text-xs h-7 ${aiOpen ? 'text-accent' : ''}`}
+            title="AI 面板"
+          >✦ AI</button>
+          <button
             onClick={() => void togglePin()}
             className={`btn-ghost text-xs h-7 ${note.pinned ? 'text-accent' : ''}`}
             title="置顶"
@@ -194,6 +218,7 @@ export default function NoteDetailPage(): JSX.Element {
           onWikiOpen={openWiki}
           currentNoteId={note.id}
           onMoveBlockToNote={(md, targetId) => void moveBlockToNote(md, targetId)}
+          onAddComment={(quote, text) => void addComment(quote, text)}
         />
 
         {/* 关联：任务 / 来源会议 / 反向链接 */}
@@ -222,6 +247,33 @@ export default function NoteDetailPage(): JSX.Element {
           )}
         </div>
 
+        {/* 评论：块手柄 ⋮⋮ → 评论 加的条目在这里集中看 */}
+        <div className="mt-8">
+          <div className="section-title mb-2">评论 ({comments.filter((c) => !c.resolved).length})</div>
+          {comments.length === 0 ? (
+            <div className="text-xs text-text-3 px-1 py-2">还没有评论。hover 任意块点 ⋮⋮ → 评论 即可添加。</div>
+          ) : (
+            <ul className="divide-y divide-line">
+              {comments.map((c) => (
+                <li key={c.id} className={`py-2.5 ${c.resolved ? 'opacity-50' : ''}`}>
+                  <div className="text-[11px] text-text-3 truncate border-l-2 border-line pl-2 mb-1">「{c.quote}」</div>
+                  <div className="flex items-start gap-2">
+                    <span className="flex-1 text-sm text-text-1 whitespace-pre-wrap">{c.text}</span>
+                    <button
+                      className="btn-ghost text-[11px] h-6 px-2"
+                      onClick={() => void db.comments.update(c.id, { resolved: !c.resolved, updated_at: now() })}
+                    >{c.resolved ? '重开' : '解决'}</button>
+                    <button
+                      className="btn-ghost text-[11px] h-6 px-2 text-danger"
+                      onClick={() => void db.comments.update(c.id, { deleted_at: now(), updated_at: now() })}
+                    >删除</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         {/* 反向链接：哪些笔记 [[链]] 到这篇（Obsidian backlinks） */}
         <div className="mt-6">
           <div className="section-title mb-2">反向链接 ({backlinks.length})</div>
@@ -240,6 +292,17 @@ export default function NoteDetailPage(): JSX.Element {
           )}
         </div>
       </div>
+
+      {/* AI 面板：右侧滑出抽屉 */}
+      {aiOpen && (
+        <aside className="fixed right-0 top-0 bottom-0 w-[320px] border-l border-line bg-bg-raise shadow-lg z-40">
+          <NoteAiPanel
+            noteTitle={draftTitle}
+            getBodyMarkdown={() => draftBody}
+            onInsert={(md) => setDraftBody((b) => (b ? b.replace(/\s+$/, '') + '\n\n' : '') + md)}
+          />
+        </aside>
+      )}
     </div>
   )
 }
