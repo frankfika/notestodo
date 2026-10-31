@@ -32,6 +32,7 @@ export default function SettingsPage(): JSX.Element {
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [group, setGroup] = useState<SettingsGroup>('ai')
 
   useEffect(() => {
     let active = true
@@ -93,7 +94,7 @@ export default function SettingsPage(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-[720px] mx-auto px-6 py-8">
+      <div className="max-w-[960px] mx-auto px-6 py-8">
         <div className="flex items-end justify-between mb-6">
           <div>
             <div className="section-title">SETTINGS</div>
@@ -107,283 +108,323 @@ export default function SettingsPage(): JSX.Element {
           >保存修改</button>
         </div>
 
-        <Section title="AI 运行在哪里" desc="决定录音转录和笔记 / 待办 / 对话由谁来做。选择立即生效。">
-          <EngineChooser settings={settings} onPick={(m) => void pickEngine(m)} />
-          {(settings.ai_mode === 'builtin' || settings.asr_mode === 'builtin') && (
-            <>
-              <BuiltinQuickStart settings={settings} />
-              <FieldRow label="模型下载源">
-                <select
-                  className="input"
-                  aria-label="模型下载源"
-                  value={settings.model_source}
-                  onChange={(e) => {
-                    const v = e.target.value as AppSettings['model_source']
-                    setSettings((cur) => ({ ...cur, model_source: v }))
-                    void saveSettings({ model_source: v })
-                  }}
+        <div className="flex gap-6 items-start">
+          <nav className="w-40 shrink-0 sticky top-0 space-y-0.5">
+            {SETTINGS_GROUPS.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setGroup(g.key)}
+                className={`w-full text-left px-3 py-1.5 rounded-[8px] text-sm transition-colors ${
+                  group === g.key ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-3 hover:text-text-1'
+                }`}
+              >{g.label}</button>
+            ))}
+          </nav>
+
+          <div className="flex-1 min-w-0">
+            {group === 'ai' && (
+              <>
+                <Section title="AI 运行在哪里" desc="决定录音转录和笔记 / 待办 / 对话由谁来做。选择立即生效。">
+                  <EngineChooser settings={settings} onPick={(m) => void pickEngine(m)} />
+                  {(settings.ai_mode === 'builtin' || settings.asr_mode === 'builtin') && (
+                    <>
+                      <BuiltinQuickStart settings={settings} />
+                      <FieldRow label="模型下载源">
+                        <select
+                          className="input"
+                          aria-label="模型下载源"
+                          value={settings.model_source}
+                          onChange={(e) => {
+                            const v = e.target.value as AppSettings['model_source']
+                            setSettings((cur) => ({ ...cur, model_source: v }))
+                            void saveSettings({ model_source: v })
+                          }}
+                        >
+                          {(Object.keys(SOURCE_LABELS) as AppSettings['model_source'][]).map((k) => (
+                            <option key={k} value={k}>{SOURCE_LABELS[k]}</option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-text-3 mt-1">
+                          {settings.model_source === 'auto'
+                            ? `已按${inMainlandChina() ? '国内' : '海外'}网络排序：${inMainlandChina() ? 'OpenCSG → hf-mirror → Hugging Face' : 'Hugging Face → hf-mirror → OpenCSG'}；一个源失败自动换下一个，断点续传。`
+                            : '首选这个源，失败时自动换其它源。'}
+                        </p>
+                      </FieldRow>
+                    </>
+                  )}
+                </Section>
+
+                <DataFlowCard settings={settings} />
+
+                <Section title="笔记模型 · LLM" desc="笔记 / 待办提取 / 对话都走它。切换不会清空另一侧已填的字段。">
+                  <FieldRow label="模式">
+                    <ModeSegmented
+                      value={settings.ai_mode}
+                      onChange={(v) => patch({ ai_mode: v })}
+                      labels={{
+                        cloud: '云端 API',
+                        cloudSub: 'MiniMax / Anthropic / OpenAI 兼容网关',
+                        local: '自建服务',
+                        localSub: 'Ollama / LM Studio / MLX / 自建',
+                      }}
+                    />
+                  </FieldRow>
+
+                  {settings.ai_mode === 'builtin' ? (
+                    <ModelPicker kind="llm" selected={settings.builtin_llm_model} onSelect={(id) => void pickBuiltin({ builtin_llm_model: id })} />
+                  ) : settings.ai_mode === 'cloud' ? (
+                    <>
+                      <FieldRow label="Provider">
+                        <select
+                          className="input"
+                          value={settings.llm_provider}
+                          onChange={(e) => patch({ llm_provider: e.target.value as AppSettings['llm_provider'] })}
+                        >
+                          <option value="anthropic-compatible">Anthropic 兼容</option>
+                          <option value="openai-compatible">OpenAI 兼容</option>
+                        </select>
+                      </FieldRow>
+                      <FieldRow label="Base URL">
+                        <input
+                          className="input"
+                          value={settings.llm_base_url}
+                          onChange={(e) => patch({ llm_base_url: e.target.value })}
+                          placeholder="https://api.example.com"
+                        />
+                      </FieldRow>
+                      <FieldRow label="API Key">
+                        <PasswordInput
+                          value={settings.llm_api_key}
+                          onChange={(v) => patch({ llm_api_key: v })}
+                          placeholder="sk-..."
+                        />
+                      </FieldRow>
+                      <FieldRow label="Model">
+                        <input
+                          className="input"
+                          value={settings.llm_model}
+                          onChange={(e) => patch({ llm_model: e.target.value })}
+                          placeholder="claude-3-5-sonnet-..."
+                        />
+                      </FieldRow>
+                    </>
+                  ) : (
+                    <LocalLLMFields settings={settings} patch={patch} />
+                  )}
+                  {settings.ai_mode !== 'builtin' && <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />}
+                </Section>
+              </>
+            )}
+
+            {group === 'asr' && (
+              <>
+                <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。可与上面的笔记模型分开选。">
+                  <FieldRow label="常用人名 / 术语">
+                    <textarea
+                      className="input text-sm"
+                      rows={2}
+                      aria-label="常用人名 / 术语"
+                      value={settings.hotwords}
+                      onChange={(e) => patch({ hotwords: e.target.value })}
+                      placeholder="张三、李四、PoC、OKR、飞书…（逗号 / 顿号 / 换行分隔）"
+                    />
+                    <p className="text-[11px] text-text-3 mt-1">转录时当作热词，人名和专有名词更准。待办里出现过的负责人、本场速记里的短词会自动加入。</p>
+                  </FieldRow>
+                  <FieldRow label="模式">
+                    <ModeSegmented
+                      value={settings.asr_mode}
+                      onChange={(v) => patch({ asr_mode: v })}
+                      labels={{
+                        cloud: '云端 API',
+                        cloudSub: 'MiniMax / Deepgram / OpenAI Whisper 兼容网关',
+                        local: '自建服务',
+                        localSub: 'whisper.cpp server / MLX STT / faster-whisper',
+                      }}
+                    />
+                  </FieldRow>
+
+                  {settings.asr_mode === 'builtin' ? (
+                    <>
+                      <ModelPicker kind="asr" selected={settings.builtin_asr_model} onSelect={(id) => void pickBuiltin({ builtin_asr_model: id })} />
+                      <DiarizationRow />
+                    </>
+                  ) : settings.asr_mode === 'cloud' ? (
+                    <>
+                      <FieldRow label="Provider">
+                        <select
+                          className="input"
+                          value={settings.asr_provider}
+                          onChange={(e) => patch({ asr_provider: e.target.value as AppSettings['asr_provider'] })}
+                        >
+                          <option value="minimax">MiniMax</option>
+                          <option value="openai-whisper">OpenAI Whisper 兼容</option>
+                          <option value="deepgram">Deepgram</option>
+                        </select>
+                      </FieldRow>
+                      <FieldRow label="Base URL">
+                        <input
+                          className="input"
+                          value={settings.asr_base_url}
+                          onChange={(e) => patch({ asr_base_url: e.target.value })}
+                        />
+                      </FieldRow>
+                      <FieldRow label="API Key">
+                        <PasswordInput
+                          value={settings.asr_api_key}
+                          onChange={(v) => patch({ asr_api_key: v })}
+                        />
+                      </FieldRow>
+                      <FieldRow label="Model">
+                        <input
+                          className="input"
+                          value={settings.asr_model}
+                          onChange={(e) => patch({ asr_model: e.target.value })}
+                          placeholder="asr-1.0"
+                        />
+                      </FieldRow>
+                    </>
+                  ) : (
+                    <LocalASRFields settings={settings} patch={patch} />
+                  )}
+                  {settings.asr_mode === 'local' && (
+                    <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
+                      Local 模式实际走 <code className="font-mono">POST &#123;base&#125;/audio/transcriptions</code>，
+                      与 <code className="font-mono">openai-whisper</code> 字段一致；
+                      Cloud 那一侧（MiniMax / Deepgram）的字段已保留，切换回 Cloud 即可使用。
+                    </div>
+                  )}
+                  {settings.asr_mode !== 'builtin' && <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />}
+                </Section>
+
+                <Section title="录音采集 · Capture" desc="决定录音能拿到什么声音。">
+                  <CaptureStatusRow />
+                </Section>
+              </>
+            )}
+
+            {group === 'integrations' && (
+              <>
+                <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书日历「订阅链接」/ 腾讯会议日历订阅链接都行），仅本地拉取。">
+                  <IcsListEditor
+                    urls={settings.calendar_ics_urls}
+                    onChange={(urls) => patch({ calendar_ics_urls: urls })}
+                    onFlash={flash}
+                  />
+                </Section>
+
+                <Section title="GitHub" desc="把某个仓库的 open issues 导入为任务（按 issue 链接去重，重复导入不会翻倍）。">
+                  <FieldRow label="仓库">
+                    <input
+                      className="input font-mono"
+                      value={settings.github_repo}
+                      onChange={(e) => patch({ github_repo: e.target.value })}
+                      placeholder="owner/name"
+                    />
+                  </FieldRow>
+                  <FieldRow label="Token" hint="私有仓库需要；公开仓库可留空">
+                    <PasswordInput
+                      value={settings.github_token}
+                      onChange={(v) => patch({ github_token: v })}
+                      placeholder="ghp_...（可留空）"
+                    />
+                  </FieldRow>
+                  <ImportButton
+                    label="导入 issues"
+                    disabled={dirty}
+                    run={() => importGithubIssues(settings, db)}
+                    onFlash={flash}
+                  />
+                </Section>
+
+                <Section title="飞书" desc="用自建应用的 App ID / Secret 拉主日历未来 7 天日程，生成会议壳（无音频），按日程 ID 去重。">
+                  <FieldRow label="App ID">
+                    <input
+                      className="input font-mono"
+                      value={settings.feishu_app_id}
+                      onChange={(e) => patch({ feishu_app_id: e.target.value })}
+                      placeholder="cli_..."
+                    />
+                  </FieldRow>
+                  <FieldRow label="App Secret">
+                    <PasswordInput
+                      value={settings.feishu_app_secret}
+                      onChange={(v) => patch({ feishu_app_secret: v })}
+                    />
+                  </FieldRow>
+                  <ImportButton
+                    label="导入日程"
+                    disabled={dirty}
+                    run={() => importFeishuEvents(settings, db)}
+                    onFlash={flash}
+                  />
+                </Section>
+
+                <Section
+                  title="知识库 · Knowledge"
+                  desc="把本地笔记 / markdown 文本喂给 Live Assist，会议中按速记 / 转录自动推荐相关卡片。当前 MVP 用 keyword + 标题匹配；embedding 升级见 README。"
                 >
-                  {(Object.keys(SOURCE_LABELS) as AppSettings['model_source'][]).map((k) => (
-                    <option key={k} value={k}>{SOURCE_LABELS[k]}</option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-text-3 mt-1">
-                  {settings.model_source === 'auto'
-                    ? `已按${inMainlandChina() ? '国内' : '海外'}网络排序：${inMainlandChina() ? 'OpenCSG → hf-mirror → Hugging Face' : 'Hugging Face → hf-mirror → OpenCSG'}；一个源失败自动换下一个，断点续传。`
-                    : '首选这个源，失败时自动换其它源。'}
-                </p>
-              </FieldRow>
-            </>
-          )}
-        </Section>
+                  <KnowledgeFolderEditor
+                    folders={settings.knowledge_folders}
+                    onChange={(folders) => patch({ knowledge_folders: folders })}
+                    onFlash={flash}
+                  />
+                </Section>
+              </>
+            )}
 
-        <DataFlowCard settings={settings} />
+            {group === 'api' && (
+              <Section title="开放 API" desc="桌面版本机起 HTTP 服务（127.0.0.1），让 Raycast / 快捷指令 / 脚本读写任务和笔记。改动立即生效。">
+                <OpenApiRow settings={settings} onApply={(p) => void applyApi(p)} flash={flash} />
+              </Section>
+            )}
 
-        <Section title="笔记模型 · LLM" desc="笔记 / 待办提取 / 对话都走它。切换不会清空另一侧已填的字段。">
-          <FieldRow label="模式">
-            <ModeSegmented
-              value={settings.ai_mode}
-              onChange={(v) => patch({ ai_mode: v })}
-              labels={{
-                cloud: '云端 API',
-                cloudSub: 'MiniMax / Anthropic / OpenAI 兼容网关',
-                local: '自建服务',
-                localSub: 'Ollama / LM Studio / MLX / 自建',
-              }}
-            />
-          </FieldRow>
+            {group === 'appearance' && (
+              <>
+                <Section title="外观" desc="主题与显示。">
+                  <FieldRow label="主题">
+                    <select
+                      className="input"
+                      value={settings.theme}
+                      onChange={(e) => patch({ theme: e.target.value as AppSettings['theme'] })}
+                    >
+                      <option value="dark">暗色</option>
+                      <option value="light">亮色</option>
+                      <option value="system">跟随系统</option>
+                    </select>
+                  </FieldRow>
+                </Section>
 
-          {settings.ai_mode === 'builtin' ? (
-            <ModelPicker kind="llm" selected={settings.builtin_llm_model} onSelect={(id) => void pickBuiltin({ builtin_llm_model: id })} />
-          ) : settings.ai_mode === 'cloud' ? (
-            <>
-              <FieldRow label="Provider">
-                <select
-                  className="input"
-                  value={settings.llm_provider}
-                  onChange={(e) => patch({ llm_provider: e.target.value as AppSettings['llm_provider'] })}
-                >
-                  <option value="anthropic-compatible">Anthropic 兼容</option>
-                  <option value="openai-compatible">OpenAI 兼容</option>
-                </select>
-              </FieldRow>
-              <FieldRow label="Base URL">
-                <input
-                  className="input"
-                  value={settings.llm_base_url}
-                  onChange={(e) => patch({ llm_base_url: e.target.value })}
-                  placeholder="https://api.example.com"
-                />
-              </FieldRow>
-              <FieldRow label="API Key">
-                <PasswordInput
-                  value={settings.llm_api_key}
-                  onChange={(v) => patch({ llm_api_key: v })}
-                  placeholder="sk-..."
-                />
-              </FieldRow>
-              <FieldRow label="Model">
-                <input
-                  className="input"
-                  value={settings.llm_model}
-                  onChange={(e) => patch({ llm_model: e.target.value })}
-                  placeholder="claude-3-5-sonnet-..."
-                />
-              </FieldRow>
-            </>
-          ) : (
-            <LocalLLMFields settings={settings} patch={patch} />
-          )}
-          {settings.ai_mode !== 'builtin' && <ConnectionTestRow kind="llm" settings={settings} dirty={dirty} />}
-        </Section>
+                <Section title="隐私" desc="音频归属。">
+                  {settings.asr_mode === 'cloud' ? (
+                    <Toggle
+                      checked={settings.delete_remote_audio}
+                      onChange={(v) => patch({ delete_remote_audio: v })}
+                      label="转录后删除云端音频"
+                      hint="关掉则会保留在供应商的存储里——通常不要。"
+                    />
+                  ) : (
+                    <p className="text-[11px] text-text-3">当前转录不走云端，无可删除的远端音频。切到云端 ASR 后这里会出现「转录后删除云端音频」开关。</p>
+                  )}
+                </Section>
 
-        <Section title="语音转录 · ASR" desc="决定录音结束后的转录引擎。可与上面的笔记模型分开选。">
-          <FieldRow label="常用人名 / 术语">
-            <textarea
-              className="input text-sm"
-              rows={2}
-              aria-label="常用人名 / 术语"
-              value={settings.hotwords}
-              onChange={(e) => patch({ hotwords: e.target.value })}
-              placeholder="张三、李四、PoC、OKR、飞书…（逗号 / 顿号 / 换行分隔）"
-            />
-            <p className="text-[11px] text-text-3 mt-1">转录时当作热词，人名和专有名词更准。待办里出现过的负责人、本场速记里的短词会自动加入。</p>
-          </FieldRow>
-          <FieldRow label="模式">
-            <ModeSegmented
-              value={settings.asr_mode}
-              onChange={(v) => patch({ asr_mode: v })}
-              labels={{
-                cloud: '云端 API',
-                cloudSub: 'MiniMax / Deepgram / OpenAI Whisper 兼容网关',
-                local: '自建服务',
-                localSub: 'whisper.cpp server / MLX STT / faster-whisper',
-              }}
-            />
-          </FieldRow>
+                <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。">
+                  <ExportImportRow flash={flash} />
+                  <StorageStatusRow />
+                </Section>
 
-          {settings.asr_mode === 'builtin' ? (
-            <>
-              <ModelPicker kind="asr" selected={settings.builtin_asr_model} onSelect={(id) => void pickBuiltin({ builtin_asr_model: id })} />
-              <DiarizationRow />
-            </>
-          ) : settings.asr_mode === 'cloud' ? (
-            <>
-              <FieldRow label="Provider">
-                <select
-                  className="input"
-                  value={settings.asr_provider}
-                  onChange={(e) => patch({ asr_provider: e.target.value as AppSettings['asr_provider'] })}
-                >
-                  <option value="minimax">MiniMax</option>
-                  <option value="openai-whisper">OpenAI Whisper 兼容</option>
-                  <option value="deepgram">Deepgram</option>
-                </select>
-              </FieldRow>
-              <FieldRow label="Base URL">
-                <input
-                  className="input"
-                  value={settings.asr_base_url}
-                  onChange={(e) => patch({ asr_base_url: e.target.value })}
-                />
-              </FieldRow>
-              <FieldRow label="API Key">
-                <PasswordInput
-                  value={settings.asr_api_key}
-                  onChange={(v) => patch({ asr_api_key: v })}
-                />
-              </FieldRow>
-              <FieldRow label="Model">
-                <input
-                  className="input"
-                  value={settings.asr_model}
-                  onChange={(e) => patch({ asr_model: e.target.value })}
-                  placeholder="asr-1.0"
-                />
-              </FieldRow>
-            </>
-          ) : (
-            <LocalASRFields settings={settings} patch={patch} />
-          )}
-          {settings.asr_mode === 'local' && (
-            <div className="text-[11px] text-text-3 leading-relaxed -mt-1">
-              Local 模式实际走 <code className="font-mono">POST &#123;base&#125;/audio/transcriptions</code>，
-              与 <code className="font-mono">openai-whisper</code> 字段一致；
-              Cloud 那一侧（MiniMax / Deepgram）的字段已保留，切换回 Cloud 即可使用。
-            </div>
-          )}
-          {settings.asr_mode !== 'builtin' && <ConnectionTestRow kind="asr" settings={settings} dirty={dirty} />}
-        </Section>
-
-        <Section title="隐私" desc="音频归属与外观。">
-          {settings.asr_mode === 'cloud' && (
-            <Toggle
-              checked={settings.delete_remote_audio}
-              onChange={(v) => patch({ delete_remote_audio: v })}
-              label="转录后删除云端音频"
-              hint="关掉则会保留在供应商的存储里——通常不要。"
-            />
-          )}
-          <FieldRow label="主题">
-            <select
-              className="input"
-              value={settings.theme}
-              onChange={(e) => patch({ theme: e.target.value as AppSettings['theme'] })}
-            >
-              <option value="dark">暗色</option>
-              <option value="light">亮色</option>
-              <option value="system">跟随系统</option>
-            </select>
-          </FieldRow>
-        </Section>
-
-        <Section title="录音采集 · Capture" desc="决定录音能拿到什么声音。">
-          <CaptureStatusRow />
-        </Section>
-
-        <Section
-          title="知识库 · Knowledge"
-          desc="把本地笔记 / markdown 文本喂给 Live Assist，会议中按速记 / 转录自动推荐相关卡片。当前 MVP 用 keyword + 标题匹配；embedding 升级见 README。"
-        >
-          <KnowledgeFolderEditor
-            folders={settings.knowledge_folders}
-            onChange={(folders) => patch({ knowledge_folders: folders })}
-            onFlash={flash}
-          />
-        </Section>
-
-        <Section title="日历" desc="订阅任意 .ics URL（Apple iCloud / Google / QQ 邮箱 / Outlook / 飞书日历「订阅链接」/ 腾讯会议日历订阅链接都行），仅本地拉取。">
-          <IcsListEditor
-            urls={settings.calendar_ics_urls}
-            onChange={(urls) => patch({ calendar_ics_urls: urls })}
-            onFlash={flash}
-          />
-        </Section>
-
-        <Section title="GitHub" desc="把某个仓库的 open issues 导入为任务（按 issue 链接去重，重复导入不会翻倍）。">
-          <FieldRow label="仓库">
-            <input
-              className="input font-mono"
-              value={settings.github_repo}
-              onChange={(e) => patch({ github_repo: e.target.value })}
-              placeholder="owner/name"
-            />
-          </FieldRow>
-          <FieldRow label="Token" hint="私有仓库需要；公开仓库可留空">
-            <PasswordInput
-              value={settings.github_token}
-              onChange={(v) => patch({ github_token: v })}
-              placeholder="ghp_...（可留空）"
-            />
-          </FieldRow>
-          <ImportButton
-            label="导入 issues"
-            disabled={dirty}
-            run={() => importGithubIssues(settings, db)}
-            onFlash={flash}
-          />
-        </Section>
-
-        <Section title="飞书" desc="用自建应用的 App ID / Secret 拉主日历未来 7 天日程，生成会议壳（无音频），按日程 ID 去重。">
-          <FieldRow label="App ID">
-            <input
-              className="input font-mono"
-              value={settings.feishu_app_id}
-              onChange={(e) => patch({ feishu_app_id: e.target.value })}
-              placeholder="cli_..."
-            />
-          </FieldRow>
-          <FieldRow label="App Secret">
-            <PasswordInput
-              value={settings.feishu_app_secret}
-              onChange={(v) => patch({ feishu_app_secret: v })}
-            />
-          </FieldRow>
-          <ImportButton
-            label="导入日程"
-            disabled={dirty}
-            run={() => importFeishuEvents(settings, db)}
-            onFlash={flash}
-          />
-        </Section>
-
-        <Section title="开放 API" desc="桌面版本机起 HTTP 服务（127.0.0.1），让 Raycast / 快捷指令 / 脚本读写任务和笔记。改动立即生效。">
-          <OpenApiRow settings={settings} onApply={(p) => void applyApi(p)} flash={flash} />
-        </Section>
-
-        <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。">
-          <ExportImportRow flash={flash} />
-          <StorageStatusRow />
-        </Section>
-
-        <Section title="诊断">
-          <details>
-            <summary className="cursor-pointer text-sm text-text-2 hover:text-text-1">查看当前 settings JSON</summary>
-            <pre className="mt-3 text-[11px] text-text-3 bg-bg-overlay border border-line rounded-lg p-3 overflow-x-auto">
-              {JSON.stringify(settings, null, 2)}
-            </pre>
-          </details>
-        </Section>
+                <Section title="诊断">
+                  <details>
+                    <summary className="cursor-pointer text-sm text-text-2 hover:text-text-1">查看当前 settings JSON</summary>
+                    <pre className="mt-3 text-[11px] text-text-3 bg-bg-overlay border border-line rounded-lg p-3 overflow-x-auto">
+                      {JSON.stringify(settings, null, 2)}
+                    </pre>
+                  </details>
+                </Section>
+              </>
+            )}
+          </div>
+        </div>
 
         {toast && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-accent text-accent-contrast shadow-lg text-sm">
@@ -394,6 +435,16 @@ export default function SettingsPage(): JSX.Element {
     </div>
   )
 }
+
+type SettingsGroup = 'ai' | 'asr' | 'integrations' | 'api' | 'appearance'
+
+const SETTINGS_GROUPS: { key: SettingsGroup; label: string }[] = [
+  { key: 'ai', label: 'AI 模型' },
+  { key: 'asr', label: '语音识别' },
+  { key: 'integrations', label: '日历与集成' },
+  { key: 'api', label: '本机 API' },
+  { key: 'appearance', label: '外观与数据' },
+]
 
 function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }): JSX.Element {
   return (

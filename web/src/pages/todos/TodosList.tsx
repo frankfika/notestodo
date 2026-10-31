@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { db } from '../../db/db'
 import { now, thisFriday, today as todayIso } from '../../lib/id'
 import type { Todo } from '../../types'
+import { EditableTitle, TodoMenu } from './todoRowOps'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -36,7 +37,7 @@ async function toggle(t: Todo): Promise<void> {
   })
 }
 
-function Row({ t, byId }: { t: Todo; byId: Map<string, Todo> }): JSX.Element {
+function Row({ t, byId, all }: { t: Todo; byId: Map<string, Todo>; all: Todo[] }): JSX.Element {
   const crumbs: string[] = []
   let p = t.parent_id ? byId.get(t.parent_id) : undefined
   const seen = new Set<string>()
@@ -49,7 +50,7 @@ function Row({ t, byId }: { t: Todo; byId: Map<string, Todo> }): JSX.Element {
   const dueCls = g === 'overdue' ? 'text-red-500' : g === 'today' ? 'text-accent' : 'text-text-3'
 
   return (
-    <div className="flex items-center gap-2 h-9 px-2 rounded-[8px] hover:bg-bg-overlay transition-colors">
+    <div className="group flex items-center gap-2 h-9 px-2 rounded-[8px] hover:bg-bg-overlay transition-colors">
       <input
         type="checkbox"
         checked={t.status === 'done'}
@@ -57,14 +58,13 @@ function Row({ t, byId }: { t: Todo; byId: Map<string, Todo> }): JSX.Element {
         className="shrink-0 accent-[var(--accent)]"
       />
       <div className="flex-1 min-w-0">
-        <div className={`truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}>
-          {t.title || '（无标题）'}
-        </div>
+        <EditableTitle t={t} className={`block truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`} />
         {crumbs.length > 0 && (
           <div className="truncate text-[11px] text-text-3">{crumbs.join(' › ')}</div>
         )}
       </div>
       {t.due_date && <span className={`text-[11px] font-mono shrink-0 ${dueCls}`}>{fmtDue(t.due_date)}</span>}
+      <TodoMenu t={t} all={all} />
     </div>
   )
 }
@@ -98,7 +98,7 @@ export default function TodosList(): JSX.Element {
               {label} <span className="text-text-3 font-normal normal-case tracking-normal">{list.length}</span>
             </div>
             <div className="flex flex-col gap-0.5">
-              {list.map((t) => <Row key={t.id} t={t} byId={byId} />)}
+              {list.map((t) => <Row key={t.id} t={t} byId={byId} all={all} />)}
             </div>
           </section>
         )

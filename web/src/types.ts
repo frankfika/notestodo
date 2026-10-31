@@ -103,6 +103,8 @@ export interface Note extends EntityMeta {
   parent_id?: ID | null
   /** 页面树同级排序，缺省按 updated_at */
   sort_order?: number
+  /** 所属笔记本；null/缺省 = 默认（不分区） */
+  notebook_id?: ID | null
 }
 
 export interface Summary extends EntityMeta {
@@ -152,8 +154,10 @@ export interface Todo extends EntityMeta {
   /** 出处引文：可定位到转录段 */
   transcript_span?: { start_ms: number; end_ms: number; quote: string }
   sort_order: number
-  /** 看板列（done 由 status 决定）；缺省=待办 */
-  board_col?: 'todo' | 'doing' | 'review'
+  /** 看板列（done 由 status 决定）；缺省=待办。多看板后存列名（自由字符串） */
+  board_col?: 'todo' | 'doing' | 'review' | string
+  /** 所属看板；null/缺省 = 默认看板 */
+  board_id?: ID | null
   /** 循环卡：每周自动出现，点开即周报草稿 */
   recurring?: 'weekly-report'
 }
@@ -167,6 +171,23 @@ export interface BlockComment extends EntityMeta {
   quote: string
   text: string
   resolved: boolean
+}
+
+// ── 笔记本 / 看板（多容器）────────────────────────────────────────────────────
+
+/** 笔记本：页面的分组容器（侧栏按笔记本分区） */
+export interface Notebook extends EntityMeta {
+  name: string
+  icon: string
+  sort_order: number
+}
+
+/** 看板：Trello 式多板，columns 为自定义列名（顺序即列序） */
+export interface Board extends EntityMeta {
+  name: string
+  icon: string
+  columns: string[]        // 缺省 ['待办','进行中','待审']；'已完成' 由 status 决定不占列
+  sort_order: number
 }
 
 // ── 标签 ─────────────────────────────────────────────────────────────────────

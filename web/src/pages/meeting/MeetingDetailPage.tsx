@@ -207,6 +207,9 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           <span className={`text-xs px-2 py-0.5 rounded-md border ${statusTone(displayStatus(meeting))}`}>
             {statusText(meeting)}
           </span>
+          {(meeting.source === 'feishu' || meeting.source === 'tencent') && meeting.audio.chunk_count === 0 && (
+            <span className="chip shrink-0">导入的会议</span>
+          )}
         </div>
 
         {/* 操作行 */}

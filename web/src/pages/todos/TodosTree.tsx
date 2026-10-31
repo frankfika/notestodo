@@ -4,6 +4,7 @@ import { db } from '../../db/db'
 import { now, today as todayIso, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
 import type { Todo } from '../../types'
+import { EditableTitle, TodoMenu } from './todoRowOps'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -83,7 +84,7 @@ function countDone(n: Node): { done: number; total: number } {
   return { done, total }
 }
 
-function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId }: {
+function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, all }: {
   node: Node
   depth: number
   collapsed: Set<string>
@@ -91,6 +92,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId }: 
   dragId: string | null
   setDragId: (id: string | null) => void
   byId: Map<string, Todo>
+  all: Todo[]
 }): JSX.Element {
   const [over, setOver] = useState(false)
   const t = node.todo
@@ -136,9 +138,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId }: 
           onChange={() => void toggle(t)}
           className="shrink-0 accent-[var(--accent)]"
         />
-        <span className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}>
-          {t.title || '（无标题）'}
-        </span>
+        <EditableTitle t={t} className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`} />
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
         <DueBadge due={t.due_date} />
         <button
@@ -146,10 +146,11 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId }: 
           title="新建子任务"
           className="w-6 h-6 rounded-[6px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 transition-opacity"
         >＋</button>
+        <TodoMenu t={t} all={all} />
       </div>
       {!collapsed.has(t.id) && node.children.map((c) => (
         <Row key={c.todo.id} node={c} depth={depth + 1} collapsed={collapsed} setCollapsed={setCollapsed}
-          dragId={dragId} setDragId={setDragId} byId={byId} />
+          dragId={dragId} setDragId={setDragId} byId={byId} all={all} />
       ))}
     </>
   )
@@ -188,7 +189,7 @@ export default function TodosTree(): JSX.Element {
     <div className="flex flex-col gap-0.5">
       {tree.map((n) => (
         <Row key={n.todo.id} node={n} depth={0} collapsed={collapsed} setCollapsed={setCollapsed}
-          dragId={dragId} setDragId={setDragId} byId={byId} />
+          dragId={dragId} setDragId={setDragId} byId={byId} all={all} />
       ))}
       {tree.length === 0 && <div className="text-sm text-text-3 py-8 text-center">还没有任务</div>}
       <button onClick={() => void addRoot()} className="btn-ghost self-start mt-2">＋ 新建任务</button>

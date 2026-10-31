@@ -7,6 +7,7 @@ import { useRecorder } from '../../state/recorder'
 import { fmtClock, fmtDate, fmtDateTime, mod } from '../../lib/id'
 import type { Meeting, MeetingStatus } from '../../types'
 import EmptyState from '../../components/EmptyState'
+import { importTranscriptText } from '../../lib/importTranscript'
 
 function statusDot(s: MeetingStatus): string {
   switch (s) {
@@ -31,6 +32,7 @@ export default function MeetingsPage(): JSX.Element {
   const start = useRecorder((s) => s.start)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   // 自动选中最近一个
   const activeId = selectedId ?? meetings[0]?.id ?? null
@@ -59,10 +61,15 @@ export default function MeetingsPage(): JSX.Element {
           <h1 className="text-sm font-semibold text-text-1">会议</h1>
           <span className="ml-2 text-[11px] text-text-3 tabular-nums">{meetings.length}</span>
           <button
+            onClick={() => setImportOpen(true)}
+            className="ml-auto btn-ghost text-xs h-7 px-2.5"
+          >导入转录</button>
+          <button
             onClick={() => void start()}
-            className="ml-auto btn-primary text-xs h-7 px-2.5"
+            className="btn-primary text-xs h-7 px-2.5"
           >● 新建录音</button>
         </div>
+        {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
 
         {meetings.length === 0 ? (
           <EmptyState
@@ -181,6 +188,76 @@ function Stat({ label, value }: { label: string; value: string }): JSX.Element {
     <div className="card p-3">
       <div className="text-[11px] text-text-3 tracking-wider uppercase">{label}</div>
       <div className="text-base text-text-1 font-medium mt-1">{value}</div>
+    </div>
+  )
+}
+
+/** 导入腾讯会议 / 飞书妙记导出的转录文本 */
+function ImportModal({ onClose }: { onClose: () => void }): JSX.Element {
+  const goMeeting = useUI((s) => s.goMeeting)
+  const [title, setTitle] = useState('')
+  const [source, setSource] = useState<'tencent' | 'feishu'>('tencent')
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setText(await f.text())
+    if (!title) setTitle(f.name.replace(/\.[^.]+$/, ''))
+  }
+
+  async function submit(): Promise<void> {
+    if (!title.trim()) { setErr('填个标题'); return }
+    if (!text.trim()) { setErr('粘贴或选择转录文本'); return }
+    setBusy(true)
+    setErr('')
+    try {
+      const id = await importTranscriptText(db, { title: title.trim(), source, text })
+      onClose()
+      goMeeting(id)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="card w-[480px] max-h-[80vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="section-title mb-3">导入转录</div>
+        <div className="space-y-3">
+          <input
+            className="input w-full" placeholder="会议标题" value={title}
+            onChange={(e) => setTitle(e.target.value)} autoFocus
+          />
+          <div className="flex items-center gap-3">
+            <select className="input text-xs h-8" value={source} onChange={(e) => setSource(e.target.value as 'tencent' | 'feishu')}>
+              <option value="tencent">腾讯会议</option>
+              <option value="feishu">飞书妙记</option>
+            </select>
+            <label className="text-xs text-accent cursor-pointer hover:underline">
+              选择 .txt 文件
+              <input type="file" accept=".txt,text/plain" className="hidden" onChange={(e) => void onFile(e)} />
+            </label>
+          </div>
+          <textarea
+            className="input w-full h-48 text-xs font-mono resize-y"
+            placeholder={'粘贴转录文本，支持：\n00:01:23 张三: 大家好\n[00:01:23] 李四 大家好\n或纯文本'}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          {err && <div className="text-xs text-danger">{err}</div>}
+          <div className="flex justify-end gap-2">
+            <button className="btn-ghost text-xs h-8 px-3" onClick={onClose}>取消</button>
+            <button className="btn-primary text-xs h-8 px-4" disabled={busy} onClick={() => void submit()}>
+              {busy ? '导入中…' : '导入'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

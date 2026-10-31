@@ -1,11 +1,12 @@
 import { useUI, type ViewName } from '../state/ui'
 import { useRecorder } from '../state/recorder'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isTauri } from '../lib/tauri'
 import { DownloadIndicator } from './BuiltinModels'
 import { createPage } from '../lib/notes'
+import { uid } from '../lib/id'
 import type { ID, Note } from '../types'
 
 // 只留 3 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
@@ -27,20 +28,70 @@ function navOf(v: ViewName): ViewName {
 /**
  * 页面树（PR1 IA）：自由页面按 parent_id 嵌套，会议纪要留在「会议」里不进树。
  * 默认全展开（个人笔记量级），点击 chevron 折叠；hover 行尾 ＋ 新建子页面。
+ * 存在笔记本时按笔记本分区；无笔记本的页面落到最后的「未分配」区。
  */
 function PageTree(): JSX.Element {
   const notes = useLiveQuery(
     () => db.notes.filter((n) => !n.meeting_id && n.deleted_at === null).toArray(),
     [],
   ) ?? []
+  const notebooks = useLiveQuery(
+    () => db.notebooks.filter((nb) => nb.deleted_at === null).sortBy('sort_order'),
+    [],
+  ) ?? []
   const goNote = useUI((s) => s.goNote)
   const view = useUI((s) => s.view)
   const currentId = useUI((s) => s.noteId)
   const [collapsed, setCollapsed] = useState<ReadonlySet<ID>>(new Set())
+  const [dragPageId, setDragPageId] = useState<ID | null>(null)
+  const [dropTarget, setDropTarget] = useState<ID | null>(null) // 行 id 或 'nb:<id>'/'root'
 
-  const childrenOf = (pid: ID | null): Note[] =>
+  /** 防成环：target 是不是 dragged 的子孙 */
+  const isDescendant = (draggedId: ID, targetId: ID): boolean => {
+    const byId = new Map(notes.map((n) => [n.id, n]))
+    let p = byId.get(targetId)?.parent_id ?? null
+    const seen = new Set<ID>()
+    while (p && !seen.has(p)) {
+      if (p === draggedId) return true
+      seen.add(p)
+      p = byId.get(p)?.parent_id ?? null
+    }
+    return false
+  }
+
+  const dropOnPage = async (targetId: ID): Promise<void> => {
+    setDropTarget(null)
+    const draggedId = dragPageId
+    setDragPageId(null)
+    if (!draggedId || draggedId === targetId || isDescendant(draggedId, targetId)) return
+    const target = notes.find((n) => n.id === targetId)
+    const dragged = notes.find((n) => n.id === draggedId)
+    if (!target || !dragged) return
+    await db.notes.update(draggedId, {
+      parent_id: targetId,
+      notebook_id: target.notebook_id ?? null,
+      sort_order: Date.now(),
+      updated_at: new Date().toISOString(),
+    })
+  }
+
+  /** 拖到分区头/空白 = 挪到该笔记本（或「未分配」）的根层 */
+  const dropOnSection = async (notebookId: ID | null): Promise<void> => {
+    setDropTarget(null)
+    const draggedId = dragPageId
+    setDragPageId(null)
+    if (!draggedId) return
+    const dragged = notes.find((n) => n.id === draggedId)
+    if (!dragged) return
+    if ((dragged.parent_id ?? null) === null && (dragged.notebook_id ?? null) === notebookId) return
+    await db.notes.update(draggedId, {
+      parent_id: null, notebook_id: notebookId, sort_order: Date.now(), updated_at: new Date().toISOString(),
+    })
+  }
+
+  const childrenOf = (pid: ID | null, notebookId: ID | null | undefined): Note[] =>
     notes
-      .filter((n) => (n.parent_id ?? null) === pid)
+      .filter((n) => (n.parent_id ?? null) === pid && (n.notebook_id ?? null) === (notebookId ?? null))
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.updated_at.localeCompare(a.updated_at))
 
   const toggle = (id: ID): void =>
@@ -51,20 +102,37 @@ function PageTree(): JSX.Element {
       return next
     })
 
-  const newPage = async (pid: ID | null): Promise<void> => {
-    goNote(await createPage(pid))
+  const newPage = async (pid: ID | null, notebookId: ID | null = null): Promise<void> => {
+    goNote(await createPage(pid, notebookId))
   }
 
-  const renderLevel = (pid: ID | null, depth: number): ReactNode =>
-    childrenOf(pid).map((n) => {
-      const kids = childrenOf(n.id)
+  const newNotebook = async (): Promise<void> => {
+    const name = window.prompt('笔记本名称')?.trim()
+    if (!name) return
+    const ts = new Date().toISOString()
+    await db.notebooks.add({
+      id: uid(), name, icon: '📓', sort_order: Date.now(),
+      created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+    })
+  }
+
+  const renderLevel = (pid: ID | null, depth: number, notebookId: ID | null): ReactNode =>
+    childrenOf(pid, notebookId).map((n) => {
+      const kids = childrenOf(n.id, notebookId)
       const open = !collapsed.has(n.id)
       return (
         <li key={n.id}>
           <div
+            draggable
+            onDragStart={(e) => { e.stopPropagation(); setDragPageId(n.id); e.dataTransfer.effectAllowed = 'move' }}
+            onDragEnd={() => { setDragPageId(null); setDropTarget(null) }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (dragPageId && dragPageId !== n.id && !isDescendant(dragPageId, n.id)) setDropTarget(n.id) }}
+            onDragLeave={() => setDropTarget((t) => (t === n.id ? null : t))}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); void dropOnPage(n.id) }}
             className={`group flex items-center h-7 rounded-[8px] pr-1 text-[13px] cursor-pointer transition-colors ${
+              dropTarget === n.id ? 'outline outline-1 outline-accent bg-accent/10' :
               view === 'note-detail' && currentId === n.id ? 'bg-bg-raise text-text-1 font-medium' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
-            }`}
+            } ${dragPageId === n.id ? 'opacity-40' : ''}`}
             style={{ paddingLeft: 8 + depth * 14 }}
             onClick={() => goNote(n.id)}
           >
@@ -80,13 +148,80 @@ function PageTree(): JSX.Element {
               aria-label="新建子页面"
               title="新建子页面"
               className="opacity-0 group-hover:opacity-100 shrink-0 w-5 text-text-3 hover:text-accent"
-              onClick={(e) => { e.stopPropagation(); void newPage(n.id) }}
+              onClick={(e) => { e.stopPropagation(); void newPage(n.id, notebookId) }}
             >＋</button>
           </div>
-          {open && kids.length > 0 && <ul>{renderLevel(n.id, depth + 1)}</ul>}
+          {open && kids.length > 0 && <ul>{renderLevel(n.id, depth + 1, notebookId)}</ul>}
         </li>
       )
     })
+
+  const renameNotebook = async (nb: { id: ID; name: string }): Promise<void> => {
+    const name = window.prompt('重命名笔记本', nb.name)?.trim()
+    if (!name || name === nb.name) return
+    await db.notebooks.update(nb.id, { name, updated_at: new Date().toISOString() })
+  }
+
+  const deleteNotebook = async (nb: { id: ID; name: string }): Promise<void> => {
+    if (!window.confirm(`删除笔记本「${nb.name}」？里面的页面不会删，移到「未分配」。`)) return
+    await db.notes.where('notebook_id').equals(nb.id).modify({ notebook_id: null })
+    await db.notebooks.update(nb.id, { deleted_at: new Date().toISOString() })
+  }
+
+  const sectionHeader = (label: ReactNode, onAdd: () => void, addTitle: string, dropKey: ID | null, nb?: { id: ID; name: string }): ReactNode => (
+    <div
+      className={`group/nb flex items-center px-4 mb-1 mt-2 first:mt-0 rounded-[6px] ${dropTarget === `sec:${dropKey ?? 'root'}` ? 'outline outline-1 outline-accent bg-accent/10' : ''}`}
+      onDragOver={(e) => { if (!dragPageId) return; e.preventDefault(); setDropTarget(`sec:${dropKey ?? 'root'}`) }}
+      onDragLeave={() => setDropTarget((t) => (t === `sec:${dropKey ?? 'root'}` ? null : t))}
+      onDrop={(e) => { e.preventDefault(); void dropOnSection(dropKey) }}
+    >
+      <span className="text-[11px] tracking-wide text-text-3 truncate">{label}</span>
+      {nb && (
+        <span className="ml-1 opacity-0 group-hover/nb:opacity-100 flex gap-0.5">
+          <button type="button" title="重命名" className="text-text-3 hover:text-accent text-[10px]" onClick={() => void renameNotebook(nb)}>✎</button>
+          <button type="button" title="删除笔记本" className="text-text-3 hover:text-danger text-[10px]" onClick={() => void deleteNotebook(nb)}>🗑</button>
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label={addTitle}
+        title={addTitle}
+        className="ml-auto shrink-0 text-text-3 hover:text-accent text-sm leading-none"
+        onClick={onAdd}
+      >＋</button>
+    </div>
+  )
+
+  const hasUnassigned = notes.some((n) => {
+    const nid = n.notebook_id ?? null
+    return nid === null || !notebooks.some((nb) => nb.id === nid)
+  })
+
+  // 无笔记本：保持原来的一棵「页面」树
+  if (notebooks.length === 0) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col mt-3">
+        <div className="flex items-center px-4 mb-1">
+          <span className="text-[11px] tracking-wide text-text-3">页面</span>
+          <button
+            type="button"
+            aria-label="新建页面"
+            title="新建页面"
+            className="ml-auto text-text-3 hover:text-accent text-sm leading-none"
+            onClick={() => void newPage(null)}
+          >＋</button>
+          <button
+            type="button"
+            aria-label="新建笔记本"
+            title="新建笔记本"
+            className="ml-2 text-text-3 hover:text-accent text-[11px] leading-none"
+            onClick={() => void newNotebook()}
+          >＋📓</button>
+        </div>
+        <ul className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">{renderLevel(null, 0, null)}</ul>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 min-h-0 flex flex-col mt-3">
@@ -94,13 +229,32 @@ function PageTree(): JSX.Element {
         <span className="text-[11px] tracking-wide text-text-3">页面</span>
         <button
           type="button"
-          aria-label="新建页面"
-          title="新建页面"
-          className="ml-auto text-text-3 hover:text-accent text-sm leading-none"
-          onClick={() => void newPage(null)}
-        >＋</button>
+          aria-label="新建笔记本"
+          title="新建笔记本"
+          className="ml-auto text-text-3 hover:text-accent text-[11px] leading-none"
+          onClick={() => void newNotebook()}
+        >＋ 笔记本</button>
       </div>
-      <ul className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">{renderLevel(null, 0)}</ul>
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+        {notebooks.map((nb) => (
+          <div key={nb.id}>
+            {sectionHeader(
+              <>{nb.icon} {nb.name}</>,
+              () => void newPage(null, nb.id),
+              `在「${nb.name}」下新建页面`,
+              nb.id,
+              nb,
+            )}
+            <ul>{renderLevel(null, 0, nb.id)}</ul>
+          </div>
+        ))}
+        {hasUnassigned && (
+          <div>
+            {sectionHeader('未分配', () => void newPage(null, null), '新建页面', null)}
+            <ul>{renderLevel(null, 0, null)}</ul>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -133,13 +287,44 @@ export default function Sidebar() {
   const p = (n: number) => String(n).padStart(2, '0')
   const clockText = `${p(clock.getHours())}:${p(clock.getMinutes())}`
 
+  // 侧栏宽度可拖拽伸缩（存 localStorage；双击手柄复位）
+  const [width, setWidth] = useState(() => {
+    const w = Number(localStorage.getItem('sidebar-w'))
+    return w >= 180 && w <= 400 ? w : 232
+  })
+  const dragW = useRef<{ x: number; w: number } | null>(null)
+
+  useEffect(() => {
+    const move = (e: MouseEvent): void => {
+      if (!dragW.current) return
+      const w = Math.min(400, Math.max(180, dragW.current.w + e.clientX - dragW.current.x))
+      setWidth(w)
+    }
+    const up = (): void => {
+      if (dragW.current) localStorage.setItem('sidebar-w', String(width))
+      dragW.current = null
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+    return () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up) }
+  }, [width])
+
   return (
-    <aside className="
+    <aside
+      style={{ width }}
+      className="
       hidden md:flex                          /* 移动端隐藏（由 BottomTabBar 接管） */
-      w-[232px] shrink-0 flex-col border-r border-line bg-bg-sidebar
+      relative shrink-0 flex-col border-r border-line bg-bg-sidebar
     ">
       {/* 桌面版留出的 macOS 红绿灯区域：仅 Tauri 时变成拖拽区，不挡按钮点击 */}
       {isTauri() && <div data-tauri-drag-region aria-hidden className="h-5 shrink-0" />}
+      {/* 伸缩手柄：右缘 4px 热区，双击复位 232 */}
+      <div
+        aria-hidden
+        onMouseDown={(e) => { dragW.current = { x: e.clientX, w: width } }}
+        onDoubleClick={() => { setWidth(232); localStorage.removeItem('sidebar-w') }}
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/40 transition-colors z-10"
+      />
       {/* 品牌行 */}
       <div className="flex items-center gap-2 px-4 h-14">
         <span className={`h-2 w-2 rounded-full ${phase === 'recording' ? 'bg-danger rec-dot' : 'bg-accent'}`} />

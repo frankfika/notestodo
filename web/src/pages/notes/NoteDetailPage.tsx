@@ -28,6 +28,10 @@ export default function NoteDetailPage(): JSX.Element {
     async () => note?.meeting_id ? await db.meetings.get(note.meeting_id) : undefined,
     [note?.meeting_id ?? ''],
   )
+  const notebooks = useLiveQuery(
+    () => db.notebooks.filter((nb) => nb.deleted_at === null).sortBy('sort_order'),
+    [],
+  ) ?? []
   // [[双链]] 跳转目标：按标题找笔记（重名取最近更新）
   const allNotes = useLiveQuery(() => db.notes.toArray(), []) ?? []
   const openWiki = useCallback((title: string): void => {
@@ -49,6 +53,26 @@ export default function NoteDetailPage(): JSX.Element {
   const [aiOpen, setAiOpen] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
+
+  // 面包屑：笔记本 › 父页 › … › 当前页（打通侧栏树与详情页）
+  const crumbs = useMemo(() => {
+    if (!note) return []
+    const byId = new Map(allNotes.map((n) => [n.id, n]))
+    const chain: { id?: string; label: string }[] = []
+    const nb = notebooks.find((x) => x.id === note.notebook_id)
+    if (nb) chain.push({ label: `${nb.icon} ${nb.name}` })
+    let p = note.parent_id ?? null
+    const seen = new Set<string>()
+    const parents: { id: string; label: string }[] = []
+    while (p && !seen.has(p)) {
+      seen.add(p)
+      const pn = byId.get(p)
+      if (!pn) break
+      parents.unshift({ id: pn.id, label: pn.title || '无标题' })
+      p = pn.parent_id ?? null
+    }
+    return [...chain, ...parents]
+  }, [note, allNotes, notebooks])
 
   useEffect(() => {
     setDraftBody(note?.body_md ?? '')
@@ -177,6 +201,22 @@ export default function NoteDetailPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-[740px] mx-auto px-10 md:px-16 pt-4 pb-24">
+        {/* 面包屑：笔记本 › 父页 › 当前页 */}
+        {crumbs.length > 0 && (
+          <nav className="flex items-center gap-1 mb-1 text-[12px] text-text-3 -ml-1">
+            {crumbs.map((c, i) => (
+              <span key={i} className="flex items-center gap-1">
+                {i > 0 && <span className="text-text-disabled">›</span>}
+                {c.id ? (
+                  <button onClick={() => goNote(c.id!)} className="hover:text-text-1 hover:underline rounded px-0.5">{c.label}</button>
+                ) : (
+                  <span className="px-0.5">{c.label}</span>
+                )}
+              </span>
+            ))}
+          </nav>
+        )}
+
         {/* 顶部工具栏：Notion 式轻量行 */}
         <div className="flex items-center gap-1 mb-6 -ml-2 text-text-3">
           <button onClick={goNotes} className="icon-btn" aria-label="返回">←</button>
@@ -200,14 +240,29 @@ export default function NoteDetailPage(): JSX.Element {
           <OverflowMenu items={[{ label: '删除笔记', danger: true, onClick: () => void deleteNote() }]} />
         </div>
 
-        {/* 页面标题：Notion 式大字 */}
-        <input
-          ref={titleRef}
-          value={draftTitle}
-          onChange={(e) => setDraftTitle(e.target.value)}
-          placeholder="无标题"
-          className="w-full bg-transparent text-[38px] leading-[1.2] font-bold text-text-1 outline-none placeholder:text-text-3/70 mb-2"
-        />
+        {/* 页面标题：Notion 式大字；左侧 chip 切换所属笔记本 */}
+        <div className="flex items-start gap-2 mb-2">
+          {notebooks.length > 0 && (
+            <select
+              value={note.notebook_id ?? ''}
+              onChange={(e) => void db.notes.update(note.id, { notebook_id: e.target.value || null, updated_at: now() })}
+              className="chip mt-4 shrink-0 cursor-pointer bg-transparent outline-none max-w-[140px]"
+              title="所属笔记本"
+            >
+              <option value="">未分配</option>
+              {notebooks.map((nb) => (
+                <option key={nb.id} value={nb.id}>{nb.icon} {nb.name}</option>
+              ))}
+            </select>
+          )}
+          <input
+            ref={titleRef}
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            placeholder="无标题"
+            className="flex-1 min-w-0 bg-transparent text-[38px] leading-[1.2] font-bold text-text-1 outline-none placeholder:text-text-3/70"
+          />
+        </div>
 
         {/* 块编辑器（所见即所得，替代原 textarea + 预览分栏） */}
         <NoteEditor
