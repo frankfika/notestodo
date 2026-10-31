@@ -1,54 +1,54 @@
 @import "tailwindcss";
 
-/* ── NotesToGO 设计令牌 ─────────────────────────────────────────────
-   默认 = 暖纸色浅色；深色为可选的柔和炭灰（不是纯黑）。
-   单一强调色（低饱和青蓝）；层级靠字重与灰度；4pt 网格；≤250ms ease-out。 */
+/* ── NotesToGO 设计令牌（Notion 风）─────────────────────────────────
+   浅色 = 白底 + #f7f7f5 侧栏 + Notion 蓝 accent；深色 = #191919 系。
+   层级靠字重与灰度；4pt 网格；≤250ms ease-out。 */
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: oklch(97.9% 0.009 85);          /* 纸 */
-  --bg-sidebar: oklch(96.2% 0.011 83);
-  --bg-raise: oklch(99.5% 0.004 85);    /* 抬起的白 */
-  --bg-overlay: oklch(95.2% 0.01 83);
-  --line: oklch(90.5% 0.011 80);
-  --line-strong: oklch(84% 0.013 78);
-  --text-1: oklch(25% 0.014 60);        /* 墨 */
-  --text-2: oklch(41% 0.014 60);
-  --text-3: oklch(52% 0.013 65);        /* ≥ 4.5:1 on paper */
-  --text-disabled: oklch(70% 0.01 70);
-  --accent: oklch(58% 0.15 45);
-  --accent-strong: oklch(52% 0.15 45);
-  --accent-contrast: oklch(99% 0.005 85);
-  --danger: oklch(55% 0.145 28);
-  --warning: oklch(60% 0.115 68);
-  --ring: oklch(58% 0.15 45 / 0.35);
-  --scrim: oklch(30% 0.02 60 / 0.28);
-  --shadow-1: 0 1px 2px oklch(35% 0.03 60 / 0.05), 0 1px 1px oklch(35% 0.03 60 / 0.03);
-  --shadow-2: 0 8px 24px -6px oklch(35% 0.03 60 / 0.14), 0 2px 6px oklch(35% 0.03 60 / 0.06);
+  --bg: #ffffff;
+  --bg-sidebar: #f7f7f5;
+  --bg-raise: #ffffff;                  /* 抬起的白 */
+  --bg-overlay: #f1f1ef;                /* hover ≈ rgba(0,0,0,.045) */
+  --line: #ececea;                      /* ≈ rgba(0,0,0,.09) 取柔 */
+  --line-strong: #dcdcda;
+  --text-1: #37352f;                    /* Notion 主文字 */
+  --text-2: #5f5e5b;
+  --text-3: #9f9e9b;
+  --text-disabled: #b9b8b5;
+  --accent: #2383e2;                    /* Notion 蓝 */
+  --accent-strong: #1a73cc;
+  --accent-contrast: #ffffff;
+  --danger: #eb5757;
+  --warning: #cb912f;
+  --ring: rgba(35, 131, 226, 0.35);
+  --scrim: rgba(15, 15, 15, 0.6);
+  --shadow-1: 0 1px 2px rgba(15, 15, 15, 0.05), 0 1px 1px rgba(15, 15, 15, 0.03);
+  --shadow-2: 0 8px 24px -6px rgba(15, 15, 15, 0.14), 0 2px 6px rgba(15, 15, 15, 0.06);
   color-scheme: light;
 }
 
 :root.dark {
-  --bg: oklch(23% 0.007 70);
-  --bg-sidebar: oklch(21% 0.007 70);
-  --bg-raise: oklch(26.5% 0.008 70);
-  --bg-overlay: oklch(30% 0.009 70);
-  --line: oklch(33.5% 0.008 70);
-  --line-strong: oklch(41% 0.009 70);
-  --text-1: oklch(94% 0.006 80);
-  --text-2: oklch(80% 0.008 80);
-  --text-3: oklch(67% 0.01 80);
-  --text-disabled: oklch(50% 0.01 75);
-  --accent: oklch(74% 0.14 50);
-  --accent-strong: oklch(80% 0.14 50);
-  --accent-contrast: oklch(22% 0.03 50);
-  --danger: oklch(69% 0.13 28);
-  --warning: oklch(77% 0.1 75);
-  --ring: oklch(74% 0.14 50 / 0.45);
-  --scrim: oklch(12% 0.01 70 / 0.6);
+  --bg: #191919;
+  --bg-sidebar: #202020;
+  --bg-raise: #252525;
+  --bg-overlay: #2f2f2f;                /* ≈ rgba(255,255,255,.055) */
+  --line: #2f2f2f;
+  --line-strong: #3d3d3d;
+  --text-1: #d4d4d2;                    /* ≈ rgba(255,255,255,.81) */
+  --text-2: #9b9b9b;
+  --text-3: #6f6f6f;
+  --text-disabled: #4f4f4f;
+  --accent: #2383e2;
+  --accent-strong: #529cca;
+  --accent-contrast: #ffffff;
+  --danger: #eb5757;
+  --warning: #cb912f;
+  --ring: rgba(82, 156, 202, 0.45);
+  --scrim: rgba(15, 15, 15, 0.8);
   --shadow-1: none;
-  --shadow-2: 0 12px 32px -8px oklch(5% 0 0 / 0.5);
+  --shadow-2: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
