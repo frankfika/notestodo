@@ -26,6 +26,8 @@ export class ShibeiDB extends Dexie {
   comments!: Table<BlockComment, string>
   notebooks!: Table<Notebook, string>
   boards!: Table<Board, string>
+  /** 同步发件箱：本地变更排队，等下次 syncNow 推给 relay */
+  syncOutbox!: Table<SyncOutboxRow, number>
 
   constructor() {
     super('shibei')
@@ -81,7 +83,24 @@ export class ShibeiDB extends Dexie {
       notes: 'id, meeting_id, updated_at, parent_id, notebook_id',
       todos: 'id, parent_id, kind, status, due_date, meeting_id, origin_note_id, source, scope, period, board_id',
     })
+    // v9: 同步发件箱（本地变更 → relay）
+    this.version(9).stores({
+      syncOutbox: '++id, [entity+entity_id], entity, created_at',
+    })
   }
+}
+
+/** 发件箱一行：某个实体的最新待推送状态 */
+export interface SyncOutboxRow {
+  id?: number
+  entity: string
+  entity_id: string
+  op: 'upsert' | 'delete'
+  /** 实体快照 JSON */
+  data: Record<string, unknown> | null
+  updated_at: string
+  sync_version: number
+  created_at: string
 }
 
 export const db = new ShibeiDB()

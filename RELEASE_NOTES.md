@@ -1,3 +1,29 @@
+# openNotion v0.6.0 Release Notes
+
+> 2026-11-01 · 多端同步（开箱即用的自托管 relay）+ CI + macOS/Windows 自动打包。
+
+## 🔄 多端同步
+
+- **设置 → 多端同步**：填 relay 地址 + 令牌、勾「启用」，即可在 Mac / 手机 / Windows 之间同步笔记、任务、笔记本、标签、看板、评论。
+- **一次往返推拉**（`POST /v1/sync`）+ 游标增量；每 N 分钟自动同步，联网恢复立刻补一次，断网静默跳过、本地照常写。
+- **冲突永不丢数据**：按 `(updated_at, device_id)` 决胜保留一份，输的一方在本地留一份 **「（冲突副本）」**，你自己合并。
+- **relay 自托管**：`relay/` 是 Cloudflare Worker + Durable Object，一个 `openssl rand -hex 32` 生成的令牌就是一个独立空间（服务端只存 token 的 SHA-256）。免费额度足够个人使用。
+- 新增 e2e `tests/sync.spec.ts`：本机推送、另一设备拉取、同一条被两台改 → 冲突副本，全流程断言（用内存版 relay 跑，不联网）。
+
+## 🤖 CI / 跨平台
+
+- `.github/workflows/ci.yml`：push / PR 自动跑前端构建（含类型检查）+ 全量 Playwright e2e + Rust `cargo check` / `fmt --check`。
+- `.github/workflows/release.yml`：打 `v*` tag 自动打包 **macOS (Apple Silicon) + Windows (x64)**，产物挂到 GitHub Release 草稿。
+
+## 🩹 同步实现上修掉的坑
+
+- Dexie hook 实际是同步触发、第三个参数才是旧值——S1 初版写反了，导致**更新根本没进发件箱**；改为同步拍快照、下一 tick 写库（避开 hook 所在事务的表作用域限制）。
+- 拉取判断从「`sync_version` 比较」改为「`updated_at` 比较」：多数实体不递增 `sync_version`，原逻辑会把远端更新全部吞掉。
+- relay 补 CORS + OPTIONS 预检（之前浏览器跨域直接 `Failed to fetch`）。
+- 硬删除补墓碑（软删之外，删除也会同步到其它设备）。
+
+---
+
 # openNotion v0.5.0 Release Notes
 
 > 2026-11-01 · 离线优先版：**PWA 断网实测可用** + 移动端适配 + 断网降级提示 + AI 工作台。

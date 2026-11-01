@@ -20,6 +20,9 @@ import ReportPage from './pages/report/ReportPage'
 import TemplatesPage from './pages/templates/TemplatesPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import AiHomePage from './pages/ai/AiHomePage'
+import { installSyncHooks } from './sync/outbox'
+import { syncNow } from './sync/engine'
+import { getSettings } from './db/settings'
 
 export default function App() {
   const view = useUI((s) => s.view)
@@ -67,6 +70,32 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [setCmdkOpen, setAiOpen, phase, start, stop])
+
+  // 多端同步：启动即挂 Dexie hook（此后所有本地改动自动进发件箱）；
+  // 启用时每 60s 检查一次，按设置的间隔自动同步，联网恢复时也立刻补一次。
+  useEffect(() => {
+    installSyncHooks()
+    let lastRun = 0
+    const tick = async (): Promise<void> => {
+      const s = await getSettings()
+      if (!s.sync_enabled || !s.sync_server_url || !s.sync_token) return
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return
+      if (Date.now() - lastRun < Math.max(1, s.sync_interval_min) * 60_000) return
+      lastRun = Date.now()
+      await syncNow()
+    }
+    const timer = window.setInterval(() => void tick(), 60_000)
+    const onOnline = (): void => {
+      lastRun = 0
+      void tick()
+    }
+    window.addEventListener('online', onOnline)
+    void tick()
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [])
 
   return (
     <ErrorBoundary>

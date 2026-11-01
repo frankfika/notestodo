@@ -57,7 +57,8 @@ test('Notes 列表：pinned 笔记排在最前', async ({ page }) => {
   await page.waitForTimeout(500)
   // 导航到 NotesPage
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goNotes: () => void } } }).__uiStore?.getState().goNotes())
-  await page.waitForTimeout(600)
+  // 等 seed 数据真的渲染出来（整包并发跑时固定 600ms 不稳）
+  await expect(page.locator('main').getByText('置顶笔记')).toBeVisible()
 
   // 列表渲染 3 条（scope 到 main，避免误匹配侧栏页面树）
   const listItems = page.locator('main ul li button, main ul li a, main ul li').filter({ hasText: /置顶笔记|笔记/ })

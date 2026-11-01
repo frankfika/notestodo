@@ -329,6 +329,24 @@ export interface AppSettings {
   api_port: number
   /** Bearer token；空 = 首次启用时自动生成 */
   api_token: string
+  // 多端同步（协议见 src/sync/protocol.ts）
+  /** relay 地址，如 https://sync.example.com；空 = 未配置 */
+  sync_server_url: string
+  /** Bearer token（命名空间凭证） */
+  sync_token: string
+  /** 本机设备 id；空 = 首次同步时生成 */
+  sync_device_id: string
+  /** 设备显示名（冲突时用于区分来源） */
+  sync_device_name: string
+  sync_enabled: boolean
+  /** 自动同步间隔（分钟） */
+  sync_interval_min: number
+  /** 最近一次成功同步时间 */
+  sync_last_at: string | null
+  /** 服务端游标（已同步到的序号） */
+  sync_cursor: number
+  /** 最近一次错误 */
+  sync_last_error: string | null
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -364,6 +382,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   api_enabled: false,
   api_port: 17893,
   api_token: '',
+  sync_server_url: '',
+  sync_token: '',
+  sync_device_id: '',
+  sync_device_name: '我的设备',
+  sync_enabled: false,
+  sync_interval_min: 5,
+  sync_last_at: null,
+  sync_cursor: 0,
+  sync_last_error: null,
 }
 
 /** Phase-2: 解析当前模式下的有效 LLM 配置。 */

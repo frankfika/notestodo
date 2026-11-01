@@ -26,6 +26,7 @@
 - **日历集成**：订阅任意 .ics URL（Apple iCloud / Google / QQ / Outlook / 飞书日历），点击事件直接启动录音。
 - **数据主权**：一键导出 `.zip`（含所有表 + 录音原文），导入可完整恢复。
 - **可安装 + 离线启动**：macOS Safari / Edge「添加到程序坞」、iOS「添加到主屏幕」；首次访问后断网也能开。
+- **多端同步（自托管 relay）**：`relay/` 是一个 Cloudflare Worker（Durable Object，按 `sha256(token)` 划分命名空间）。设置页填地址 + 令牌即启用：一次 POST 往返同时推 + 拉，联网自动对齐，断网照常本地写。冲突**永不丢数据**——较新改动胜出，另一版在本地留一份「（冲突副本）」由你自己合并。
 - **一条龙，零手动步骤（Foresight 式）**：从任何地方开录（侧栏「● 开始录音」/ 今天 / 日历 / ⌘⇧R）都直接进入会中速记页（左速记 / 右实时字幕 + 相关资料），只记关键词，回车即存并带时间锚点。散会后自动转录 → **一次** LLM 调用同时产出标题、完整笔记（以速记为骨架、转录补全细节）和待办。会议页只有「笔记 / 转录 / 资料」三个 Tab，笔记页顶部直接确认待办（每条带原文引用 + 建议 KR，一键「全部确认」）。
 - **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端并混入录音，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
 - **本机内置模型（Foresight 式）**：设置顶部「AI 运行在哪里」三选一——本机内置（推荐，完全离线）/ 云端 API / 自建本地服务，选择立即生效。内置模式由应用自己从 huggingface.co 下载模型（转录：Whisper Large v3 Turbo 574MB / Small 190MB；笔记：Google Gemma 4 E4B 5.2GB / E2B 3.4GB / 12B 7.0GB），后台下载、侧栏显示进度、失败可断点重试；下载完成前照常录音，会议显示「等待模型」，模型就绪后自动转录整理。设置页「数据去向」实时自检会议内容是否离开本机。桌面端推理在应用进程内完成（`src-tauri/src/builtin/`）：whisper-rs（whisper.cpp + Metal）转录，llama-cpp-2（llama.cpp + Metal）跑 Gemma 4，提示词用模型自带的 Jinja 模板渲染（Gemma 4 用新的 `<|turn>` 格式），整理笔记时用 JSON 语法约束输出，思考通道不会混进笔记；录音以 16kHz i16 原始字节经 raw IPC 传给 Rust。模型下载源：Hugging Face / hf-mirror.com / OpenCSG（阿里云北京），国内自动优先国内源、失败自动换源、断点续传（不同源字节不一致时不拼接）；自动识别系统 / Clash 等 HTTP 代理，代理不可用时直连。
@@ -58,7 +59,8 @@
 │       ├── state/           # Zustand stores（路由 + 录音状态机）
 │       ├── lib/             # 工具函数（id / time）
 │       └── styles/           # Tailwind v4 + OKLCH 设计令牌
-└── relay/                   # （占位，未来 Cloudflare Workers 薄中转）
+├── relay/                   # 同步 relay：Cloudflare Worker + Durable Object（core.mjs 与本地测试服务器共用）
+└── .github/workflows/       # CI（构建 + 全量 e2e + cargo check）与多平台 Release
 ```
 
 ## 启动
@@ -85,6 +87,51 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 - 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后自动降级到 mic-only + honest banner
 
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
+
+### CI 与多平台发布（GitHub Actions）
+
+`.github/workflows/` 下两个 workflow：
+
+| workflow | 触发 | 做什么 |
+|---|---|---|
+| `ci.yml` | push / PR 到 main | 前端 `pnpm build`（含类型检查）+ 全量 e2e（Playwright 自动起 dev server）+ `cargo check` |
+| `release.yml` | 打 `v*` tag | matrix 打包 **macOS (Apple Silicon)** 与 **Windows (x64)**，产物上传 artifact 并创建 GitHub Release（草稿） |
+
+**发版步骤**：
+
+```bash
+# 1) 改版本号（web/package.json 与 web/src-tauri/tauri.conf.json 同步）
+# 2) 提交 + 打 tag
+git tag v0.5.0 && git push origin main --tags
+# 3) 等 release.yml 跑完，在 GitHub Releases 里把草稿改成正式发布
+```
+
+> macOS 产物在 CI 上未签名（没有开发者证书），首次打开需右键 → 打开；Windows 产物为 NSIS 安装包，需系统自带 WebView2 运行时。
+
+### 本地跑 e2e
+
+```bash
+cd web
+npx playwright test              # 自动起 dev server（playwright.config.ts 的 webServer）
+SHIBEI_URL=http://127.0.0.1:4173 npx playwright test tests/offline.spec.ts   # 断网用例需生产构建：pnpm build && pnpm preview
+```
+
+### 多端同步（自托管）
+
+数据仍然存在每台设备的本机 IndexedDB；relay 只做「变更中转」，不读你的明文内容之外的任何东西。
+
+```bash
+cd relay
+npx wrangler deploy               # 部署到 Cloudflare（免费额度够个人用）
+openssl rand -hex 32              # 生成一个令牌 = 一个同步命名空间；多台设备填同一个
+```
+
+部署完把 Worker 地址和令牌填进 **设置 → 多端同步**，勾「启用」并点「立即同步」。之后每 N 分钟（可配）自动同步，断网时静默跳过、联网恢复立刻补一次。
+
+- 单次往返 `POST /v1/sync`：同一请求里先推本地变更、再拉服务端新变更，`cursor` 游标做增量。
+- 冲突按 `(updated_at, device_id)` 决胜保留一份；输的一方在本地留「（冲突副本）」，原文不动。
+- 覆盖 notes / todos / notebooks / tags / tagBindings / boards / comments 七类实体；硬删除会留墓碑。
+- 协议定义：`web/src/sync/protocol.ts`；服务端核心：`relay/core.mjs`；e2e：`web/tests/sync.spec.ts`（用 `tests/fake-relay.mjs` 内存版 relay）。
 
 ## 设计语言
 

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # pnpm 依赖（web/）
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # GitHub Actions 自身
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Rust 依赖（web/src-tauri）
+  - package-ecosystem: cargo
+    directory: /web/src-tauri
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

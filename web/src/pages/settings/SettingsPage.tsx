@@ -12,6 +12,7 @@ import { clearCalendarCache, fetchCalendar, getCalendarCacheMeta } from '../../c
 import { exportData, importData } from '../../data/io'
 import { exportMarkdownVault } from '../../data/mdExport'
 import { ensurePersistentStorage, fmtBytes, type StorageStatus } from '../../lib/storage'
+import { syncNow } from '../../sync/engine'
 import { testLLMConnection, testASRConnection, type TestResult } from '../../llm/test-connection'
 import FieldRow from '../../components/FieldRow'
 import { useUI } from '../../state/ui'
@@ -417,6 +418,11 @@ export default function SettingsPage(): JSX.Element {
               </Section>
             )}
 
+            {group === 'sync' && (
+              <Section title="多端同步" desc="把笔记 / 任务 / 看板同步到你自己的 relay 服务器，多设备离线可用、联网自动对齐。冲突不会覆盖你的数据——会保留本地并生成一份「冲突副本」由你合并。">
+                <SyncRow settings={settings} patch={patch} />
+              </Section>
+            )}
             {group === 'appearance' && (
               <>
                 <Section title="外观" desc="主题与显示。">
@@ -478,13 +484,14 @@ export default function SettingsPage(): JSX.Element {
   )
 }
 
-type SettingsGroup = 'ai' | 'asr' | 'integrations' | 'api' | 'appearance'
+type SettingsGroup = 'ai' | 'asr' | 'integrations' | 'api' | 'sync' | 'appearance'
 
 const SETTINGS_GROUPS: { key: SettingsGroup; label: string }[] = [
   { key: 'ai', label: 'AI 模型' },
   { key: 'asr', label: '语音识别' },
   { key: 'integrations', label: '日历与集成' },
   { key: 'api', label: '本机 API' },
+  { key: 'sync', label: '多端同步' },
   { key: 'appearance', label: '外观与数据' },
 ]
 
@@ -1215,6 +1222,85 @@ function CaptureStatusRow(): JSX.Element {
           ? 'openNotion 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；未授权时点「授权向导」即可一键授权、直达设置页并重启生效。'
           : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 openNotion macOS 桌面版。'}
       </div>
+    </div>
+  )
+}
+
+/** 多端同步：配置 + 状态 + 手动同步 */
+function SyncRow({ settings, patch }: {
+  settings: AppSettings
+  patch: (p: Partial<AppSettings>) => void
+}): JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const pending = useLiveQuery(() => db.syncOutbox.count(), []) ?? 0
+
+  const run = async (): Promise<void> => {
+    setBusy(true)
+    setMsg('')
+    try {
+      const r = await syncNow()
+      setMsg(r.ok ? `同步完成：上传 ${r.pushed}，拉取 ${r.pulled}，冲突 ${r.conflicts}` : `同步未完成：${r.error ?? '未知错误'}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <FieldRow label="服务器地址">
+        <input
+          className="input"
+          value={settings.sync_server_url}
+          onChange={(e) => patch({ sync_server_url: e.target.value })}
+          placeholder="https://sync.example.com"
+        />
+        <p className="text-[11px] text-text-3 mt-1">你自己的 relay 地址（POST /v1/sync）。留空则不同步。</p>
+      </FieldRow>
+      <FieldRow label="访问令牌">
+        <PasswordInput
+          value={settings.sync_token}
+          onChange={(v) => patch({ sync_token: v })}
+          placeholder="命名空间凭证"
+        />
+      </FieldRow>
+      <FieldRow label="本机设备名">
+        <input
+          className="input"
+          value={settings.sync_device_name}
+          onChange={(e) => patch({ sync_device_name: e.target.value })}
+          placeholder="我的 Mac"
+        />
+      </FieldRow>
+      <FieldRow label="自动同步">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.sync_enabled}
+              onChange={(e) => patch({ sync_enabled: e.target.checked })}
+              className="accent-[var(--accent)]"
+            />
+            启用
+          </label>
+          <input
+            type="number"
+            min={1}
+            className="input !w-20"
+            value={settings.sync_interval_min}
+            onChange={(e) => patch({ sync_interval_min: Math.max(1, Number(e.target.value) || 5) })}
+          />
+          <span className="text-[12px] text-text-3">分钟一次</span>
+          <button type="button" onClick={() => void run()} disabled={busy} className="btn-primary text-xs h-7 px-3 ml-auto">
+            {busy ? '同步中…' : '立即同步'}
+          </button>
+        </div>
+      </FieldRow>
+      <div className="text-[11px] text-text-3 leading-relaxed">
+        待上传 {pending} 条 · 游标 {settings.sync_cursor} · 上次成功 {settings.sync_last_at ? new Date(settings.sync_last_at).toLocaleString('zh-CN') : '—'}
+        {settings.sync_last_error && <span className="text-danger"> · 最近错误：{settings.sync_last_error}</span>}
+      </div>
+      {msg && <div className="text-[12px] text-text-2">{msg}</div>}
     </div>
   )
 }

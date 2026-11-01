@@ -1,0 +1,12 @@
+name = "opennotion-relay"
+main = "worker.ts"
+compatibility_date = "2025-06-01"
+
+# 每个 token（哈希后）一个 Durable Object：存 seq + 变更 log + 最新版本
+[[durable_objects.bindings]]
+name = "SYNC_NAMESPACE"
+class_name = "SyncNamespace"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncNamespace"]
