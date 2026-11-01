@@ -85,6 +85,12 @@ export async function startLiveCaption(meetingId: string, startedAtMs: number): 
     if (current !== me) return
     // no-speech / aborted 是常态，自动续上；权限 / 网络类错误才停
     if (e.error === 'no-speech' || e.error === 'aborted') return
+    // service-not-allowed：识别服务不可用（桌面版 WKWebView / 无网络）→ 走 unsupported 友好态，不报错
+    if (e.error === 'service-not-allowed' || e.error === 'language-not-supported') {
+      useCaption.setState({ status: 'unsupported' })
+      current = null
+      return
+    }
     useCaption.setState({ status: 'error', error: e.error === 'not-allowed' ? '浏览器拒绝了语音识别权限' : `语音识别出错：${e.error}` })
     current = null
   }

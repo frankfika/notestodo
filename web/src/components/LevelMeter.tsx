@@ -27,6 +27,8 @@ export default function LevelMeter({ level, peak = true, size = 16 }: LevelMeter
         const weight = 0.4 + i * 0.15
         const scaledY = Math.max(0.15, clamped * weight)
         const isPeak = peak && scaledY > 0.6
+        // 有信号时用主题强调色（一眼可见"麦在响"），静默时灰条
+        const active = clamped > 0.06
         return (
           <span
             key={i}
@@ -34,7 +36,7 @@ export default function LevelMeter({ level, peak = true, size = 16 }: LevelMeter
             style={{
               height: `${h}px`,
               transform: `scaleY(${scaledY})`,
-              backgroundColor: isPeak ? 'var(--danger)' : 'var(--line-strong)',
+              backgroundColor: isPeak ? 'var(--danger)' : active ? 'var(--accent)' : 'var(--line-strong)',
             }}
           />
         )

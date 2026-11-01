@@ -147,6 +147,12 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     if (AC) {
       audioCtx = new AC()
+      // 自动播放策略下 AudioContext 可能是 suspended：analyser 会一直读到静音，
+      // 电平条假死。这里 resume 一次，并监听状态变化兜底（系统挂起/恢复）。
+      void audioCtx.resume().catch(() => undefined)
+      audioCtx.onstatechange = () => {
+        if (audioCtx && audioCtx.state === 'suspended') void audioCtx.resume().catch(() => undefined)
+      }
       micSource = audioCtx.createMediaStreamSource(stream)
       analyser = audioCtx.createAnalyser()
       analyser.fftSize = 256
@@ -269,7 +275,9 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
       sum += v * v
     }
     const rms = Math.sqrt(sum / levelBuf.length)
-    setRecorderPartial({ audioLevel: Math.min(1, rms * 2.5) })
+    // 人耳听感是非线性的：正常说话 RMS 只有 0.02~0.1，x2.5 根本看不到。
+    // 提高增益 + 留噪声地板，让说话明显顶起来、安静时回到接近 0。
+    setRecorderPartial({ audioLevel: Math.min(1, Math.max(0, (rms - 0.008) * 8)) })
   }, 100)
   active.levelTimer = levelTimer
 

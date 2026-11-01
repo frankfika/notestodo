@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { now, today as todayIso, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
-import type { Todo } from '../../types'
+import type { Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
+import TodoTags from './TodoTags'
 import { EditableTitle, TodoMenu } from './todoRowOps'
 import { doneLast, filterForTree, type TodoFilter } from './filter'
 
@@ -86,7 +87,7 @@ function countDone(n: Node): { done: number; total: number } {
   return { done, total }
 }
 
-function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, all }: {
+function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById }: {
   node: Node
   depth: number
   collapsed: Set<string>
@@ -95,6 +96,8 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
   setDragId: (id: string | null) => void
   byId: Map<string, Todo>
   all: Todo[]
+  tagByTodo: Map<string, string[]>
+  tagsById: Map<string, Tag>
 }): JSX.Element {
   const [over, setOver] = useState(false)
   const t = node.todo
@@ -142,6 +145,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
         />
         <EditableTitle t={t} className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`} />
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
+        <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
         <OriginChip t={t} />
         <DueBadge due={t.due_date} />
         <button
@@ -153,7 +157,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
       </div>
       {!collapsed.has(t.id) && node.children.map((c) => (
         <Row key={c.todo.id} node={c} depth={depth + 1} collapsed={collapsed} setCollapsed={setCollapsed}
-          dragId={dragId} setDragId={setDragId} byId={byId} all={all} />
+          dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById} />
       ))}
     </>
   )
@@ -161,6 +165,8 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
 
 export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; tagByTodo: Map<string, string[]> }): JSX.Element {
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
+  const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
+  const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])
   const tree = useMemo(() => buildTree(filterForTree(all, filter, tagByTodo)), [all, filter, tagByTodo])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -194,7 +200,7 @@ export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; t
     <div className="flex flex-col gap-0.5">
       {tree.map((n) => (
         <Row key={n.todo.id} node={n} depth={0} collapsed={collapsed} setCollapsed={setCollapsed}
-          dragId={dragId} setDragId={setDragId} byId={byId} all={all} />
+          dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById} />
       ))}
       {tree.length === 0 && (
         <div className="text-sm text-text-3 py-8 text-center">
