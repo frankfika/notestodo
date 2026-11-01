@@ -1,0 +1,65 @@
+- generic [ref=f12e3]:
+  - complementary [ref=f12e4]:
+    - generic [ref=f12e6]:
+      - generic [ref=f12e8]: NotesToGO
+      - generic [ref=f12e9]: 拾贝
+      - generic [ref=f12e10]: 17:37
+    - button "● 开始录音" [ref=f12e12] [cursor=pointer]
+    - navigation [ref=f12e13]:
+      - button "● 会议" [ref=f12e14]:
+        - generic [ref=f12e15]: ●
+        - text: 会议
+      - button "◎ 任务 1" [ref=f12e16]:
+        - generic [ref=f12e17]: ◎
+        - text: 任务
+        - generic [ref=f12e18]: "1"
+      - button "✎ 笔记" [ref=f12e19]:
+        - generic [ref=f12e20]: ✎
+        - text: 笔记
+    - generic [ref=f12e21]:
+      - generic [ref=f12e22]:
+        - generic [ref=f12e23]: 页面
+        - button "新建笔记本" [ref=f12e24]: ＋ 笔记本
+      - generic [ref=f12e26]:
+        - generic [ref=f12e27]:
+          - generic [ref=f12e28]: 📓 工作
+          - generic [ref=f12e29]:
+            - button "✎" [ref=f12e30]
+            - button "🗑" [ref=f12e31]
+          - button "在「工作」下新建页面" [ref=f12e32]: ＋
+        - list [ref=f12e33]:
+          - listitem [ref=f12e34]:
+            - generic [ref=f12e35] [cursor=pointer]:
+              - generic [ref=f12e36]: 产品周会纪要
+              - button "新建子页面" [ref=f12e37]: ＋
+    - button "⚙︎ 设置" [ref=f12e39]:
+      - generic [ref=f12e40]: ⚙︎
+      - text: 设置
+  - main [ref=f12e41]:
+    - generic [ref=f12e44]:
+      - generic [ref=f12e45]:
+        - generic [ref=f12e46]:
+          - generic [ref=f12e47]: NOTES
+          - heading "笔记" [level=1] [ref=f12e48]
+        - generic [ref=f12e49]:
+          - generic [ref=f12e50]:
+            - button "列表" [ref=f12e51]
+            - button "表格" [active] [ref=f12e52]
+          - button "+ 新建笔记" [ref=f12e53] [cursor=pointer]
+      - generic [ref=f12e54]:
+        - button "全部" [ref=f12e55]
+        - button "📓 工作" [ref=f12e56]
+        - button "未分配" [ref=f12e57]
+      - table [ref=f12e68]:
+        - rowgroup [ref=f12e69]:
+          - row [ref=f12e70]:
+            - columnheader "标题" [ref=f12e71] [cursor=pointer]
+            - columnheader "笔记本" [ref=f12e72]
+            - columnheader "更新时间 ↓" [ref=f12e73] [cursor=pointer]
+            - columnheader "置顶" [ref=f12e74] [cursor=pointer]
+        - rowgroup [ref=f12e75]:
+          - row [ref=f12e76] [cursor=pointer]:
+            - cell "产品周会纪要" [ref=f12e77]
+            - cell "工作" [ref=f12e78]
+            - cell "今天 17:36" [ref=f12e79]
+            - cell "—" [ref=f12e80]

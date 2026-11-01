@@ -1,0 +1,61 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:04
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [ref=e120]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e330]:
+      - generic [ref=e331]:
+        - generic [ref=e332]:
+          - heading "会议" [level=1] [ref=e333]
+          - generic [ref=e334]: "0"
+          - button "导入转录" [ref=e335] [cursor=pointer]
+          - button "● 新建录音" [ref=e336] [cursor=pointer]
+        - generic [ref=e350]:
+          - generic [ref=e351]: 导入转录
+          - generic [ref=e352]:
+            - textbox "会议标题" [active] [ref=e353]
+            - generic [ref=e354]:
+              - combobox [ref=e355]:
+                - option "腾讯会议" [selected]
+                - option "飞书妙记"
+              - generic [ref=e356] [cursor=pointer]: 选择 .txt 文件
+            - 'textbox "粘贴转录文本，支持： 00:01:23 张三: 大家好 [00:01:23] 李四 大家好 或纯文本" [ref=e357]':
+              - /placeholder: "粘贴转录文本，支持：\n00:01:23 张三: 大家好\n[00:01:23] 李四 大家好\n或纯文本"
+            - generic [ref=e358]:
+              - button "取消" [ref=e359] [cursor=pointer]
+              - button "导入" [ref=e360] [cursor=pointer]
+        - generic [ref=e337]:
+          - generic [aria-hidden] [ref=e338]: ◌
+          - generic [ref=e339]: 还没有会议
+          - generic [ref=e340]: 按 ⌘⇧R 或点右上角立刻开始。
+          - button "● 开始录音" [ref=e342] [cursor=pointer]
+      - generic [ref=e345]:
+        - generic [aria-hidden] [ref=e346]: ◐
+        - generic [ref=e347]: 选择左侧一条会议
+        - generic [ref=e348]: 预览卡片；点条目进入完整详情。

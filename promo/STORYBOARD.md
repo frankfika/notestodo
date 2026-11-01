@@ -1,4 +1,4 @@
-# NotesToGO · 拾贝 —— 产品宣传片分镜与制作契约
+# openNotion · openNotion —— 产品宣传片分镜与制作契约
 
 > **本文件是全队唯一契约（Lead 维护，他人只读）。** 所有素材命名、时长、文案以此为准。
 > 版本 v1 · 2026-10-18
@@ -55,9 +55,9 @@ VO 行号 = `promo/audio/vo/vo-NN.wav`。`CAP` = 屏幕下方烧入字幕（与 
 - **素材**：`stills/today.png`（用于小窗）、`assets/brand/bg-paper-1920x1080.png`
 
 ### SH-02 品牌亮相 · 0:08–0:15（7s）
-- **画面**：字标 `NotesToGO`（墨色）+ 橘点 + 副标「拾贝 · 会议速记 × 嵌套 OKR」；下方一句「会中只记关键词，散会后一键成稿」。
-- **VO-02**：「NotesToGO 拾贝。会中只记关键词，散会后一键成稿。」
-- **CAP**：**NotesToGO** 拾贝 · 会中只记关键词，散会后一键成稿
+- **画面**：字标 `openNotion`（墨色）+ 橘点 + 副标「openNotion · 会议速记 × 笔记 × 任务」；下方一句「会中只记关键词，散会后一键成稿」。
+- **VO-02**：「openNotion openNotion。会中只记关键词，散会后一键成稿。」
+- **CAP**：**openNotion** openNotion · 会中只记关键词，散会后一键成稿
 - **素材**：`assets/brand/title-card-1920x1080.png`
 
 ### SH-03 一键录音 + 实时字幕 · 0:15–0:28（13s）
@@ -80,10 +80,10 @@ VO 行号 = `promo/audio/vo/vo-NN.wav`。`CAP` = 屏幕下方烧入字幕（与 
 - **CAP**：转录带**说话人区分** · 谁在什么时候说了什么
 - **素材**：`clips/transcript-speakers.webm`、`stills/meeting-transcript.png`
 
-### SH-06 落到 OKR · 0:49–1:03（14s）
-- **画面**：任务页 Focus → Quarter → Strategy 三视图切换；OKR 树展开，进度按权重汇总；把 Inbox 任务「挂到 KR」。
-- **VO-06**：「行动项不会躺在收件箱里。挂到对应的 KR 上，进度按权重逐级汇总：战略、季度、项目、任务，一条链到底。」
-- **CAP**：**嵌套 OKR** · 战略 → 季度 → 项目 → 任务
+### SH-06 落到任务树 · 0:49–1:03（14s）
+- **画面**：任务页多视图切换；任务树展开，进度按权重汇总；把 Inbox 任务「挂到上级任务」。（注：已交付的 v3 成片此段为旧版 OKR 树画面，重剪时按本文替换。）
+- **VO-06**：「行动项不会躺在收件箱里。挂到对应的任务上，进度按权重逐级汇总：战略、季度、项目、任务，一条链到底。」
+- **CAP**：**任务树** · 战略 → 季度 → 项目 → 任务
 - **素材**：`clips/okr-views.webm`、`clips/okr-attach.webm`、`stills/okr-strategy.png`
 
 ### SH-07 看板 + 自动周报 · 1:03–1:14（11s）
@@ -107,7 +107,7 @@ VO 行号 = `promo/audio/vo/vo-NN.wav`。`CAP` = 屏幕下方烧入字幕（与 
 
 ### SH-10 收尾 · 1:32–1:40（8s）
 - **画面**：纸色底，字标 + 一句 slogan，底部 `github.com/frankfika/notestodo` + 「本地优先 · 开源」。
-- **VO-10**：「NotesToGO 拾贝。本地优先，开源。今天就试试。」
+- **VO-10**：「openNotion openNotion。本地优先，开源。今天就试试。」
 - **CAP**：**github.com/frankfika/notestodo** · 本地优先 · 开源
 - **素材**：`assets/brand/end-card-1920x1080.png`
 

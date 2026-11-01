@@ -4,7 +4,7 @@ In a meeting, are you in the discussion — or just taking notes?
 
 2
 00:00:06,442 --> 00:00:12,223
-NotesToGO — jot keywords in the meeting, get the write-up after it.
+openNotion — jot keywords in the meeting, get the write-up after it.
 
 3
 00:00:12,543 --> 00:00:24,135

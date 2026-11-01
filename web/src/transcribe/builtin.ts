@@ -12,6 +12,9 @@ import type { AsrProvider } from './types'
 export const builtinAsrProvider: AsrProvider = {
   id: 'builtin',
   transcribe: async ({ blob, settings, hotwords }) => {
+    // 先查模型（未下载要抛 MODEL_MISSING 让会议进「等待模型」），再解码音频
+    requireModel(resolveASRConfig(settings).model)
+    if (!isTauri() && mockEnabled()) return mockSegments()
     const pcm = await decodeTo16kMono(blob)
     return transcribePcm16k(pcm, settings, hotwords)
   },

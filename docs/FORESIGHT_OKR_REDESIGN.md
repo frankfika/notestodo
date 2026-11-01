@@ -1,6 +1,6 @@
-# NotesToGO · Foresight UX + Nested OKR Redesign
+# openNotion · Foresight UX + Nested OKR Redesign
 
-> Research + product design for frankfika/notestodo (拾贝 / NotesToGO)
+> Research + product design for frankfika/notestodo (openNotion)
 > Date: 2026-10-12 · Status: proposal for Fang review
 
 ## 0. What we learned from Google AI Edge Foresight
@@ -17,7 +17,7 @@ Foresight (Oct 2026, Mac Apple Silicon, free experimental) is strong because of 
 | **Live Assistance** | Detects questions / topics; surfaces citation cards from indexed local files | Context appears when you need it, not as a separate search chore |
 | **Personal knowledge** | Point at folders (+ optional Drive/Calendar); chat retrieves with embeddings | Notes and Q&A share one retrieval layer |
 
-**Gap vs 拾贝 today:** 拾贝 already has record → cloud ASR → template summary → todo extract → chat. It is **post-meeting document-first**. Foresight is **during-meeting scribble-first + local models + enrichment**. That is the UX leap we should copy.
+**Gap vs openNotion today:** openNotion already has record → cloud ASR → template summary → todo extract → chat. It is **post-meeting document-first**. Foresight is **during-meeting scribble-first + local models + enrichment**. That is the UX leap we should copy.
 
 ## 1. Current product snapshot (notestodo)
 
@@ -29,7 +29,7 @@ Foresight (Oct 2026, Mac Apple Silicon, free experimental) is strong because of 
 
 ## 2. Product north star
 
-**NotesToGO = Foresight-grade meeting companion × nested OKR execution system.**
+**openNotion = Foresight-grade meeting companion × nested OKR execution system.**
 
 One sentence: *During the meeting you only scribble; after (or live) notes polish themselves; every action lands on the right KR in a tree from 大 O down to project tasks — without making daily work feel like climbing a hierarchy.*
 
@@ -119,7 +119,7 @@ Primary action after stop (or mid-meeting shortcut): **Polish notes** = scribble
 
 ### 4.2 Capability roadmap vs Foresight
 
-| Capability | Phase | How in NotesToGO |
+| Capability | Phase | How in openNotion |
 |------------|-------|------------------|
 | Scribble pane + timestamp alignment | P0 | New `MeetingScribble` entity / note body draft during `recording` |
 | Polish / Enrich | P0 | Prompt: expand bullets using transcript spans; BYOK LLM first |
@@ -145,7 +145,7 @@ Templates
 Settings       Cloud BYOK · Local models · Capture (mic/system) · Knowledge folders
 ```
 
-Rename product surface to **NotesToGO** (repo stays notestodo / 拾贝 as legacy alias in README).
+Rename product surface to **openNotion** (repo stays notestodo; legacy aliases NotesToGO / 拾贝 in README).
 
 ## 6. Implementation plan (code via local Codex + Claude on your Mac)
 
@@ -172,4 +172,4 @@ Branch: `feat/foresight-okr` on github.com/frankfika/notestodo. Local agents edi
 
 1. Default period cadence: calendar quarter only, or also custom (半年)?
 2. Local models: prefer **MLX / Ollama / LM Studio** as the first Local backend?
-3. Keep Chinese name 拾贝 in UI, or switch chrome to NotesToGO?
+- Naming resolved: product surface is **openNotion** (no separate Chinese name).

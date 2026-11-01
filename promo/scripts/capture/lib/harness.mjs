@@ -59,7 +59,7 @@ const CAPTION_LINES = [
   '今天主要定 Q4 的路线优先级。',
   '先过一遍手上的候选，然后决定砍掉哪些。',
   '我最担心的是中文转录质量。',
-  '上周那场客户访谈，转录把「拾贝」识别成了「十倍」。',
+  '上周那场客户访谈，转录把「openNotion」识别成了「Open Notes」。',
   '热词表已经在做了，把产品名、人名、专有名词塞进去。',
   '转录请求里带上 hotwords，能救回来一大半。',
   '那就按「先热词、再说话人区分」来排。',
@@ -121,7 +121,7 @@ const LLM_STUB = (json, delayMs) => `(() => {
 
 /**
  * 引导浮层守卫：Onboarding 的首帧 `onboardingRow` 还是 undefined，所以
- * 「拾贝 · 新用户引导」面板会先渲染一帧才被 liveQuery（onboarding_done_v1=true）关掉。
+ * 「openNotion · 新用户引导」面板会先渲染一帧才被 liveQuery（onboarding_done_v1=true）关掉。
  * 截图/录屏都不能出现引导浮层，这里在 MutationObserver 里把它按掉 ——
  * 效果等同于用户点了面板上的 ✕（产品本来就允许），只是把那一帧竞态消掉。
  */
@@ -320,7 +320,7 @@ export async function waitForApp(page) {
   }, null, { timeout: 20_000 })
   // 等 liveQuery 首帧落地（引导浮层消失）
   await page.waitForFunction(
-    () => !document.body.innerText.includes('欢迎使用拾贝'),
+    () => !document.body.innerText.includes('欢迎使用openNotion'),
     null, { timeout: 10_000 },
   ).catch(() => undefined)
   await settle(page, 350)
@@ -574,7 +574,7 @@ export async function enrichLiveMeeting(page, meetingId, o) {
 // 视觉复核工具（MiniMax understand_image）本轮配额用尽，所以把「画面里不能出现
 // 什么、必须出现什么」落成 DOM 断言，每张静帧 / 每条录屏都跑一遍；失败即采集失败。
 export const FORBIDDEN_TEXT = [
-  '欢迎使用拾贝', '拾贝 · 新用户引导',                                       // 引导浮层
+  '欢迎使用openNotion', 'openNotion · 新用户引导',                                       // 引导浮层
   '加载中', '正在加载',                                                     // loading
   '还没有', '暂无', '没有匹配', '清空了', '拖卡片到这里',                    // 空状态
   '本周暂无', '本周没有会议', '暂无逾期事项', '下周暂无带截止日的卡片',        // 周报 fallback
@@ -583,12 +583,12 @@ export const FORBIDDEN_TEXT = [
 ]
 export const ZERO_COUNT = /(^|[^0-9])0\s*(条|张|场|个|项|段|片)/
 /** -clean 素材额外要求：画面里没有浏览器能力提示条 */
-export const BANNER_TEXT = '系统声音需 NotesToGO 桌面版'
+export const BANNER_TEXT = '系统声音需 openNotion 桌面版'
 
 export const EMPTY_STATE_PHRASES = ['还没有', '暂无', '没有匹配', '清空了', '拖卡片到这里',
   '本周暂无', '本周没有会议', '暂无逾期事项', '下周暂无带截止日的卡片']
 export const ERROR_PHRASES = ['失败：', '导出失败', '导入失败', '转录失败', '整理失败']
-export const ONBOARDING_PHRASES = ['欢迎使用拾贝', '拾贝 · 新用户引导']
+export const ONBOARDING_PHRASES = ['欢迎使用openNotion', 'openNotion · 新用户引导']
 
 /**
  * 采集当场记录「画面事实」，供 MANIFEST 逐条引用（不是事后手写的说明）。

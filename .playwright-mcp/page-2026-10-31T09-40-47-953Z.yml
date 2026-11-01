@@ -1,0 +1,72 @@
+- generic [ref=f14e3]:
+  - complementary [ref=f14e4]:
+    - generic [ref=f14e6]:
+      - generic [ref=f14e8]: NotesToGO
+      - generic [ref=f14e9]: 拾贝
+      - generic [ref=f14e10]: 17:40
+    - button "● 开始录音" [ref=f14e12] [cursor=pointer]
+    - navigation [ref=f14e13]:
+      - button "● 会议" [ref=f14e14]:
+        - generic [ref=f14e15]: ●
+        - text: 会议
+      - button "◎ 任务 1" [ref=f14e16]:
+        - generic [ref=f14e17]: ◎
+        - text: 任务
+        - generic [ref=f14e18]: "1"
+      - button "✎ 笔记" [ref=f14e19]:
+        - generic [ref=f14e20]: ✎
+        - text: 笔记
+    - generic [ref=f14e21]:
+      - generic [ref=f14e22]:
+        - generic [ref=f14e23]: 页面
+        - button "新建笔记本" [ref=f14e24]: ＋ 笔记本
+      - generic [ref=f14e26]:
+        - generic [ref=f14e27]:
+          - generic [ref=f14e28]: 📓 工作
+          - generic [ref=f14e29]:
+            - button "✎" [ref=f14e30]
+            - button "🗑" [ref=f14e31]
+          - button "在「工作」下新建页面" [ref=f14e32]: ＋
+        - list [ref=f14e33]:
+          - listitem [ref=f14e34]:
+            - generic [ref=f14e35] [cursor=pointer]:
+              - generic [ref=f14e36]: 产品周会纪要
+              - button "新建子页面" [ref=f14e37]: ＋
+    - button "⚙︎ 设置" [ref=f14e39]:
+      - generic [ref=f14e40]: ⚙︎
+      - text: 设置
+  - main [ref=f14e41]:
+    - generic [ref=f14e44]:
+      - navigation [ref=f14e45]:
+        - generic [ref=f14e46]: 📓 工作
+      - generic [ref=f14e48]:
+        - button "返回" [ref=f14e49] [cursor=pointer]: ←
+        - generic [ref=f14e50]: 已存 今天 17:36
+        - button "✦ AI" [ref=f14e51] [cursor=pointer]
+        - button "置顶" [ref=f14e52] [cursor=pointer]
+        - button "+ 插入待办" [ref=f14e53] [cursor=pointer]
+        - button "更多" [ref=f14e55] [cursor=pointer]: ⋯
+      - generic [ref=f14e56]:
+        - combobox "所属笔记本" [ref=f14e57] [cursor=pointer]:
+          - option "未分配"
+          - option "📓 工作" [selected]
+        - textbox "无标题" [ref=f14e58]: 产品周会纪要
+      - textbox "加标签…" [ref=f14e61]
+      - generic [ref=f14e62]:
+        - textbox [ref=f14e64]:
+          - paragraph [ref=f14e65]: 本周要完成官网改版并通知用户
+        - button "块菜单：点击打开，拖动移动" [ref=f14e66]: ⋮⋮
+      - generic [ref=f14e67]:
+        - generic [ref=f14e68]: 关联
+        - generic [ref=f14e70]: 从这条笔记创建的任务 (1)
+        - list [ref=f14e71]:
+          - listitem [ref=f14e72]:
+            - checkbox [checked] [ref=f14e73]
+            - button "本周要完成官网改版并通知用户" [ref=f14e74]
+            - generic [ref=f14e75]: 已完成
+      - generic [ref=f14e76]:
+        - generic [ref=f14e77]: 评论 (0)
+        - generic [ref=f14e78]: 还没有评论。hover 任意块点 ⋮⋮ → 评论 即可添加。
+      - generic [ref=f14e79]:
+        - generic [ref=f14e80]: 反向链接 (0)
+        - generic [ref=f14e81]: 还没有笔记链接到这篇。在其它笔记里写 [[产品周会纪要]] 即可挂上。

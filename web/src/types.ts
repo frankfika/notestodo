@@ -307,6 +307,8 @@ export interface AppSettings {
   model_source: 'auto' | 'huggingface' | 'hf-mirror' | 'opencsg'
   /** 常用人名 / 术语（一行一个或逗号分隔）：转录时作为热词，提高专有名词准确率 */
   hotwords: string
+  /** 麦克风设备 deviceId（'' = 系统默认）。设置页可切换 + 试麦 */
+  mic_device_id: string
   // 隐私
   delete_remote_audio: boolean   // 转录完成后删除云端音频
   // 外观
@@ -350,6 +352,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   builtin_asr_model: 'whisper-large-v3-turbo',
   model_source: 'auto',
   hotwords: '',
+  mic_device_id: '',
   delete_remote_audio: true,
   theme: 'light',
   calendar_ics_urls: [],

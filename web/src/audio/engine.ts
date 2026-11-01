@@ -1,4 +1,5 @@
 import { db } from '../db/db'
+import { getSettings } from '../db/settings'
 import { now, uid } from '../lib/id'
 import { setRecorderPartial, useRecorder } from '../state/recorder'
 import { useUI } from '../state/ui'
@@ -370,8 +371,10 @@ export async function stopRecorder(): Promise<string | null> {
 // ── Stream / mime detection ───────────────────────────────────────────────────
 
 async function acquireStream(): Promise<MediaStream> {
+  const settings = await getSettings()
   return navigator.mediaDevices.getUserMedia({
     audio: {
+      ...(settings.mic_device_id ? { deviceId: { exact: settings.mic_device_id } } : {}),
       // 会议录音必须关回声消除：它会把本机扬声器放出的声音（线上会议里对方的发言）当回声消掉，
       // 没开屏录权限（只录麦克风）时就只剩自己的声音。实测：外放的会议音频几乎全被消掉。
       echoCancellation: false,

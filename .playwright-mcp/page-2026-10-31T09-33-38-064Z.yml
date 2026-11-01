@@ -1,0 +1,35 @@
+- generic [ref=f7e3]:
+  - main [ref=f7e4]:
+    - generic [ref=f7e7]:
+      - generic [ref=f7e8]:
+        - generic [ref=f7e9]:
+          - generic [ref=f7e10]: NOTES
+          - heading "笔记" [level=1] [ref=f7e11]
+        - generic [ref=f7e12]:
+          - generic [ref=f7e13]:
+            - button "列表" [ref=f7e14]
+            - button "表格" [ref=f7e15]
+          - button "+ 新建笔记" [ref=f7e16] [cursor=pointer]
+      - list [ref=f7e17]:
+        - listitem [ref=f7e18]:
+          - button "✎ 产品周会纪要 本周要完成官网改版并通知用户 今天 17:01" [ref=f7e19]:
+            - generic [ref=f7e20]: ✎
+            - generic [ref=f7e21]:
+              - generic [ref=f7e22]: 产品周会纪要
+              - generic [ref=f7e23]: 本周要完成官网改版并通知用户
+            - generic [ref=f7e24]: 今天 17:01
+  - navigation "主导航" [ref=f7e25]:
+    - button "● 会议" [ref=f7e26]:
+      - generic [ref=f7e27]: ●
+      - generic [ref=f7e28]: 会议
+    - button "◎ 任务 1" [ref=f7e29]:
+      - generic [ref=f7e30]: ◎
+      - generic [ref=f7e31]:
+        - text: 任务
+        - generic [ref=f7e32]: "1"
+    - button "✎ 笔记" [active] [ref=f7e33]:
+      - generic [ref=f7e34]: ✎
+      - generic [ref=f7e35]: 笔记
+    - button "设置" [ref=f7e36]:
+      - generic [ref=f7e37]: ⚙︎
+      - text: 设置

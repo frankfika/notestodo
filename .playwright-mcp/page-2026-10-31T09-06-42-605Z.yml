@@ -1,0 +1,44 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:06
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [active] [ref=e120]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e462]:
+      - generic [ref=e463]:
+        - button "树" [ref=e464]
+        - button "按时间" [ref=e465]
+        - button "看板 →" [ref=e466]
+      - generic [ref=e468]:
+        - generic [ref=e469]:
+          - checkbox [checked] [ref=e470]
+          - generic "双击改名" [ref=e471]: 本周要完成官网改版并通知用户
+          - button "✎ 产品周会纪要" [ref=e472]
+          - button "＋" [ref=e473]
+          - button "⋯" [ref=e475]
+        - button "＋ 新建任务" [ref=e476] [cursor=pointer]

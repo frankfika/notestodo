@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { PREF_KEY as CAPTION_PREF_KEY } from '../../lib/liveCaption'
 import { dataFlow, isLoopbackUrl } from '../../lib/dataFlow'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AiMode, type AppSettings } from '../../types'
 import { DiarizationRow, EngineChooser, ModelPicker, useMissingBuiltin, missingNames } from '../../components/BuiltinModels'
@@ -336,6 +336,7 @@ export default function SettingsPage(): JSX.Element {
 
                 <Section title="录音采集 · Capture" desc="决定录音能拿到什么声音。">
                   <CaptureStatusRow />
+                  <MicRow settings={settings} patch={patch} />
                 </Section>
               </>
             )}
@@ -1214,6 +1215,109 @@ function CaptureStatusRow(): JSX.Element {
           ? 'openNotion 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；未授权时点「授权向导」即可一键授权、直达设置页并重启生效。'
           : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 openNotion macOS 桌面版。'}
       </div>
+    </div>
+  )
+}
+
+/** 麦克风：设备选择 + 试麦（实时电平 + 轨道信息，定位"录不到声音"类问题） */
+function MicRow({ settings, patch }: {
+  settings: AppSettings
+  patch: (p: Partial<AppSettings>) => void
+}): JSX.Element {
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [testing, setTesting] = useState(false)
+  const [level, setLevel] = useState(0)
+  const [trackInfo, setTrackInfo] = useState<string>('')
+  const [testErr, setTestErr] = useState<string>('')
+  const stopRef = useRef<(() => void) | null>(null)
+
+  const refresh = async (): Promise<void> => {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices()
+      setDevices(all.filter((d) => d.kind === 'audioinput'))
+    } catch { /* 权限未给时枚举为空，试麦后自然拿到 */ }
+  }
+  useEffect(() => { void refresh() }, [])
+
+  const stopTest = useCallback((): void => {
+    stopRef.current?.()
+    stopRef.current = null
+    setTesting(false)
+    setLevel(0)
+  }, [])
+  useEffect(() => stopTest, [stopTest])
+
+  const startTest = async (): Promise<void> => {
+    setTestErr('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...(settings.mic_device_id ? { deviceId: { exact: settings.mic_device_id } } : {}),
+          echoCancellation: false, noiseSuppression: true, autoGainControl: true,
+        },
+      })
+      const track = stream.getAudioTracks()[0]
+      const s = track.getSettings()
+      setTrackInfo(`${track.label || '未知设备'} · ${s.sampleRate ?? '?'}Hz · ${track.readyState}${track.muted ? ' · ⚠️ 系统级静音' : ''}`)
+      const ctx = new AudioContext()
+      void ctx.resume().catch(() => undefined)
+      const src = ctx.createMediaStreamSource(stream)
+      const an = ctx.createAnalyser()
+      an.fftSize = 256
+      src.connect(an)
+      const buf = new Uint8Array(an.fftSize)
+      const timer = window.setInterval(() => {
+        an.getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
+        setLevel(Math.min(1, Math.max(0, (Math.sqrt(sum / buf.length) - 0.008) * 8)))
+      }, 100)
+      stopRef.current = () => {
+        window.clearInterval(timer)
+        src.disconnect(); an.disconnect()
+        void ctx.close().catch(() => undefined)
+        for (const t of stream.getTracks()) t.stop()
+      }
+      setTesting(true)
+      void refresh() // 授权后设备名就能拿到了
+    } catch (e) {
+      setTestErr(e instanceof Error ? `${e.name}: ${e.message}` : String(e))
+    }
+  }
+
+  return (
+    <div className="space-y-2 pt-3 border-t border-line/60">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-text-1 shrink-0">麦克风</span>
+        <select
+          className="input !h-8 text-xs flex-1 min-w-0"
+          value={settings.mic_device_id}
+          onChange={(e) => { patch({ mic_device_id: e.target.value }); stopTest() }}
+        >
+          <option value="">系统默认（跟随 macOS）</option>
+          {devices.map((d, i) => (
+            <option key={d.deviceId || i} value={d.deviceId}>{d.label || `输入设备 ${i + 1}`}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => (testing ? stopTest() : void startTest())}
+          className={`text-xs h-8 px-3 shrink-0 ${testing ? 'btn-outline' : 'btn-primary'}`}
+        >{testing ? '停止测试' : '测试麦克风'}</button>
+      </div>
+      {testing && (
+        <div className="space-y-1.5">
+          <div className="h-2 rounded-full bg-bg-overlay overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-100 ${level > 0.8 ? 'bg-danger' : 'bg-accent'}`}
+              style={{ width: `${Math.round(level * 100)}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-text-3">{trackInfo}</p>
+          <p className="text-[11px] text-text-3">说句话：电平条在跳 = 麦克风正常；不动 = 换上面的设备或检查系统权限。</p>
+        </div>
+      )}
+      {testErr && <p className="text-[11px] text-danger">{testErr}</p>}
     </div>
   )
 }

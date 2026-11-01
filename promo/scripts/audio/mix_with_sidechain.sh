@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NotesToGO · 拾贝 —— ffmpeg 原生侧链 ducking 参考链（给 Lead 的合成管线用）
+# openNotion · openNotion —— ffmpeg 原生侧链 ducking 参考链（给 Lead 的合成管线用）
 #
 # 作用：用 **纯 ffmpeg** 复现 promo/scripts/audio/mix_master.py 里的 ducking 行为，
 #       供 Lead 在 build/render.py 里直接调用，也供 QA 独立复算"音乐在旁白下方多少 dB"。

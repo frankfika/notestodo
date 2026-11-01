@@ -1,0 +1,65 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:04
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [ref=e120]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e364]:
+      - generic [ref=e365]:
+        - button "返回" [ref=e366] [cursor=pointer]: ←
+        - generic [ref=e367]:
+          - textbox "会议标题" [ref=e403]: 产品评审会 · Q4
+          - generic [ref=e369]:
+            - generic [ref=e370]: 今天 17:04
+            - generic [ref=e371]: ·
+            - generic [ref=e372]: 00:15
+        - generic [ref=e373]: 整理中
+        - generic [ref=e374]: 导入的会议
+      - generic [ref=e375]:
+        - button "整理中…" [disabled] [ref=e376]
+        - button "换模板 ▾" [ref=e378] [cursor=pointer]
+        - button "对话" [ref=e379] [cursor=pointer]
+        - button "更多" [ref=e382] [cursor=pointer]: ⋯
+      - generic [ref=e383]:
+        - button "笔记" [ref=e384]
+        - button "转录" [ref=e385]
+        - button "资料" [ref=e386]
+      - generic [ref=e387]:
+        - generic [ref=e389]:
+          - generic [aria-hidden] [ref=e390]: ◌
+          - generic [ref=e391]: AI 正在整理笔记…
+          - generic [ref=e392]: 正在把速记 + 转录整理成笔记、提取待办，完成后待办会出现在这里等你确认。可以先离开。
+        - generic [ref=e393]:
+          - generic [ref=e394]:
+            - generic [ref=e395]: 速记
+            - generic [ref=e396]: 会中的速记；点「整理笔记」用转录扩写
+            - generic [ref=e397]: 0 条
+          - generic [ref=e399]:
+            - generic [ref=e400]: ·
+            - generic [ref=e401]: "-"
+            - textbox "q4 预算?? / 上线风险 / @法务 合同…" [ref=e402]

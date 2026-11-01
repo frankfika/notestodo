@@ -706,7 +706,7 @@
     "实时字幕的中文文本**不是真实识别结果**：headless Chromium 没有可用的中文 ASR 后端，采集环境注入 window.SpeechRecognition 桩喂脚本化 onresult 事件，但驱动的是产品真实代码路径 web/src/lib/liveCaption.ts（useCaption store / kv live_caption_<id> / 面板累积滚动 / on·blocked·unsupported 状态机）。",
     "假麦克风不是真人说话：--use-file-for-fake-audio-capture 指向 promo/scripts/capture/lib/fake-mic.mjs 现场合成的类人声 WAV，使电平条全程可见（Chromium 自带假设备只在开头约 3s 有声，会让电平条趴平）。",
     "polish 片段的 LLM 调用换成本地确定性响应（seed/polish-llm-response.json）：本机无云端 Key，跑的是真实 pipeline/summarize.ts（含旧 pending_review 待办清理与重建、标题回写、原文引用定位）。",
-    "录音时产品会如实显示「浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版…」。默认素材保留它；*-clean 素材隐藏它，供 SH-03 成片选用（桌面版本身能录系统声音，成片用干净版不构成虚假宣称）。",
+    "录音时产品会如实显示「浏览器中只能录制麦克风；系统声音需 openNotion 桌面版…」。默认素材保留它；*-clean 素材隐藏它，供 SH-03 成片选用（桌面版本身能录系统声音，成片用干净版不构成虚假宣称）。",
     "DB 已置 onboarding_done_v1=true，并在采集时按掉 Onboarding 首帧渲染竞态（等价于点面板上的 ✕），保证画面里不出现引导浮层。",
     "本机 MiniMax 视觉复核（understand_image）本轮配额用尽、Gemini/Codex 通道亦不可用，所以逐帧目视改由 clean 自检（DOM 断言）+ verify-frames.py（像素断言）+ Lead 抽检承担；未做任何贴字或改文案。"
   ],

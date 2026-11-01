@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NotesToGO · 拾贝 宣传片 —— 旁白批量渲染
+openNotion · openNotion 宣传片 —— 旁白批量渲染
 
 用本机 macOS `say`（**不使用任何云端 TTS / 视频模型**）逐句合成旁白，
 再用 ffmpeg 统一为 48 kHz / 单声道 PCM16，句首句尾各补 150 ms 静音。

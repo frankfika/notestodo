@@ -1,0 +1,81 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:06
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务 1" [ref=e477]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+        - generic [ref=e478]: "1"
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e480]:
+      - generic [ref=e481]:
+        - generic [ref=e482]:
+          - generic [ref=e483]: 任务 · 看板
+          - heading "看板" [level=1] [ref=e484]
+        - button "← 任务树" [ref=e486] [cursor=pointer]
+        - generic [ref=e487]:
+          - generic [ref=e488] [cursor=pointer]:
+            - generic [ref=e489]: 📋 默认看板
+            - button "⋯" [ref=e491]
+          - generic [ref=e492] [cursor=pointer]:
+            - generic [ref=e493]: 📋 默认看板
+            - button "⋯" [ref=e495]
+          - button "＋ 新建看板" [ref=e496]
+      - generic [ref=e497]:
+        - generic [ref=e498]:
+          - generic [ref=e499]:
+            - generic [ref=e501]: 待办
+            - generic [ref=e502]: "1"
+            - button "⋯" [ref=e504]
+          - article [ref=e506] [cursor=pointer]:
+            - generic [ref=e507]: ↻写本周周报
+            - generic [ref=e508]:
+              - generic [ref=e509]: 草稿已生成
+              - generic [ref=e510]: 11月06日
+          - textbox "+ 添加卡片，回车确认" [ref=e511]
+        - generic [ref=e512]:
+          - generic [ref=e513]:
+            - generic [ref=e515]: 进行中
+            - generic [ref=e516]: "0"
+            - button "⋯" [ref=e518]
+          - generic [ref=e519]: 拖卡片到这里
+          - textbox "+ 添加卡片，回车确认" [ref=e521]
+        - generic [ref=e522]:
+          - generic [ref=e523]:
+            - generic [ref=e525]: 待审
+            - generic [ref=e526]: "0"
+            - button "⋯" [ref=e528]
+            - button "＋" [ref=e529]
+          - generic [ref=e530]: 拖卡片到这里
+          - textbox "+ 添加卡片，回车确认" [ref=e532]
+        - generic [ref=e533]:
+          - generic [ref=e534]:
+            - generic [ref=e536]: 已完成
+            - generic [ref=e537]: "1"
+          - article [ref=e539] [cursor=pointer]:
+            - generic [ref=e540]: 本周要完成官网改版并通知用户
+            - button "✎ 产品周会纪要" [ref=e542]
+          - textbox "+ 添加卡片，回车确认" [ref=e543]

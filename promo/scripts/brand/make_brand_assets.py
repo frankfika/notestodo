@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NotesToGO · 拾贝 —— 品牌排版素材生成器（promo task-2 / 负责人 brand）
+openNotion —— 品牌排版素材生成器（promo task-2 / 负责人 brand）
 
 依赖：bundled Python + Pillow + numpy
   /Users/fangchen/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/bin/python3
@@ -424,7 +424,7 @@ def build_title_card(path):
     f_sub = font(52, "SemiBold")
     f_tag = font(40, "Regular")
 
-    mark = "NotesToGO"
+    mark = "openNotion"
     mark_w = text_width(mark, f_mark, tracking=-2)
     dot_d = 40
     gap = 26
@@ -456,7 +456,7 @@ def build_title_card(path):
     register_safe("title-card-1920x1080.png", cx - rule_w / 2, 532, cx + rule_w / 2, 532 + rule_h)
 
     # 副标
-    b = draw_line_centered(d, cx, 600, [("拾贝 · 会议速记 × 嵌套 OKR", f_sub, INK)], tracking=1)
+    b = draw_line_centered(d, cx, 600, [("会议速记 × 笔记 × 任务", f_sub, INK)], tracking=1)
     register_safe("title-card-1920x1080.png", *b)
 
     # 主张
@@ -468,11 +468,11 @@ def build_title_card(path):
         "file": os.path.basename(path),
         "path": "promo/assets/brand/" + os.path.basename(path),
         "scene": ["SH-02"],
-        "purpose": "品牌亮相全屏卡：字标 NotesToGO + 橘点 + 副标 + 一句话主张",
+        "purpose": "品牌亮相全屏卡：字标 openNotion + 橘点 + 副标 + 一句话主张",
         "size": [W, H],
         "mode": "RGB",
         "has_alpha": False,
-        "text": ["NotesToGO", "拾贝 · 会议速记 × 嵌套 OKR", "会中只记关键词，散会后一键成稿"],
+        "text": ["openNotion", "会议速记 × 笔记 × 任务", "会中只记关键词，散会后一键成稿"],
         "note": "含纸底与横格线，可与 bg-paper 无缝 crossfade；内容全部落在 96px 安全框内",
         "regions": {
             "wordmark_block": [round(x0), round(y_la + bb[1]), round(tx + mark_w), round(y_la + bb[3])],
@@ -497,7 +497,7 @@ def build_end_card(path):
     f_meta = font(32, "Regular")
 
     cx = W // 2
-    mark = "NotesToGO"
+    mark = "openNotion"
     mark_w = text_width(mark, f_mark, tracking=-2)
     dot_d = 28
     gap = 20
@@ -541,7 +541,7 @@ def build_end_card(path):
         "size": [W, H],
         "mode": "RGB",
         "has_alpha": False,
-        "text": ["NotesToGO", "每个行动项，落到正确的 KR 上", "github.com/frankfika/notestodo", "本地优先 · 开源"],
+        "text": ["openNotion", "每个行动项，落到正确的任务上", "github.com/frankfika/notestodo", "本地优先 · 开源"],
         "note": "含纸底与横格线；底部信息行距下边缘 >= 120px",
         "regions": {"safe_content": SAFE_BOXES["end-card-1920x1080.png"]},
     })
@@ -575,7 +575,7 @@ def build_cover(path):
     register_safe("cover-16x9.png", LX, 248 - dot_d / 2, LX + dot_d, 248 + dot_d / 2)
 
     # 字标
-    mark = "NotesToGO"
+    mark = "openNotion"
     bb = ink_bbox(mark, f_mark)
     mark_cy = 330
     y_la = mark_cy - (bb[1] + bb[3]) / 2.0
@@ -624,7 +624,7 @@ def build_cover(path):
         "size": [W, H],
         "mode": "RGB",
         "has_alpha": False,
-        "text": ["NotesToGO", "开会时只记关键词，", "散会后一键成稿",
+        "text": ["openNotion", "开会时只记关键词，", "散会后一键成稿",
                  "每个行动项，落到正确的 KR 上", "github.com/frankfika/notestodo", "本地优先 · 开源 · PWA 可安装"],
         "screenshot_well": {"x": wx, "y": wy, "w": ww, "h": wh, "radius": RADIUS_L,
                             "aspect": "16:9（880:495）",
@@ -901,7 +901,7 @@ def main():
              "hook-lines/hook-2.png", "phone-frame.png", "tablet-frame.png"]
 
     manifest = {
-        "project": "NotesToGO · 拾贝 产品宣传片",
+        "project": "openNotion 产品宣传片",
         "owner": "brand",
         "task": "task-2",
         "generated_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),

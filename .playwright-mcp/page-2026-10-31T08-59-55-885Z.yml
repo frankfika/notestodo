@@ -1,0 +1,51 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 16:59
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [ref=e16]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - button "树" [ref=e33]
+        - button "按时间" [ref=e34]
+        - button "看板 →" [ref=e35]
+      - generic [ref=e37]:
+        - generic [ref=e38]: 还没有任务
+        - button "＋ 新建任务" [ref=e39] [cursor=pointer]
+  - dialog [ref=e40]:
+    - generic [ref=e41]:
+      - generic [ref=e42]: ●
+      - generic [ref=e43]: 拾贝 · 新用户引导
+      - generic [ref=e44]: 1/3
+      - button "最小化" [ref=e45] [cursor=pointer]: —
+      - button "关闭" [active] [ref=e46] [cursor=pointer]: ✕
+    - generic [ref=e51]:
+      - heading "开会时只管说话" [level=3] [ref=e52]
+      - paragraph [ref=e53]:
+        - text: 按
+        - generic [ref=e54]: ⌘⇧R
+        - text: 一键录音，会中只记关键词；散会自动转录、整理成笔记、提取待办。 所有数据存在你本机，导出 .zip 备份即可带走。
+      - generic [ref=e55]:
+        - button "选择 AI 引擎" [ref=e56] [cursor=pointer]
+        - button "稍后" [ref=e57] [cursor=pointer]

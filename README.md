@@ -81,7 +81,7 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 **Tauri 端 macOS 授权**（Phase-3 系统音频已实装）：
 - `NSMicrophoneUsageDescription`（录音）— 首次启动弹框
 - `NSScreenCaptureUsageDescription`（系统音频 loopback）— 首次启用 system-audio 时弹框
-- 桌面 App 显示名是 **openNotion**（`cc.secondplanet.shibei`）；「屏幕录制」列表里找「openNotion」，不是 openNotion
+- 桌面 App 显示名是 **openNotion**（`cc.secondplanet.shibei`）；「屏幕录制」列表里找「openNotion」，不是旧名 NotesToGO
 - 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后自动降级到 mic-only + honest banner
 
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。

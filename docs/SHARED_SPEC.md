@@ -1,4 +1,4 @@
-# 拾贝 Shibei · 模块开发规约（建子 agent 用）
+# openNotion · 模块开发规约（建子 agent 用）
 
 > 本规约是 4 个 build agent 共享的接口契约。任何对类型/路径/导出名的修改都要更新这里。
 

@@ -1,6 +1,6 @@
-# NotesToGO MCP Server
+# openNotion MCP Server
 
-Zero-dependency MCP stdio server (Node 18+, pure ESM) that wraps the NotesToGO local HTTP API as MCP tools, for clients like Claude Desktop and Raycast.
+Zero-dependency MCP stdio server (Node 18+, pure ESM) that wraps the openNotion local HTTP API as MCP tools, for clients like Claude Desktop and Raycast.
 
 ## Tools
 
@@ -16,7 +16,7 @@ Zero-dependency MCP stdio server (Node 18+, pure ESM) that wraps the NotesToGO l
 
 ## Prerequisites
 
-- The NotesToGO app running with its local HTTP API enabled (`settings.api_enabled`), default port `17893`.
+- The openNotion app running with its local HTTP API enabled (`settings.api_enabled`), default port `17893`.
 - The API token (`settings.api_token` in the app).
 - Node.js 18 or later.
 
@@ -32,7 +32,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 ```json
 {
   "mcpServers": {
-    "notestodo": {
+    "opennotion": {
       "command": "node",
       "args": ["/Users/fangchen/Baidu/GitHub/Notes&ToDo/mcp/index.js"],
       "env": {

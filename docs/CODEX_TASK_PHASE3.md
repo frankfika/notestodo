@@ -1,4 +1,4 @@
-# Codex · Phase-3 owner brief — NotesToGO hard gaps (feat/foresight-okr)
+# Codex · Phase-3 owner brief — openNotion hard gaps (feat/foresight-okr)
 
 Repo: `/Users/fangchen/Projects/notestodo` · Branch: `feat/foresight-okr`  
 HEAD baseline: `6e0deb5` (Phase-2 done: system-audio *stubs* + Local LLM + knowledge keyword MVP + README).  
@@ -58,7 +58,7 @@ Replace stubs with a **working** macOS ScreenCaptureKit (or equivalent) capture 
    - **C:** if full duplex mix in-process is too heavy in one pass: start/stop + status working + documented file/PCM path + TS glue that at least records system audio into the meeting audio store; mic remains primary. **Never** fake “system audio on” in UI.
 4. Update `capabilities/` if new permissions / events needed.
 5. Keep web fallback: `isTauri()` false → mic-only + existing banner copy.
-6. README: explicit step — Fang must approve **系统设置 → 隐私与安全性 → 屏幕录制 → NotesToGO**.
+6. README: explicit step — Fang must approve **系统设置 → 隐私与安全性 → 屏幕录制 → openNotion**.
 
 ### Acceptance
 - [ ] On macOS Tauri build, `system_audio_status.supported == true` when code path exists (permission may still be false until Fang clicks).

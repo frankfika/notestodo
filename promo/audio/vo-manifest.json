@@ -11,7 +11,7 @@
     "id": "vo-02",
     "path": "vo/vo-02.wav",
     "duration_s": 5.976,
-    "text": "NotesToGO 拾贝。会中只记关键词，散会后一键成稿。",
+    "text": "openNotion。会中只记关键词，散会后一键成稿。",
     "speech_start_s": 0.15,
     "speech_end_s": 5.3302
   },
@@ -75,7 +75,7 @@
     "id": "vo-10",
     "path": "vo/vo-10.wav",
     "duration_s": 6.427,
-    "text": "NotesToGO 拾贝。本地优先，开源。今天就试试。",
+    "text": "openNotion。本地优先，开源。今天就试试。",
     "speech_start_s": 0.15,
     "speech_end_s": 5.7137
   }

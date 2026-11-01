@@ -1,0 +1,120 @@
+- generic [ref=f2e3]:
+  - complementary [ref=f2e4]:
+    - generic [ref=f2e6]:
+      - generic [ref=f2e8]: NotesToGO
+      - generic [ref=f2e9]: 拾贝
+      - generic [ref=f2e10]: 17:12
+    - button "● 开始录音" [ref=f2e12] [cursor=pointer]
+    - navigation [ref=f2e13]:
+      - button "● 会议" [ref=f2e14]:
+        - generic [ref=f2e15]: ●
+        - text: 会议
+      - button "◎ 任务 1" [ref=f2e16]:
+        - generic [ref=f2e17]: ◎
+        - text: 任务
+        - generic [ref=f2e18]: "1"
+      - button "✎ 笔记" [ref=f2e19]:
+        - generic [ref=f2e20]: ✎
+        - text: 笔记
+    - generic [ref=f2e21]:
+      - generic [ref=f2e22]:
+        - generic [ref=f2e23]: 页面
+        - button "新建页面" [ref=f2e24]: ＋
+        - button "新建笔记本" [ref=f2e25]: ＋📓
+      - list [ref=f2e26]:
+        - listitem [ref=f2e27]:
+          - generic [ref=f2e28] [cursor=pointer]:
+            - generic [ref=f2e29]: 产品周会纪要
+            - button "新建子页面" [ref=f2e30]: ＋
+    - button "⚙︎ 设置" [active] [ref=f2e32]:
+      - generic [ref=f2e33]: ⚙︎
+      - text: 设置
+  - main [ref=f2e34]:
+    - generic [ref=f2e37]:
+      - generic [ref=f2e38]:
+        - generic [ref=f2e39]:
+          - generic [ref=f2e40]: SETTINGS
+          - heading "设置" [level=1] [ref=f2e41]
+        - button "纪要模板 →" [ref=f2e42] [cursor=pointer]
+        - button "保存修改" [disabled] [ref=f2e43]
+      - generic [ref=f2e44]:
+        - navigation [ref=f2e45]:
+          - button "AI 模型" [ref=f2e46]
+          - button "语音识别" [ref=f2e47]
+          - button "日历与集成" [ref=f2e48]
+          - button "本机 API" [ref=f2e49]
+          - button "外观与数据" [ref=f2e50]
+        - generic [ref=f2e51]:
+          - generic [ref=f2e52]:
+            - generic [ref=f2e53]:
+              - heading "AI 运行在哪里" [level=2] [ref=f2e54]
+              - paragraph [ref=f2e55]: 决定录音转录和笔记 / 待办 / 对话由谁来做。选择立即生效。
+            - radiogroup "AI 运行在哪里" [ref=f2e57]:
+              - radio "本机内置 推荐 需要 macOS 桌面版（浏览器无法运行内置模型）" [disabled] [ref=f2e58]:
+                - generic [ref=f2e59]:
+                  - generic [ref=f2e61]: 本机内置
+                  - generic [ref=f2e62]: 推荐
+                - paragraph [ref=f2e63]: 需要 macOS 桌面版（浏览器无法运行内置模型）
+              - radio "云端 API 用你自己的 API Key（MiniMax / OpenAI / Anthropic 兼容），速度快" [checked] [ref=f2e64]:
+                - generic [ref=f2e65]: 云端 API
+                - paragraph [ref=f2e69]: 用你自己的 API Key（MiniMax / OpenAI / Anthropic 兼容），速度快
+              - radio "自建本地服务 高级：连接你已运行的 Ollama / LM Studio / whisper.cpp server" [ref=f2e70]:
+                - generic [ref=f2e71]: 自建本地服务
+                - paragraph [ref=f2e74]: 高级：连接你已运行的 Ollama / LM Studio / whisper.cpp server
+          - region "数据去向" [ref=f2e75]:
+            - generic [ref=f2e76]:
+              - heading "数据去向" [level=2] [ref=f2e77]
+              - generic [ref=f2e78]: ⚠ 2 项会离开本机
+            - list [ref=f2e79]:
+              - listitem [ref=f2e80]:
+                - generic [ref=f2e81]: 录音 → 转录
+                - generic [ref=f2e82]: → api.minimaxi.com
+              - listitem [ref=f2e83]:
+                - generic [ref=f2e84]: 转录 + 速记 → 笔记 / 待办 / 对话
+                - generic [ref=f2e85]: → api.minimax.io
+            - paragraph [ref=f2e86]: 录音、速记、笔记、待办始终只存在本机（IndexedDB）。无遥测。日历 / 知识库 / 内置模型文件（Hugging Face / hf-mirror / OpenCSG）只下载，不上传会议内容。
+          - generic [ref=f2e87]:
+            - generic [ref=f2e88]:
+              - heading "笔记模型 · LLM" [level=2] [ref=f2e89]
+              - paragraph [ref=f2e90]: 笔记 / 待办提取 / 对话都走它。切换不会清空另一侧已填的字段。
+            - generic [ref=f2e91]:
+              - generic [ref=f2e92]:
+                - generic [ref=f2e93]: 模式
+                - generic [ref=f2e94]:
+                  - button "本机内置" [disabled] [ref=f2e95]
+                  - button "云端 API" [ref=f2e96]
+                  - button "自建服务" [ref=f2e97]
+              - generic [ref=f2e98]:
+                - generic [ref=f2e99]: 快速接入：
+                - button "MiniMax" [ref=f2e100]
+                - button "DeepSeek" [ref=f2e101]
+                - button "OpenAI" [ref=f2e102]
+              - generic [ref=f2e103]:
+                - generic [ref=f2e104]: Provider
+                - combobox [ref=f2e105]:
+                  - option "Anthropic 兼容" [selected]
+                  - option "OpenAI 兼容"
+              - generic [ref=f2e106]:
+                - generic [ref=f2e107]: Base URL
+                - textbox "https://api.example.com" [ref=f2e108]: https://api.minimax.io/anthropic
+              - generic [ref=f2e109]:
+                - generic [ref=f2e110]: API Key
+                - generic [ref=f2e111]:
+                  - textbox "sk-..." [ref=f2e112]
+                  - button "显示" [ref=f2e113]
+                - paragraph [ref=f2e114]:
+                  - text: 还没有 Key？去服务商控制台免费领一个：
+                  - link "MiniMax" [ref=f2e116] [cursor=pointer]:
+                    - /url: https://platform.minimaxi.com/
+                  - generic [ref=f2e117]:
+                    - text: ·
+                    - link "DeepSeek" [ref=f2e118] [cursor=pointer]:
+                      - /url: https://platform.deepseek.com/
+                  - generic [ref=f2e119]:
+                    - text: ·
+                    - link "OpenAI" [ref=f2e120] [cursor=pointer]:
+                      - /url: https://platform.openai.com/api-keys
+              - generic [ref=f2e121]:
+                - generic [ref=f2e122]: Model
+                - textbox "claude-3-5-sonnet-..." [ref=f2e123]: MiniMax-M2.7
+              - button "测试连接" [ref=f2e125] [cursor=pointer]

@@ -1,0 +1,57 @@
+- generic [ref=f8e3]:
+  - complementary [ref=f8e4]:
+    - generic [ref=f8e6]:
+      - generic [ref=f8e8]: NotesToGO
+      - generic [ref=f8e9]: 拾贝
+      - generic [ref=f8e10]: 17:36
+    - button "● 开始录音" [ref=f8e12] [cursor=pointer]
+    - navigation [ref=f8e13]:
+      - button "● 会议" [ref=f8e14]:
+        - generic [ref=f8e15]: ●
+        - text: 会议
+      - button "◎ 任务 1" [ref=f8e16]:
+        - generic [ref=f8e17]: ◎
+        - text: 任务
+        - generic [ref=f8e18]: "1"
+      - button "✎ 笔记" [ref=f8e19]:
+        - generic [ref=f8e20]: ✎
+        - text: 笔记
+    - generic [ref=f8e21]:
+      - generic [ref=f8e22]:
+        - generic [ref=f8e23]: 页面
+        - button "新建笔记本" [ref=f8e24]: ＋ 笔记本
+      - generic [ref=f8e26]:
+        - generic [ref=f8e27]:
+          - generic [ref=f8e69]: 📓 工作
+          - generic [ref=f8e29]:
+            - button "✎" [ref=f8e30]
+            - button "🗑" [ref=f8e31]
+          - button "在「工作」下新建页面" [ref=f8e70]: ＋
+        - list [ref=f8e71]:
+          - listitem [ref=f8e72]:
+            - generic [ref=f8e73] [cursor=pointer]:
+              - generic [ref=f8e74]: 产品周会纪要
+              - button "新建子页面" [ref=f8e75]: ＋
+    - button "⚙︎ 设置" [ref=f8e43]:
+      - generic [ref=f8e44]: ⚙︎
+      - text: 设置
+  - main [ref=f8e45]:
+    - generic [ref=f8e47]:
+      - generic [ref=f8e48]:
+        - button "树" [ref=f8e49]
+        - button "按时间" [ref=f8e50]
+        - button "看板 →" [ref=f8e51]
+      - generic [ref=f8e53]:
+        - generic [ref=f8e54]:
+          - checkbox [checked] [ref=f8e55]
+          - generic "双击改名" [ref=f8e56]: 本周要完成官网改版并通知用户
+          - button "✎ 产品周会纪要" [ref=f8e57]
+          - button "＋" [ref=f8e58]
+          - button "⋯" [ref=f8e60]
+        - generic [ref=f8e61]:
+          - checkbox [ref=f8e62]
+          - generic "双击改名" [ref=f8e63]: 写本周周报
+          - generic [ref=f8e64]: 11/6
+          - button "＋" [ref=f8e65]
+          - button "⋯" [ref=f8e67]
+        - button "＋ 新建任务" [ref=f8e68] [cursor=pointer]

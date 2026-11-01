@@ -19,12 +19,12 @@
     "builtin_llm_model": "gemma-4-e4b",
     "builtin_asr_model": "whisper-large-v3-turbo",
     "model_source": "auto",
-    "hotwords": "拾贝\nNotesToGO\nOKR\n一次成稿\nKR\n重新整理",
+    "hotwords": "openNotion\nopenNotion\nOKR\n一次成稿\nKR\n重新整理",
     "delete_remote_audio": true,
     "theme": "light",
     "calendar_ics_urls": [],
     "knowledge_folders": [
-      "/Users/fangchen/Documents/拾贝知识库"
+      "/Users/fangchen/Documents/openNotion知识库"
     ]
   },
   "onboarding_done_v1": true,

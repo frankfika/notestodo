@@ -21,7 +21,7 @@ const pick = (name) => only.length === 0 || only.includes(name)
 // ── 会中真录音：速记按真实 elapsed 节奏写进去 ──────────────────────────────
 const LIVE_SCRIBBLES = [
   { t_ms: 900, text: 'Q4 优先级：转录质量 > 一次成稿 > 周报' },
-  { t_ms: 3_400, text: '问题：拾贝 → 十倍，纪要跟着错' },
+  { t_ms: 3_400, text: '问题：openNotion → Open Notes，纪要跟着错' },
   { t_ms: 6_600, text: '热词表 周三前进测试' },
   { t_ms: 10_000, text: '散会后一次调用：标题 + 纪要 + 行动项' },
   { t_ms: 13_800, text: '行动项必须带原文引用' },
@@ -30,9 +30,9 @@ const LIVE_SCRIBBLES = [
 ]
 const LIVE_PINNED = {
   source_entry_id: 'ke-2',
-  title: '术语表：拾贝产品词条',
-  snippet: '拾贝、一次成稿、嵌套 OKR、重新整理、数据去向。',
-  path: '/Users/fangchen/Documents/拾贝知识库/术语表-拾贝产品词条.md',
+  title: '术语表：openNotion产品词条',
+  snippet: 'openNotion、一次成稿、嵌套 OKR、重新整理、数据去向。',
+  path: '/Users/fangchen/Documents/openNotion知识库/术语表-openNotion产品词条.md',
 }
 
 /**

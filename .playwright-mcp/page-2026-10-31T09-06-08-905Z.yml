@@ -1,0 +1,68 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:05
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [ref=e120]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e405]:
+      - generic [ref=e406]:
+        - generic [ref=e407]:
+          - heading "会议" [level=1] [ref=e408]
+          - generic [ref=e409]: "1"
+          - button "导入转录" [ref=e410] [cursor=pointer]
+          - button "● 新建录音" [ref=e411] [cursor=pointer]
+        - generic [ref=e412]:
+          - generic [ref=e413]: 2026年10月31日
+          - list [ref=e414]:
+            - listitem [ref=e415]:
+              - button "Q4 评审 ⋯" [ref=e453]:
+                - generic [ref=e455]: Q4 评审
+                - generic "更多操作" [ref=e456]: ⋯
+      - generic [ref=e421]:
+        - generic [ref=e422]:
+          - generic [ref=e424]: 整理中
+          - generic [ref=e425]: 今天 17:04
+        - heading "Q4 评审" [level=2] [ref=e457]
+        - generic [ref=e427]:
+          - generic [ref=e428]: 00:15
+          - generic [ref=e429]: ·
+          - generic [ref=e430]: 音频 · 0 片
+        - generic [ref=e431]:
+          - generic [ref=e432]:
+            - generic [ref=e433]: 转录
+            - generic [ref=e434]: 2 段
+          - generic [ref=e435]:
+            - generic [ref=e436]: 纪要
+            - generic [ref=e437]: —
+          - generic [ref=e438]:
+            - generic [ref=e439]: 待审待办
+            - generic [ref=e440]: "0"
+        - generic [ref=e441]:
+          - generic [ref=e442]: 尚未生成纪要
+          - paragraph [ref=e443]: 在详情页可触发总结，或换模板重新生成。
+        - button "打开详情 →" [ref=e444] [cursor=pointer]

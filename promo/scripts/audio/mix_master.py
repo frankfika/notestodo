@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NotesToGO · 拾贝 宣传片 —— 总混音（预览 / 备份用）
+openNotion · openNotion 宣传片 —— 总混音（预览 / 备份用）
 
 输入：promo/audio/vo/vo-NN.wav（48k 单声道）+ promo/audio/music/bed.wav（48k 立体声）
 输出：promo/audio/mix/master.wav（48k 立体声 PCM16）

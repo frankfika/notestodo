@@ -27,7 +27,7 @@ python3 promo/scripts/capture/verify-frames.py                 # 只跑帧自检
 | 变量 | 作用 |
 | --- | --- |
 | `SHIBEI_URL` | dev server 地址，默认 `http://127.0.0.1:5173/` |
-| `HIDE_CAPTURE_BANNER=1` | 隐藏录音时那条「系统声音需 NotesToGO 桌面版」提示条 |
+| `HIDE_CAPTURE_BANNER=1` | 隐藏录音时那条「系统声音需 openNotion 桌面版」提示条 |
 | `CAPTURE_SUFFIX=-clean` | 给输出文件名加后缀（配合上一项产出 `*-clean` 素材） |
 | `PYTHON` | 跑 `verify-frames.py` 的解释器（需 Pillow + numpy） |
 | `FFPROBE` / `FFMPEG` | 默认 `/opt/homebrew/bin/` |
@@ -57,7 +57,7 @@ capture/
 ## 目录里有什么
 
 - `lib/seed.mjs` —— 富种子构造：4 场已整理会议（转录 / 纪要 / 速记 / 待办）+ 2 场待开会议、
-  嵌套 OKR 树（战略 O → KR → 季度 O → 项目 KR → Task）、看板四列、知识库条目、模板、设置。
+  任务树（战略 → 季度 → 项目 → 任务）、看板四列、知识库条目、模板、设置。
   字段严格照 `web/src/types.ts`。
 - `lib/harness.mjs` —— Chromium 启动参数、播种、导航、截图、录屏、清场自检。
 - `lib/fake-mic.mjs` —— 现场合成「类人声」假麦克风 WAV，让录音电平条全程可见。
@@ -85,7 +85,7 @@ capture/
 3. **「重新整理」的 LLM 调用换成本地确定性响应。** 本机没有云端 Key，`polish` 片段拦截
    `POST /chat/completions` 返回 `seed/polish-llm-response.json`；跑的是真实
    `web/src/pipeline/summarize.ts`（含旧 `pending_review` 待办清理与重建、标题回写、原文引用定位）。
-4. **浏览器能力提示条**：录音时产品会如实显示「浏览器中只能录制麦克风；系统声音需 NotesToGO
+4. **浏览器能力提示条**：录音时产品会如实显示「浏览器中只能录制麦克风；系统声音需 openNotion
    桌面版…」。默认素材**保留**它（不假装成功）；`*-clean` 素材用 `HIDE_CAPTURE_BANNER=1`
    产出，供 SH-03 成片按需选用（桌面版是能录系统声音的，成片用干净版不会造成虚假宣称）。
 5. **设置页不假装浏览器能离线推理。** `settings-ai.png` 里「本机内置」如实置灰，保留

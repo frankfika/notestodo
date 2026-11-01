@@ -1,0 +1,59 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:01
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [ref=e120]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e139]:
+      - generic [ref=e140]:
+        - button "返回" [ref=e141] [cursor=pointer]: ←
+        - generic [ref=e142]: 已存 今天 17:01
+        - button "✦ AI" [ref=e143] [cursor=pointer]
+        - button "置顶" [ref=e144] [cursor=pointer]
+        - button "+ 插入待办" [ref=e145] [cursor=pointer]
+        - button "更多" [ref=e147] [cursor=pointer]: ⋯
+      - textbox "无标题" [ref=e149]: 产品周会纪要
+      - textbox "加标签…" [ref=e152]
+      - generic [ref=e153]:
+        - textbox [ref=e155]:
+          - paragraph [ref=e156]: 本周要完成官网改版并通知用户
+        - button "块菜单：点击打开，拖动移动" [ref=e157]: ⋮⋮
+      - generic [ref=e158]:
+        - generic [ref=e159]: 关联
+        - generic [ref=e161]: 从这条笔记创建的任务 (1)
+        - list [ref=e162]:
+          - listitem [ref=e163]:
+            - checkbox [checked] [ref=e164]
+            - button "本周要完成官网改版并通知用户" [ref=e165]
+            - generic [ref=e166]: done
+      - generic [ref=e167]:
+        - generic [ref=e168]: 评论 (0)
+        - generic [ref=e169]: 还没有评论。hover 任意块点 ⋮⋮ → 评论 即可添加。
+      - generic [ref=e170]:
+        - generic [ref=e171]: 反向链接 (0)
+        - generic [ref=e172]: 还没有笔记链接到这篇。在其它笔记里写 [[产品周会纪要]] 即可挂上。

@@ -1,0 +1,91 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: NotesToGO
+      - generic [ref=e9]: 拾贝
+      - generic [ref=e10]: 17:03
+    - button "● 开始录音" [ref=e12] [cursor=pointer]
+    - navigation [ref=e13]:
+      - button "● 会议" [ref=e14]:
+        - generic [ref=e15]: ●
+        - text: 会议
+      - button "◎ 任务" [ref=e120]:
+        - generic [ref=e17]: ◎
+        - text: 任务
+      - button "✎ 笔记" [ref=e18]:
+        - generic [ref=e19]: ✎
+        - text: 笔记
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: 页面
+        - button "新建页面" [ref=e23]: ＋
+        - button "新建笔记本" [ref=e24]: ＋📓
+      - list [ref=e25]:
+        - listitem [ref=e77]:
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]: 产品周会纪要
+            - button "新建子页面" [ref=e80]: ＋
+    - button "⚙︎ 设置" [ref=e27]:
+      - generic [ref=e28]: ⚙︎
+      - text: 设置
+  - main [ref=e29]:
+    - generic [ref=e201]:
+      - generic [ref=e202]:
+        - generic [ref=e203]:
+          - generic [ref=e204]: SETTINGS
+          - heading "设置" [level=1] [ref=e205]
+        - button "纪要模板 →" [ref=e206] [cursor=pointer]
+        - button "保存修改" [disabled] [ref=e207]
+      - generic [ref=e208]:
+        - navigation [ref=e209]:
+          - button "AI 模型" [ref=e210]
+          - button "语音识别" [ref=e211]
+          - button "日历与集成" [ref=e212]
+          - button "本机 API" [ref=e213]
+          - button "外观与数据" [ref=e214]
+        - generic [ref=e215]:
+          - generic [ref=e278]:
+            - generic [ref=e279]:
+              - heading "外观" [level=2] [ref=e280]
+              - paragraph [ref=e281]: 主题与显示。
+            - generic [ref=e283]:
+              - generic [ref=e284]: 主题
+              - combobox [ref=e285]:
+                - option "暗色"
+                - option "亮色" [selected]
+                - option "跟随系统"
+          - generic [ref=e286]:
+            - generic [ref=e287]:
+              - heading "隐私" [level=2] [ref=e288]
+              - paragraph [ref=e289]: 音频归属。
+            - generic [ref=e291]:
+              - switch [checked] [ref=e292]
+              - generic [ref=e294]:
+                - generic [ref=e295]: 转录后删除云端音频
+                - generic [ref=e296]: 关掉则会保留在供应商的存储里——通常不要。
+          - generic [ref=e297]:
+            - generic [ref=e298]:
+              - heading "数据" [level=2] [ref=e299]
+              - paragraph [ref=e300]: 导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。
+            - generic [ref=e301]:
+              - generic [ref=e303]:
+                - button "导出 .zip" [ref=e304] [cursor=pointer]
+                - button "导入 .zip" [ref=e305] [cursor=pointer]
+                - button "导出 Markdown" [ref=e306] [cursor=pointer]
+              - generic [ref=e307]:
+                - generic [ref=e308]: ●
+                - generic [ref=e309]: 本地存储未持久化 · 已用 45.9 KB（0%） — 建议导出 .zip 备份，浏览器可能在磁盘压力下清理数据
+          - generic [ref=e310]:
+            - generic [ref=e311]:
+              - heading "标签" [level=2] [ref=e312]
+              - paragraph [ref=e313]: 改名会同步所有引用；删除会同时解绑所有笔记 / 任务 / 会议。
+            - generic [ref=e316]:
+              - generic [ref=e317]: "#"
+              - textbox [ref=e327]: 产品-改名
+              - generic [ref=e319]: 1 处引用
+              - button "✕" [ref=e320]
+          - generic [ref=e321]:
+            - heading "诊断" [level=2] [ref=e323]
+            - group [ref=e325]:
+              - generic "查看当前 settings JSON" [ref=e326] [cursor=pointer]
+      - generic [ref=e328]: 已改名

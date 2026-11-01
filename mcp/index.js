@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Minimal MCP stdio server wrapping the NotesToGO local HTTP API.
+// Minimal MCP stdio server wrapping the openNotion local HTTP API.
 // Newline-delimited JSON-RPC 2.0 over stdio.
 
 const PORT = process.env.NOTESTODO_PORT || "17893";
@@ -30,7 +30,7 @@ async function api(method, path, body) {
 const TOOLS = [
   {
     name: "list_todos",
-    description: "List all todos from NotesToGO",
+    description: "List all todos from openNotion",
     inputSchema: { type: "object", properties: {} },
     handler: () => api("GET", "/todos"),
   },
@@ -66,7 +66,7 @@ const TOOLS = [
   },
   {
     name: "list_notes",
-    description: "List all notes from NotesToGO",
+    description: "List all notes from openNotion",
     inputSchema: { type: "object", properties: {} },
     handler: () => api("GET", "/notes"),
   },
@@ -96,7 +96,7 @@ const TOOLS = [
 ];
 
 const PROTOCOL_VERSION = "2024-11-05";
-const SERVER_INFO = { name: "notestodo", version: "0.1.0" };
+const SERVER_INFO = { name: "opennotion", version: "0.1.0" };
 
 function ok(id, result) {
   return JSON.stringify({ jsonrpc: "2.0", id, result });

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NotesToGO · 拾贝 宣传片 —— 配乐合成（100% 自研 numpy 合成，无外部采样、无版权风险）
+openNotion · openNotion 宣传片 —— 配乐合成（100% 自研 numpy 合成，无外部采样、无版权风险）
 
 输出：promo/audio/music/bed.wav
   48 kHz / 立体声 / PCM16 / >= 100 s
