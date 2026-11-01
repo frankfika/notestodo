@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { db } from '../db/db'
 import { getSettings } from '../db/settings'
 import type { TranscriptSegment } from '../types'
+import { localAsrAvailable, startLocalLiveAsr } from '../audio/liveAsr'
 
 /**
  * 会中实时字幕：浏览器自带 SpeechRecognition（Chrome / Safari / Edge）。
@@ -42,11 +43,39 @@ export const useCaption = create<CaptionStore>(() => ({ status: 'off', error: nu
 export const captionSupported = (): boolean => Boolean(SRCtor())
 
 let current: { rec: SR; meetingId: string; startedAtMs: number; segStart: number | null } | null = null
+/** 本地实时字幕（桌面版 whisper）的停止句柄 */
+let localStop: (() => void) | null = null
+/** 录音引擎提供当前采集流（混音后），供会中页一键开启本地字幕 */
+let streamProvider: (() => MediaStream | null) | null = null
+export function registerCaptionStreamProvider(fn: () => MediaStream | null): void {
+  streamProvider = fn
+}
 
-export async function startLiveCaption(meetingId: string, startedAtMs: number): Promise<void> {
+export async function startLiveCaption(meetingId: string, startedAtMs: number, stream?: MediaStream): Promise<void> {
   stopLiveCaption()
   const Ctor = SRCtor()
-  if ((await getSettings()).asr_mode !== 'cloud') { useCaption.setState({ status: 'blocked', segments: [], interim: '' }); return }
+  const settings = await getSettings()
+
+  // 本地 / 内置转录：音频不出本机 → 走本机 whisper 增量出字（桌面版），浏览器无本地模型则禁用
+  if (settings.asr_mode !== 'cloud') {
+    const pref = await db.kv.get(PREF_KEY)
+    if (pref?.value === false) { useCaption.setState({ status: 'off', segments: [], interim: '' }); return }
+    if (stream && await localAsrAvailable()) {
+      useCaption.setState({ segments: [], interim: '', error: null, status: 'on' })
+      localStop = startLocalLiveAsr(stream, {
+        startedAtMs,
+        onSegment: (seg) => {
+          const segments = [...useCaption.getState().segments, seg]
+          useCaption.setState({ segments })
+          void db.kv.put({ key: captionKey(meetingId), value: segments })
+        },
+        onError: (msg) => useCaption.setState({ status: 'error', error: `本地实时字幕出错：${msg}` }),
+      })
+      return
+    }
+    useCaption.setState({ status: 'blocked', segments: [], interim: '' })
+    return
+  }
   if (!Ctor) { useCaption.setState({ status: 'unsupported', segments: [], interim: '' }); return }
   const pref = await db.kv.get(PREF_KEY)
   useCaption.setState({ segments: [], interim: '', error: null, status: 'off' })
@@ -110,13 +139,14 @@ export function stopLiveCaption(): void {
   const me = current
   current = null
   if (me) { try { me.rec.stop() } catch { /* ignore */ } }
+  if (localStop) { try { localStop() } catch { /* ignore */ } localStop = null }
   useCaption.setState((s) => ({ status: s.status === 'on' ? 'off' : s.status, interim: '' }))
 }
 
 /** 会中一键开 / 关；偏好写 kv，下场会议沿用 */
 export async function setLiveCaptionEnabled(on: boolean, meetingId: string, startedAtMs: number): Promise<void> {
   await db.kv.put({ key: PREF_KEY, value: on })
-  if (on) await startLiveCaption(meetingId, startedAtMs)
+  if (on) await startLiveCaption(meetingId, startedAtMs, streamProvider?.() ?? undefined)
   else { stopLiveCaption(); useCaption.setState({ status: 'off' }) }
 }
 

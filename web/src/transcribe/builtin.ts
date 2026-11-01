@@ -2,7 +2,7 @@ import { DIAR_IDS, catalogById, isReady, mockEnabled } from '../lib/builtinModel
 import { isTauri } from '../lib/tauri'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { requireModel } from '../llm/builtin'
-import { resolveASRConfig, type TranscriptSegment } from '../types'
+import { resolveASRConfig, type AppSettings, type TranscriptSegment } from '../types'
 import type { AsrProvider } from './types'
 
 /**
@@ -12,21 +12,30 @@ import type { AsrProvider } from './types'
 export const builtinAsrProvider: AsrProvider = {
   id: 'builtin',
   transcribe: async ({ blob, settings, hotwords }) => {
-    const m = requireModel(resolveASRConfig(settings).model)
-    if (!isTauri() && mockEnabled()) return mockSegments()
     const pcm = await decodeTo16kMono(blob)
-    // raw IPC：请求体直接是 i16 LE 字节（1 小时约 115MB），不走 JSON
-    const i16 = new Int16Array(pcm.length)
-    for (let i = 0; i < pcm.length; i++) i16[i] = Math.max(-1, Math.min(1, pcm[i])) * 0x7fff
-    return tauriInvoke<TranscriptSegment[]>('builtin_asr_transcribe', new Uint8Array(i16.buffer), {
-      // 请求头只能是 ASCII：热词 encodeURIComponent，Rust 端解码
-      headers: {
-        'x-model-file': m.file, 'x-language': 'zh', 'x-hotwords': encodeURIComponent((hotwords ?? []).join('\n')),
-        // 说话人区分：两个模型都已下载才带上（否则只转录，不区分说话人）
-        ...(DIAR_IDS.every(isReady) ? { 'x-diar-seg': catalogById(DIAR_IDS[0])!.file, 'x-diar-emb': catalogById(DIAR_IDS[1])!.file } : {}),
-      },
-    })
+    return transcribePcm16k(pcm, settings, hotwords)
   },
+}
+
+/** 16kHz 单声道 PCM → 本机 whisper 转录（供录音转录与本地实时字幕共用） */
+export async function transcribePcm16k(
+  pcm: Float32Array,
+  settings: AppSettings,
+  hotwords: string[] | undefined,
+): Promise<TranscriptSegment[]> {
+  const m = requireModel(resolveASRConfig(settings).model)
+  if (!isTauri() && mockEnabled()) return mockSegments()
+  // raw IPC：请求体直接是 i16 LE 字节（1 小时约 115MB），不走 JSON
+  const i16 = new Int16Array(pcm.length)
+  for (let i = 0; i < pcm.length; i++) i16[i] = Math.max(-1, Math.min(1, pcm[i])) * 0x7fff
+  return tauriInvoke<TranscriptSegment[]>('builtin_asr_transcribe', new Uint8Array(i16.buffer), {
+    // 请求头只能是 ASCII：热词 encodeURIComponent，Rust 端解码
+    headers: {
+      'x-model-file': m.file, 'x-language': 'zh', 'x-hotwords': encodeURIComponent((hotwords ?? []).join('\n')),
+      // 说话人区分：两个模型都已下载才带上（否则只转录，不区分说话人）
+      ...(DIAR_IDS.every(isReady) ? { 'x-diar-seg': catalogById(DIAR_IDS[0])!.file, 'x-diar-emb': catalogById(DIAR_IDS[1])!.file } : {}),
+    },
+  })
 }
 
 async function decodeTo16kMono(blob: Blob): Promise<Float32Array> {

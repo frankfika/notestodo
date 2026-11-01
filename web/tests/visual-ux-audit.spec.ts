@@ -87,11 +87,11 @@ test('视觉审计 — Today / Meetings / Todos / Notes / Settings', async ({ pa
 
   await page.screenshot({ path: 'tests/screenshots/visual-today.png', fullPage: false })
 
-  await page.getByRole('button', { name: '会议' }).click()
+  await page.getByRole('button', { name: '● 会议', exact: true }).click()
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'tests/screenshots/visual-meetings.png', fullPage: false })
 
-  await page.getByRole('button', { name: '会议' }).first().click()
+  await page.getByRole('button', { name: '● 会议', exact: true }).first().click()
   await page.waitForTimeout(200)
   // 点开第一场
   await page.getByText('产品评审会').first().click().catch(() => {})

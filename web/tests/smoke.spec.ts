@@ -41,8 +41,8 @@ test.describe('Shibei shell smoke', () => {
     await page.goto(BASE)
     await dismissOnboarding(page)
     await expect(page.locator('aside', { hasText: 'openNotion' })).toBeVisible()
-    // 默认落地页是笔记（中性工作台）；任务树在「任务」tab
-    await expect(page.getByRole('button', { name: '+ 新建笔记' }).first()).toBeVisible()
+    // 默认落地页是 AI 工作台；任务树在「任务」tab
+    await expect(page.getByText('AI 工作台').first()).toBeVisible()
     await nav(page, '任务')
     await expect(page.getByRole('button', { name: '树', exact: true })).toBeVisible()
     await expect(page.getByPlaceholder('＋ 添加任务，回车创建（支持「明天 交方案 @张三」）')).toBeVisible()

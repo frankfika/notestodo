@@ -474,7 +474,7 @@ function LiveCaptionPane({ meetingId }: { meetingId: string }): JSX.Element {
       </div>
       {status === 'blocked' ? (
         <p className="text-[12px] text-text-3 leading-relaxed">
-          本地转录模式：浏览器字幕会把音频发到云端，已禁用。录音只存在本机，散会后由本地模型转录。
+          本地转录模式：云端字幕已禁用（音频不出本机）。桌面版用本机模型实时出字；浏览器版散会后由本地模型转录。
         </p>
       ) : status === 'unsupported' ? (
         <p className="text-[12px] text-text-3 leading-relaxed">

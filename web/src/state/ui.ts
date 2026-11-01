@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 export type ViewName =
+  | 'ai'
   | 'meetings'
   | 'meeting-detail'
   | 'notes'
@@ -20,6 +21,7 @@ export interface RouteState {
 
 interface UIStore extends RouteState {
   route: (r: Partial<RouteState>) => void
+  goAi: () => void
   goMeetings: () => void
   goMeeting: (meetingId: string) => void
   goNotes: () => void
@@ -47,12 +49,13 @@ interface UIStore extends RouteState {
 }
 
 export const useUI = create<UIStore>((set) => ({
-  view: 'notes',
+  view: 'ai',
   meetingId: null,
   noteId: null,
   todoFocusId: null,
 
   route: (r) => set(r),
+  goAi: () => set({ view: 'ai', meetingId: null, noteId: null, todoFocusId: null }),
   goMeetings: () => set({ view: 'meetings', meetingId: null, noteId: null }),
   goMeeting: (meetingId) => set({ view: 'meeting-detail', meetingId, noteId: null }),
   goNotes: () => set({ view: 'notes', meetingId: null, noteId: null }),

@@ -3,7 +3,7 @@ import { now, uid } from '../lib/id'
 import { setRecorderPartial, useRecorder } from '../state/recorder'
 import { useUI } from '../state/ui'
 import { runTranscribePipeline } from '../pipeline/transcribe'
-import { startLiveCaption, stopLiveCaption } from '../lib/liveCaption'
+import { registerCaptionStreamProvider, startLiveCaption, stopLiveCaption } from '../lib/liveCaption'
 import { chunksInOrder } from './merge'
 import { isWebKit } from './playable'
 import { isTauri } from '../lib/tauri'
@@ -104,6 +104,9 @@ export function bindRecorderEngine(): void {
 // 启动中的 Promise：停止若在 starting 阶段（等麦克风授权 / 建会议行）被按下，要等启动完再停，
 // 否则 stop 因 active 尚为空而被吞掉，录音停不下来。
 let starting: Promise<void> | null = null
+
+/** 会中页一键开启本地实时字幕时，要拿到当前采集流（混音后） */
+registerCaptionStreamProvider(() => (active ? (active.mixDest ? active.mixDest.stream : active.stream) : null))
 
 export function startRecorder(opts?: { title?: string }): Promise<void> {
   if (starting) return starting
@@ -290,7 +293,7 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
     },
     chunkCount: 1,
   })
-  void startLiveCaption(meetingId, startedAtMs)
+  void startLiveCaption(meetingId, startedAtMs, mixDest ? mixDest.stream : stream)
 }
 
 export async function stopRecorder(): Promise<string | null> {

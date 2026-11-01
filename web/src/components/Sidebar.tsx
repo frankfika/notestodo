@@ -11,6 +11,7 @@ import type { ID, Note } from '../types'
 
 // 只留 3 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
 const NAV: { view: ViewName; label: string; icon: string }[] = [
+  { view: 'ai', label: 'AI', icon: '✦' },
   { view: 'meetings', label: '会议', icon: '●' },
   { view: 'todos', label: '任务', icon: '◎' },
   { view: 'notes', label: '笔记', icon: '✎' },
@@ -399,7 +400,7 @@ export default function Sidebar() {
           className="w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors text-text-3 hover:bg-bg-overlay hover:text-text-1"
         >
           <span className="text-xs w-4 text-center text-accent">✦</span>
-          AI 助手
+          快速提问
           <span className="ml-auto text-[10px] text-text-3">⌘J</span>
         </button>
         <button
@@ -423,6 +424,7 @@ export default function Sidebar() {
  */
 export function BottomTabBar() {
   const { view, goMeetings, goNotes, goSettings } = useUI()
+  const goAi = useUI((s) => s.goAi)
   const goTodos = useUI((s) => s.goTodos)
   const phase = useRecorder((s) => s.phase)
   // 只数「任务」(排除 OKR 的 O / KR)，并剔除已软删条目 — 任务 tab 徽章语义对齐
@@ -437,6 +439,7 @@ export function BottomTabBar() {
   )
 
   const items: { view: ViewName; label: string; icon: string; onClick: () => void; badge?: number | null }[] = [
+    { view: 'ai', label: 'AI', icon: '✦', onClick: () => goAi() },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
     { view: 'todos', label: '任务', icon: '◎', onClick: () => goTodos(), badge: openTodos ?? 0 },
     { view: 'notes', label: '笔记', icon: '✎', onClick: goNotes },

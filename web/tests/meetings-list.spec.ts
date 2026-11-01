@@ -85,8 +85,8 @@ test('多会议列表：日期分组 + 同日合并 + 排序 + MeetingPreview �
   // grouped.map renders each group's label inside .tracking-widest div
   const groupLabels = await page.locator('.w-\\[300px\\] .tracking-widest').allInnerTexts()
   expect(groupLabels.length).toBeGreaterThanOrEqual(3)
-  expect(groupLabels[0]).toMatch(/今天|10月/) // 日：今天相对 or 10月绝对（不同 dev 模式差异）
-  expect(groupLabels[1]).toMatch(/昨天|10月/)
+  expect(groupLabels[0]).toMatch(/今天|\d{1,2}月/) // 日：今天相对 or 绝对年月
+  expect(groupLabels[1]).toMatch(/昨天|\d{1,2}月/)
 
   // 3) 「今天」分组内 2 场会议标题可见
   expect(await page.getByText('今天·晨会').count()).toBeGreaterThanOrEqual(1)

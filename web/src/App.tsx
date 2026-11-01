@@ -18,6 +18,7 @@ import BoardPage from './pages/board/BoardPage'
 import ReportPage from './pages/report/ReportPage'
 import TemplatesPage from './pages/templates/TemplatesPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import AiHomePage from './pages/ai/AiHomePage'
 
 export default function App() {
   const view = useUI((s) => s.view)
@@ -73,6 +74,7 @@ export default function App() {
         <main className="flex-1 min-w-0 flex flex-col pb-16 md:pb-0">
           <RecordingBar />
           <div key={view} className="page-enter flex-1 min-h-0 overflow-hidden">
+            {view === 'ai' && <AiHomePage />}
             {view === 'meetings' && <MeetingsPage />}
             {view === 'meeting-detail' && <MeetingDetailPage />}
             {view === 'notes' && <NotesPage />}
