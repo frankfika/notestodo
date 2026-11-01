@@ -101,7 +101,7 @@ pub(crate) fn start(app: &AppHandle) -> serde_json::Value {
             "supported": false,
             "started": false,
             "reason": "platform_unsupported",
-            "note": "系统音频采集仅 NotesToGO 桌面版（macOS）支持",
+            "note": "系统音频采集仅 openNotion 桌面版（macOS）支持",
         })
     }
 }
@@ -129,7 +129,7 @@ fn start_macos(app: &AppHandle) -> serde_json::Value {
             "supported": true,
             "started": false,
             "reason": "tcc_pending_user_approval",
-            "note": "未授权屏幕录制权限；请到「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO，授权后再次录音即生效。",
+            "note": "未授权屏幕录制权限；请到「系统设置 → 隐私与安全性 → 屏幕录制」中允许 openNotion，授权后再次录音即生效。",
         });
     }
 

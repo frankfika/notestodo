@@ -350,8 +350,8 @@ export default function Sidebar() {
       {/* 品牌行 */}
       <div className="flex items-center gap-2 px-4 h-14">
         <span className={`h-2 w-2 rounded-full ${phase === 'recording' ? 'bg-danger rec-dot' : 'bg-accent'}`} />
-        <span className="font-semibold tracking-tight text-text-1">NotesToGO</span>
-        <span className="text-[11px] text-text-3">拾贝</span>
+        <span className="font-semibold tracking-tight text-text-1">openNotion</span>
+        <span className="text-[11px] text-text-3">AI 工作区</span>
         <span className="ml-auto font-mono text-xs text-text-3 tabular-nums">{clockText}</span>
       </div>
 

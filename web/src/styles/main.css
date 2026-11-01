@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ── NotesToGO 设计令牌（Notion 风）─────────────────────────────────
+/* ── openNotion 设计令牌（Notion 风）─────────────────────────────────
    浅色 = 白底 + #f7f7f5 侧栏 + Notion 蓝 accent；深色 = #191919 系。
    层级靠字重与灰度；4pt 网格；≤250ms ease-out。 */
 

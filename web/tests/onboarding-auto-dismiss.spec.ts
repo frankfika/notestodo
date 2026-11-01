@@ -58,7 +58,7 @@ test('Onboarding：首次创建 meeting 后 onboarding 自动消失', async ({ p
   expect(afterKv).toBe(true)
 
   // Onboarding 卡片不应再渲染（liveQuery 触发组件卸载）
-  // 组件显示「拾贝 · 新用户引导」文本
+  // 组件显示「openNotion · 新用户引导」文本
   const onboardingVisible = await page.evaluate(() => {
     const root = document.getElementById('root')
     return root ? root.textContent?.includes('新用户引导') : false

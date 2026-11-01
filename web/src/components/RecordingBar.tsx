@@ -117,7 +117,7 @@ function CaptureBanner({
   if (mode === 'mic+system') return null
   const isWeb = !isTauri()
   const text = isWeb
-    ? '浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。'
+    ? '浏览器中只能录制麦克风；系统声音需 openNotion 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。'
     : note ?? '系统音频采集暂不可用（macOS 桌面版 + 屏幕录制权限）。'
   return (
     <div

@@ -1,6 +1,6 @@
 {
-  "name": "拾贝 Shibei — AI 会议笔记与待办",
-  "short_name": "拾贝",
+  "name": "openNotion — AI 工作区",
+  "short_name": "openNotion",
   "description": "开会时只管说话，散会时纪要和待办已经排好。本地优先，BYOK，多端可装。",
   "start_url": "/",
   "scope": "/",

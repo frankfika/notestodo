@@ -40,7 +40,7 @@ test.describe('Shibei shell smoke', () => {
   test('首页加载并显示侧栏 + 任务树', async ({ page }) => {
     await page.goto(BASE)
     await dismissOnboarding(page)
-    await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
+    await expect(page.locator('aside', { hasText: 'openNotion' })).toBeVisible()
     // 默认落地页是笔记（中性工作台）；任务树在「任务」tab
     await expect(page.getByRole('button', { name: '+ 新建笔记' }).first()).toBeVisible()
     await nav(page, '任务')
@@ -117,7 +117,7 @@ test.describe('Shibei shell smoke', () => {
       }
     }
     await page.waitForTimeout(800)
-    await expect(page.locator('aside', { hasText: '拾贝' })).toBeVisible()
+    await expect(page.locator('aside', { hasText: 'openNotion' })).toBeVisible()
   })
 
   test('新建一个任务时 持久化到 IndexedDB', async ({ page }) => {
@@ -198,7 +198,7 @@ test.describe('Shibei shell smoke', () => {
     await page.waitForTimeout(300)
     await page.getByRole('button', { name: '＋ 新建任务' }).click()
     await page.waitForTimeout(1000)
-    // onboarding 卡片应该自动消失（卡片头「拾贝 · 新用户引导」不再渲染）
+    // onboarding 卡片应该自动消失（卡片头「openNotion · 新用户引导」不再渲染）
     await expect(page.locator('text=新用户引导')).toHaveCount(0, { timeout: 3000 })
   })
 

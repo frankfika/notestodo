@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "拾贝",
+  "productName": "openNotion",
   "version": "0.3.0",
   "identifier": "cc.secondplanet.shibei",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "拾贝 Shibei · AI 会议笔记与待办",
+        "title": "openNotion · AI 工作区",
         "width": 1120,
         "height": 720,
         "minWidth": 480,

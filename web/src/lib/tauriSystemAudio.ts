@@ -19,7 +19,7 @@ export type SystemAudioStatus =
 
 const UNSUPPORTED_NOTE =
   'Tauri 端 system-audio 已实装 ScreenCaptureKit 接线；当前可能未授权屏幕录制。' +
-  '请到「系统设置 → 隐私与安全性 → 屏幕录制」中允许 NotesToGO。'
+  '请到「系统设置 → 隐私与安全性 → 屏幕录制」中允许 openNotion。'
 
 /** 探测 Rust 端 system-audio 能力。失败（不在 Tauri / 无命令 / 抛错）一律降级到 mic-only。 */
 export async function systemAudioStatus(): Promise<SystemAudioStatus> {

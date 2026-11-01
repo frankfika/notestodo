@@ -1,10 +1,10 @@
-# NotesToGO · 会议速记 × Notion 式工作区
+# openNotion · 会议速记 × Notion 式工作区
 
 > 开会时只记关键词，散会后一键整理成笔记；行动项进任务树，灵感和文档进笔记本。
 
-产品名 **NotesToGO**（仓库名 notestodo，「拾贝 Shibei」为旧名/别名）。一个 AI-native 的会议速记 + 笔记/任务工作区。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
+产品名 **openNotion**（仓库名 notestodo；旧名 NotesToGO / 拾贝 Shibei）。一个 AI-native 的会议速记 + 笔记/任务工作区。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
-**当前状态（2026-10-31，v0.3.0）**：Phase-1～4 之上完成 openNotion 方向重构——Notion 式页面树 + 块编辑器、多笔记本、多看板、任务树、块评论、AI 面板、GitHub/飞书集成、腾讯会议/飞书妙记转录导入、本机 MCP server。会议垂直链路（录音 → 转录 → 纪要 → 任务）完整保留。桌面包名 **拾贝**。
+**当前状态（2026-10-31，v0.3.0）**：Phase-1～4 之上完成 openNotion 方向重构——Notion 式页面树 + 块编辑器、多笔记本、多看板、任务树、块评论、AI 面板、GitHub/飞书集成、腾讯会议/飞书妙记转录导入、本机 MCP server。会议垂直链路（录音 → 转录 → 纪要 → 任务）完整保留。桌面包名 **openNotion**。
 
 ## 核心特性
 
@@ -81,7 +81,7 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 **Tauri 端 macOS 授权**（Phase-3 系统音频已实装）：
 - `NSMicrophoneUsageDescription`（录音）— 首次启动弹框
 - `NSScreenCaptureUsageDescription`（系统音频 loopback）— 首次启用 system-audio 时弹框
-- 桌面 App 显示名是 **拾贝**（`cc.secondplanet.shibei`）；「屏幕录制」列表里找「拾贝」，不是 NotesToGO
+- 桌面 App 显示名是 **openNotion**（`cc.secondplanet.shibei`）；「屏幕录制」列表里找「openNotion」，不是 openNotion
 - 用户在「系统设置 → 隐私与安全性 → 屏幕录制」可手动批准 / 撤销；撤销后自动降级到 mic-only + honest banner
 
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
@@ -115,23 +115,23 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 ### 1. 系统音频（macOS 桌面版 · Phase-3 已实装）
 
-- **Web 路径**（默认）：浏览器仅能拿到麦克风（DRM / 平台限制）。UI 在录音条下方显示 banner：「浏览器中只能录制麦克风；系统声音需 NotesToGO 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。」
+- **Web 路径**（默认）：浏览器仅能拿到麦克风（DRM / 平台限制）。UI 在录音条下方显示 banner：「浏览器中只能录制麦克风；系统声音需 openNotion 桌面版，并在「系统设置 → 隐私与安全性 → 屏幕录制」中授权。」
 - **Tauri 桌面版路径**（macOS，Phase-3 已实装）：
-  1. 启动 NotesToGO 桌面版（`pnpm tauri dev` / 已打包 .app）
-  2. 首次录音时 macOS 弹「屏幕录制」授权；批准后 NotesToGO 可同时录到 Zoom/Meet 播放声
+  1. 启动 openNotion 桌面版（`pnpm tauri dev` / 已打包 .app）
+  2. 首次录音时 macOS 弹「屏幕录制」授权；批准后 openNotion 可同时录到 Zoom/Meet 播放声
   3. 若用户在「系统设置 → 隐私与安全性 → 屏幕录制」中撤销 → 仍可继续，但仅 mic-only（同一 honest banner）
   4. **当前实装**（`src-tauri/src/system_audio.rs`）：CGPreflightScreenCaptureAccess + CGRequestScreenCaptureAccess 探 TCC；拿 SCShareableContent → SCStream（64×64 video + 48kHz/2ch Float32 audio）→ `add_output_handler(Audio)` → `start_capture()`；CMSampleBuffer 转 f32 PCM → Tauri event `system_audio:chunk` 推前端。Phase-4：前端 `audio/systemMix.ts` 把 PCM 排进 AudioContext，与麦克风一起混入 MediaStreamDestination，MediaRecorder 录混合流，系统声音真正写入录音文件。
 - **不假装**：UI 永远显示真实状态（仅麦克风 / 麦克风+系统声音 / 未授权屏录 / 非 macOS），不会让用户误以为系统声音已录上。
 
 #### 首次授权：应用内向导（推荐）
 
-桌面版首次启动若未授权屏幕录制，会自动弹出「开启系统声音录制」向导：**一键授权**（触发系统弹窗，并把「拾贝」自动加进屏幕录制列表）→ **打开系统设置**（直达屏幕录制页，只需拨开关）→ **重启拾贝**（macOS 要求重启才生效）。授权状态实时检测，成功后自动切到完成态。之后可从录音条 banner 的「一键开启」或 设置 → 录音采集 → 「授权向导」再次打开。
+桌面版首次启动若未授权屏幕录制，会自动弹出「开启系统声音录制」向导：**一键授权**（触发系统弹窗，并把「openNotion」自动加进屏幕录制列表）→ **打开系统设置**（直达屏幕录制页，只需拨开关）→ **重启openNotion**（macOS 要求重启才生效）。授权状态实时检测，成功后自动切到完成态。之后可从录音条 banner 的「一键开启」或 设置 → 录音采集 → 「授权向导」再次打开。
 
 #### 手动授权步骤（向导打不开时的备选）
 
-1. 启动桌面版（`/Applications/拾贝.app` 或 `pnpm tauri dev`），录音一次 → macOS 自动弹屏录授权
+1. 启动桌面版（`/Applications/openNotion.app` 或 `pnpm tauri dev`），录音一次 → macOS 自动弹屏录授权
 2. 若点了「不允许」或在 System Settings 里撤销：
-   - 「系统设置 → 隐私与安全性 → 屏幕录制」中打开 **拾贝** 开关（列表里是「拾贝」，不是 NotesToGO）
+   - 「系统设置 → 隐私与安全性 → 屏幕录制」中打开 **openNotion** 开关（列表里是「openNotion」，不是 openNotion）
    - 杀掉并重启 App（macOS TCC 不会即时刷新已运行的进程）
 3. 重启后再录音 → banner 自动翻「麦克风 + 系统声音」
 

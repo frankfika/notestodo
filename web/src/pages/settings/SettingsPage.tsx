@@ -1158,7 +1158,7 @@ function StorageStatusRow(): JSX.Element {
  * 永远显示真值（不假装）：
  *   - 浏览器：仅麦克风
  *   - Tauri + screencapturekit 已实装：麦克风 + 系统声音（屏录权限需在
- *     「系统设置 → 隐私与安全性 → 屏幕录制」允许 NotesToGO）
+ *     「系统设置 → 隐私与安全性 → 屏幕录制」允许 openNotion）
  *   - Tauri 但未实装：仅麦克风 + 灰一行"未实装"
  */
 function CaptureStatusRow(): JSX.Element {
@@ -1186,7 +1186,7 @@ function CaptureStatusRow(): JSX.Element {
     ? status && 'supported' in status && status.supported
       ? status.permission_granted
         ? '麦克风 + 系统声音（Tauri · 屏录已授权）'
-        : '麦克风 + 系统声音（需在 macOS 「系统设置 → 隐私与安全性 → 屏幕录制」中允许「拾贝」，点右侧「授权向导」一键完成）'
+        : '麦克风 + 系统声音（需在 macOS 「系统设置 → 隐私与安全性 → 屏幕录制」中允许「openNotion」，点右侧「授权向导」一键完成）'
       : '仅麦克风（当前平台不支持系统音频采集）'
     : '仅麦克风（浏览器）'
 
@@ -1211,8 +1211,8 @@ function CaptureStatusRow(): JSX.Element {
       </div>
       <div className="text-[11px] text-text-3 leading-relaxed">
         {inTauri
-          ? 'NotesToGO 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；未授权时点「授权向导」即可一键授权、直达设置页并重启生效。'
-          : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 NotesToGO macOS 桌面版。'}
+          ? 'openNotion 桌面版通过 macOS ScreenCaptureKit 采集会议播放声（系统音频 loopback）。首次启用 macOS 会弹窗要求屏录权限；未授权时点「授权向导」即可一键授权、直达设置页并重启生效。'
+          : '浏览器无法直接拿到系统声音（DRM / 平台限制）。要录到 Zoom/Meet 播放声，请用 openNotion macOS 桌面版。'}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-// ── 拾贝 Shibei · 数据模型（docs/DESIGN.md §4.2）────────────────────────────
+// ── openNotion · 数据模型（docs/DESIGN.md §4.2）────────────────────────────
 
 export type ID = string
 

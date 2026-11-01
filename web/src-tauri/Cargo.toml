@@ -1,7 +1,7 @@
 [package]
 name = "shibei"
 version = "0.3.0"
-description = "拾贝 Shibei — AI 会议笔记与三级待办（本地优先，BYOK）"
+description = "openNotion — AI 工作区：会议速记 + 笔记 + 任务（本地优先，BYOK）"
 authors = ["fangchen"]
 license = ""
 repository = ""

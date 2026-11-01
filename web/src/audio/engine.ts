@@ -412,8 +412,8 @@ function describeError(e: unknown): string {
         // 不弹框直接拒 —— 需用打包后的 .app 验证，或先在系统设置里手动放行。
         return isTauri()
           ? import.meta.env.DEV
-            ? '麦克风权限被拒绝。dev 模式（无 .app bundle）macOS 不会弹授权框；请到「系统设置 → 隐私与安全性 → 麦克风」手动允许「拾贝」，或用打包后的 App 验证。'
-            : '麦克风权限被拒绝。请到「系统设置 → 隐私与安全性 → 麦克风」打开「拾贝」后重试。'
+            ? '麦克风权限被拒绝。dev 模式（无 .app bundle）macOS 不会弹授权框；请到「系统设置 → 隐私与安全性 → 麦克风」手动允许「openNotion」，或用打包后的 App 验证。'
+            : '麦克风权限被拒绝。请到「系统设置 → 隐私与安全性 → 麦克风」打开「openNotion」后重试。'
           : '麦克风权限被拒绝。请在浏览器地址栏的权限菜单里允许后重试。'
       case 'NotFoundError':
         return '未找到可用的麦克风设备。'

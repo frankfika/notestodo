@@ -19,7 +19,7 @@ const SNOOZE_MS = 24 * 60 * 60 * 1000 // 24h
  * 屏幕录制授权向导（仅 Tauri macOS）。
  *
  * 目标：用户不用自己找设置页。
- *   ① 一键授权  → 触发系统弹窗（同时把「拾贝」自动加进屏幕录制列表）
+ *   ① 一键授权  → 触发系统弹窗（同时把「openNotion」自动加进屏幕录制列表）
  *   ② 打开设置  → 直达「屏幕录制」页，只需拨开关
  *   ③ 重启生效  → macOS 不会即时刷新已运行进程，一键重启
  * 授权状态每 1.5s 轮询，授权成功自动切到完成态。
@@ -124,8 +124,8 @@ export default function PermissionGuide(): JSX.Element | null {
         {!granted && (
           <ol className="space-y-2 text-sm text-text-1">
             <Step n={1} done={touched} text="点「一键授权」，在系统弹窗里选「允许」/「打开系统设置」" />
-            <Step n={2} done={false} text="在设置页的列表里把「拾贝」的开关拨到开（点下方按钮可直达）" />
-            <Step n={3} done={false} text="回来点「重启拾贝」让授权生效" />
+            <Step n={2} done={false} text="在设置页的列表里把「openNotion」的开关拨到开（点下方按钮可直达）" />
+            <Step n={3} done={false} text="回来点「重启openNotion」让授权生效" />
           </ol>
         )}
 
@@ -141,7 +141,7 @@ export default function PermissionGuide(): JSX.Element | null {
               <button
                 className={touched ? 'btn-primary h-8 px-3 text-sm' : 'btn-outline h-8 px-3 text-sm'}
                 onClick={() => void restartApp()}
-              >重启拾贝</button>
+              >重启openNotion</button>
             </>
           )}
         </div>

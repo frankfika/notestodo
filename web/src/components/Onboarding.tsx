@@ -69,7 +69,7 @@ export default function Onboarding(): JSX.Element | null {
       >
         <div className="flex items-center gap-2">
           <span className="text-accent text-lg leading-none">●</span>
-          <span className="text-sm text-text-1 font-medium">欢迎使用拾贝</span>
+          <span className="text-sm text-text-1 font-medium">欢迎使用openNotion</span>
           <span className="chip text-[10px]">{step + 1}/3</span>
         </div>
       </button>
@@ -84,7 +84,7 @@ export default function Onboarding(): JSX.Element | null {
       {/* 顶栏 */}
       <div className="flex items-center gap-2 mb-4">
         <span className="text-accent text-base">●</span>
-        <span className="section-title">拾贝 · 新用户引导</span>
+        <span className="section-title">openNotion · 新用户引导</span>
         <span className="chip text-[10px]">{step + 1}/3</span>
         <button
           onClick={() => setMinimized(true)}

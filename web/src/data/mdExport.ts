@@ -41,7 +41,7 @@ export function todosToMarkdown(todos: Todo[]): string {
     list.push(t)
     kids.set(key, list)
   }
-  const lines: string[] = ['# 拾贝任务', '']
+  const lines: string[] = ['# openNotion任务', '']
   const walk = (parent: string | null, depth: number): void => {
     const list = (kids.get(parent) ?? []).sort((a, b) => a.sort_order - b.sort_order)
     for (const t of list) {
@@ -70,7 +70,7 @@ export function buildMarkdownZip(notes: Note[], todos: Todo[]): Uint8Array {
     used.add(name)
     files[name] = strToU8(noteToMd(n))
   }
-  files['拾贝任务.md'] = strToU8(todosToMarkdown(todos))
+  files['openNotion任务.md'] = strToU8(todosToMarkdown(todos))
   return zipSync(files, { level: 6 })
 }
 

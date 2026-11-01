@@ -63,7 +63,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               重新加载
             </button>
             <a
-              href="mailto:fangchen@secondplanet.cc?subject=拾贝%20错误报告"
+              href="mailto:fangchen@secondplanet.cc?subject=openNotion%20错误报告"
               className="btn-ghost h-9 px-4 text-sm"
             >
               反馈问题

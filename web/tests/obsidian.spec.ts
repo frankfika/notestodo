@@ -77,13 +77,13 @@ test('Markdown 导出：笔记带 frontmatter、任务成嵌套 GFM 列表、软
   const names = Object.keys(out)
   expect(names).toContain('会议纪要.md')
   expect(names).toContain('复盘方法.md')
-  expect(names).toContain('拾贝任务.md')
+  expect(names).toContain('openNotion任务.md')
   // frontmatter 保留 id / 时间戳 + 正文
   expect(out['复盘方法.md']).toContain('shibei_id: n2')
   expect(out['复盘方法.md']).toContain('title: "复盘方法"')
   expect(out['复盘方法.md']).toContain('# 怎么复盘')
   // 任务：嵌套 + 勾选态 + 截止 + 软删除不出现
-  const tasks = out['拾贝任务.md']
+  const tasks = out['openNotion任务.md']
   expect(tasks).toContain('- [ ] 战略 O')
   expect(tasks).toContain('  - [ ] KR 甲')
   expect(tasks).toContain('    - [x] 写周报 📅 2026-10-30')

@@ -1,5 +1,5 @@
 /**
- * 拾贝 service worker — minimal offline-first shell.
+ * openNotion service worker — minimal offline-first shell.
  *
  * 缓存策略：
  *   1) navigations（HTML）           → network-first，回退 cached
