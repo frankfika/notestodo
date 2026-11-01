@@ -255,6 +255,7 @@ export default function BoardPage(): JSX.Element {
                     overdue={!!t.due_date && t.due_date < t0 && t.status !== 'done'}
                     dimmed={dragId === t.id}
                     tagIds={tagByTodo.get(t.id) ?? []} tagsById={tagsById}
+                    cols={cols} onMoveTo={(col) => void move(t.id, col)}
                     onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move' }}
                     onOpen={() => (t.recurring === 'weekly-report' ? goReport() : goTodos(t.id))} />
                 ))}
@@ -288,10 +289,11 @@ export default function BoardPage(): JSX.Element {
 interface MenuItem { label: string; danger?: boolean; onClick: () => void }
 
 /** 看板卡片：checkbox 完成切换、双击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
-function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById }: {
+function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, cols, onMoveTo }: {
   t: Todo; kr: Todo | undefined; overdue: boolean; dimmed: boolean
   onDragStart: (e: React.DragEvent) => void; onOpen: () => void
   tagIds: string[]; tagsById: Map<string, Tag>
+  cols: string[]; onMoveTo: (col: string) => void
 }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(t.title)
@@ -326,7 +328,7 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById }:
             {t.recurring && <span className="text-accent mr-1">↻</span>}{t.title}
           </div>
         )}
-        <CardMenu t={t} onTouch={touch} onOpen={onOpen}
+        <CardMenu t={t} onTouch={touch} onOpen={onOpen} cols={cols} onMoveTo={onMoveTo}
           onRename={() => { setDraft(t.title); setEditing(true) }} />
       </div>
       <div className="mt-2 flex items-center gap-1.5 flex-wrap text-[11px]">
@@ -344,9 +346,10 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById }:
   )
 }
 
-/** 卡片 ⋯ 菜单：含原生日期选择 */
-function CardMenu({ t, onTouch, onOpen, onRename }: {
+/** 卡片 ⋯ 菜单：含原生日期选择 + 移动到列（触屏拖拽的替代） */
+function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
   t: Todo; onTouch: (patch: Partial<Todo>) => Promise<number>; onOpen: () => void; onRename: () => void
+  cols: string[]; onMoveTo: (col: string) => void
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -360,7 +363,7 @@ function CardMenu({ t, onTouch, onOpen, onRename }: {
   return (
     <div ref={ref} className="relative shrink-0">
       <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }} title="卡片操作"
-        className="w-5 h-5 rounded-[5px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 text-xs leading-none transition-opacity">⋯</button>
+        className="w-5 h-5 rounded-[5px] text-text-3 md:opacity-0 md:group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 text-xs leading-none transition-opacity">⋯</button>
       {open && (
         <div className="card shadow-lg absolute right-0 top-6 z-50 w-44 p-1 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button className={item} onClick={() => { onRename(); setOpen(false) }}>重命名</button>
@@ -373,6 +376,10 @@ function CardMenu({ t, onTouch, onOpen, onRename }: {
           <button className={item} onClick={() => { void onTouch({ status: t.status === 'done' ? 'open' : 'done' }); setOpen(false) }}>
             {t.status === 'done' ? '标记为未完成' : '标记为已完成'}
           </button>
+          <div className="px-2 pt-1.5 pb-0.5 text-[11px] text-text-3 border-t border-line/60 mt-1">移动到</div>
+          {cols.map((col) => (
+            <button key={col} className={item} onClick={() => { onMoveTo(col); setOpen(false) }}>→ {col}</button>
+          ))}
           <button className={item} onClick={() => { onOpen(); setOpen(false) }}>在任务树中打开</button>
           <button className={`${item} text-danger`} onClick={() => {
             if (window.confirm(`删除卡片「${t.title}」？`)) void onTouch({ deleted_at: now() })

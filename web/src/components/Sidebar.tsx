@@ -374,7 +374,7 @@ export default function Sidebar() {
             <button
               key={item.view}
               onClick={() =>
-                ({ meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
+                ({ ai: useUI.getState().goAi, meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
               }
               className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
                 active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
@@ -426,6 +426,9 @@ export function BottomTabBar() {
   const { view, goMeetings, goNotes, goSettings } = useUI()
   const goAi = useUI((s) => s.goAi)
   const goTodos = useUI((s) => s.goTodos)
+  const [treeOpen, setTreeOpen] = useState(false)
+  // 导航后自动收起页面抽屉
+  useEffect(() => { setTreeOpen(false) }, [view])
   const phase = useRecorder((s) => s.phase)
   // 只数「任务」(排除 OKR 的 O / KR)，并剔除已软删条目 — 任务 tab 徽章语义对齐
   const openTodos = useLiveQuery(
@@ -448,6 +451,31 @@ export function BottomTabBar() {
   const isActive = (v: ViewName): boolean => navOf(view) === v
 
   return (
+    <>
+    {/* 页面抽屉：移动端访问笔记本/页面树的唯一入口 */}
+    {treeOpen && (
+      <div className="md:hidden fixed inset-0 z-40 flex" role="dialog" aria-label="页面">
+        <div className="absolute inset-0 bg-black/30" onClick={() => setTreeOpen(false)} />
+        <div className="relative w-[85%] max-w-[320px] bg-bg-sidebar border-r border-line flex flex-col animate-[drawer-enter_0.2s_ease-out]">
+          <div className="flex items-center px-4 h-14 border-b border-line shrink-0">
+            <span className="text-sm font-medium text-text-1">页面</span>
+            <button onClick={() => setTreeOpen(false)} className="icon-btn ml-auto" aria-label="关闭">✕</button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+            <PageTree />
+          </div>
+          <div className="p-2 border-t border-line shrink-0">
+            <button
+              onClick={() => { setTreeOpen(false); useUI.getState().setAiOpen(true) }}
+              className="w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm text-text-3 hover:bg-bg-overlay hover:text-text-1"
+            >
+              <span className="text-xs w-4 text-center text-accent">✦</span>
+              快速提问
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <nav
       aria-label="主导航"
       className="
@@ -458,6 +486,15 @@ export function BottomTabBar() {
         pb-[env(safe-area-inset-bottom)]
       "
     >
+      {/* 页面树入口（笔记本/子页面） */}
+      <button
+        onClick={() => setTreeOpen(true)}
+        className={`px-3 flex flex-col items-center justify-center gap-0.5 text-[10px] ${treeOpen ? 'text-accent' : 'text-text-2'}`}
+        aria-label="页面"
+      >
+        <span className="text-base leading-none text-text-3">☰</span>
+        页面
+      </button>
       {items.map((item) => {
         const active = isActive(item.view)
         const accent =
@@ -495,5 +532,6 @@ export function BottomTabBar() {
         设置
       </button>
     </nav>
+    </>
   )
 }

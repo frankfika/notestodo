@@ -7,6 +7,7 @@ import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
 import Onboarding from './components/Onboarding'
 import AiPanel from './components/AiPanel'
+import InstallBanner from './components/InstallBanner'
 import PermissionGuide from './components/PermissionGuide'
 import ErrorBoundary from './components/ErrorBoundary'
 import MeetingsPage from './pages/meetings/MeetingsPage'
@@ -89,6 +90,7 @@ export default function App() {
         <BottomTabBar />
         <CommandPalette />
         <AiPanel />
+        <InstallBanner />
         <Onboarding />
         <PermissionGuide />
       </div>

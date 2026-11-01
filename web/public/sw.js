@@ -9,7 +9,7 @@
  * 应用数据（Dexie/IndexedDB）不归 SW 管；DataExport 的 .zip 与录音 blob
  * 由用户主动导出，不预缓存。
  */
-const VERSION = 'shibei-v1'
+const VERSION = 'opennotion-v2'
 const CORE = [
   '/',
   '/manifest.webmanifest',
