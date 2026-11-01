@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { getSettings } from '../db/settings'
 import type { ChatMessage } from '../llm/client'
 import { askAgent, type AgentAction } from '../lib/aiAgent'
 import { executeAction, isRisky, type ActionOutcome } from '../lib/aiActions'
@@ -54,6 +55,14 @@ export default function AiChat({
     const history: ChatMsg[] = [...messages, { role: 'user', content: q }]
     setMessages(history)
     try {
+      // 离线 + 云端 AI：别发网络请求，直接说清怎么办（本机模型不受影响，照常跑）
+      if (!navigator.onLine) {
+        const settings = await getSettings()
+        if (settings.ai_mode === 'cloud') {
+          setErr('当前离线。云端 AI 需要网络；可在 设置 → AI 运行哪里 切到「本机内置」离线使用。')
+          return
+        }
+      }
       const llmHistory: ChatMessage[] = history
         .filter((m) => m.role === 'user' || m.content)
         .map((m) => ({ role: m.role, content: m.content }))

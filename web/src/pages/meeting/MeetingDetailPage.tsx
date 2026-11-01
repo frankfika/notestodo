@@ -248,7 +248,14 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
             </div>
           ) : (
             <div className="card p-3 mb-4 border-danger/30 flex items-center gap-3 text-xs">
-              <span className="text-danger flex-1 min-w-0">{meeting.error ?? '整理失败'}</span>
+              <span className="text-danger flex-1 min-w-0">
+                {meeting.error ?? '整理失败'}
+                {!navigator.onLine && (
+                  <span className="block text-text-3 mt-1">
+                    当前离线：本机模型仍可用（录音 / 笔记 / 任务照常），云端转录需要联网。
+                  </span>
+                )}
+              </span>
               {transcript && <button onClick={() => void regenerate()} className="btn-outline text-xs h-7 px-3 shrink-0">重试</button>}
             </div>
           )

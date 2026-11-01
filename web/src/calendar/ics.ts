@@ -143,11 +143,14 @@ export async function fetchCalendar(settings: AppSettings): Promise<{ events: Ca
     value: { fetchedAt: Date.now(), events: allEvents } satisfies CacheShape,
   })
 
+  const offline = typeof navigator !== 'undefined' && !navigator.onLine
   return {
     events: allEvents,
     cached: false,
     sources: urls.map(labelFromUrl),
-    error: failed.length > 0 ? failed.join('；') : undefined,
+    error: offline
+      ? `离线：日历订阅需要联网，本地会议记录不受影响${failed.length > 0 ? `（${failed.join('；')}）` : ''}`
+      : failed.length > 0 ? failed.join('；') : undefined,
   }
 }
 
