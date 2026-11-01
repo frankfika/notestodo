@@ -23,6 +23,7 @@ export default function CommandPalette() {
   const [q, setQ] = useState('')
   const [cursor, setCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const needle = q.trim().toLowerCase()
 
   // 内容搜索：只有输入了关键字才查库（⌘K 空态保持纯导航）
@@ -43,6 +44,13 @@ export default function CommandPalette() {
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [open])
+
+  // 键盘移动时保证选中项可见（列表可滚动，否则选中项会跑出可视区）
+  useEffect(() => {
+    if (!open) return
+    const el = listRef.current?.querySelectorAll('button')[cursor]
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [open, cursor])
 
   const items: Item[] = useMemo(() => {
     const go = useUI.getState()
@@ -93,7 +101,13 @@ export default function CommandPalette() {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setOpen(false); return }
-      if (e.key === 'Enter') { filtered[cursor]?.run(); setOpen(false); return }
+      if (e.key === 'Enter') {
+        const item = filtered[cursor]
+        setOpen(false)
+        // 点击路径同款：拒绝变 unhandled rejection（stop() 等 action 失败时）
+        void Promise.resolve(item?.run()).catch((e) => console.error('命令执行失败', e))
+        return
+      }
       if (e.key === 'ArrowDown') { setCursor((c) => Math.min(c + 1, filtered.length - 1)); return }
       if (e.key === 'ArrowUp') { setCursor((c) => Math.max(0, c - 1)); return }
       if (/^[1-4]$/.test(e.key) && !q) {
@@ -140,7 +154,7 @@ export default function CommandPalette() {
             className="w-full bg-transparent text-[15px] text-text-1 placeholder:text-text-3 outline-none"
           />
         </div>
-        <div className="max-h-[60vh] overflow-y-auto py-1">
+        <div ref={listRef} className="max-h-[60vh] overflow-y-auto py-1">
           {filtered.length === 0 && (
             <div className="px-4 py-10 text-center text-text-3 text-sm">没有匹配项</div>
           )}

@@ -9,6 +9,14 @@ export interface SyncChange {
   updated_at: string
   sync_version: number
   deleted_at: string | null
+  /** 产生该变更的设备（平局决胜用，服务端 compare() 同规则） */
+  origin_device?: string
+}
+
+export interface SyncRejected {
+  entity: string
+  id: string
+  updated_at: string
 }
 
 export interface SyncConflict {
@@ -41,9 +49,12 @@ export interface SyncResult {
   server_time: string
   changes: SyncChange[]
   conflicts: SyncConflict[]
+  /** 时间戳非法或领先服务端过多的变更（已丢弃，客户端应提示用户校时钟） */
+  rejected: SyncRejected[]
 }
 
 export declare const MAX_CHANGES: number
 export declare const MAX_BODY_BYTES: number
+export declare const MAX_SKEW_MS: number
 export declare function createState(): SyncState
 export declare function applySync(state: SyncState, request: SyncRequest): SyncResult

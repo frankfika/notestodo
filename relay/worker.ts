@@ -32,7 +32,10 @@ interface Env {
   SYNC_NAMESPACE: DurableObjectNamespace
 }
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
+
+/** Bearer token 最小长度 —— token 是命名空间的唯一凭据 */
+const MIN_TOKEN_LEN = 12
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -99,6 +102,10 @@ export default {
       const auth = request.headers.get('authorization') ?? ''
       const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
       if (!token) return json({ error: '缺少令牌：请在 Authorization 头里放 Bearer <token>' }, 401)
+      // token 即命名空间的全部凭据，太短等于没设防（无速率限制，可被枚举）
+      if (token.length < MIN_TOKEN_LEN) {
+        return json({ error: `令牌太短：至少 ${MIN_TOKEN_LEN} 个字符，请换一段足够长的随机字符串` }, 403)
+      }
 
       const body = await request.text()
       if (body.length > MAX_BODY_BYTES) {

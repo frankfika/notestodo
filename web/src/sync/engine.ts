@@ -1,7 +1,8 @@
+import type { Table } from 'dexie'
 import { db } from '../db/db'
 import { getSettings, saveSettings } from '../db/settings'
 import { uid } from '../lib/id'
-import { CONFLICT_SUFFIX, type SyncChange, type SyncEntity, type SyncRequest, type SyncResponse } from './protocol'
+import { CONFLICT_SUFFIX, SYNC_ENTITIES, type SyncChange, type SyncEntity, type SyncRequest, type SyncResponse } from './protocol'
 import { installSyncHooks, withRemoteApply } from './outbox'
 
 /**
@@ -98,55 +99,80 @@ async function runSync(): Promise<SyncResult> {
   }
 
   let pulled = 0
+  /** 拉取时会被服务端版本覆盖的本地版本 —— 循环结束后在事务外留副本（副本要走 hook 同步给其它设备） */
+  const displaced: { entity: SyncEntity; local: Record<string, unknown> & { title?: string } }[] = []
   await withRemoteApply(async () => {
-    for (const ch of res.changes ?? []) {
-      const table = tableFor(ch.entity)
-      if (!table) continue
-      const local = await table.get(ch.id)
-      // 本地版本更新（updated_at 更大）就以本地为准，不覆盖
-      if (local && local.updated_at >= ch.updated_at) continue
-      if (ch.op === 'delete') {
-        await table.update(ch.id, {
-          deleted_at: ch.deleted_at ?? new Date().toISOString(),
-          updated_at: ch.updated_at,
-          sync_version: ch.sync_version,
-        })
-      } else if (ch.data) {
-        await table.put({ ...(local ?? {}), ...ch.data, id: ch.id })
+    // 整段拉取包在一个事务里：hook 在事务内同步触发，applyingRemote 标志此刻不可能
+    // 误伤用户写入 —— 同一连接上的本地写会排队等本事务提交，hook 触发时标志已复位。
+    // （曾经的实现逐条 await，await 间隙的用户编辑被抑制标志吞掉、永远进不了发件箱。）
+    await db.transaction('rw', SYNC_ENTITIES.map((e) => (db as unknown as Record<string, Table<unknown, string>>)[e]), async () => {
+      for (const ch of res.changes ?? []) {
+        const table = tableFor(ch.entity)
+        if (!table) continue
+        const local = await table.get(ch.id)
+        // 决胜规则与服务端 compare() 严格一致：updated_at 大者胜；平局 device_id 大者胜。
+        // 两端规则不一致时，输的那端会跳过变更且 cursor 已推进 —— 永久分叉。
+        if (local && !remoteWins(local.updated_at, ch.updated_at, ch.origin_device ?? '', deviceId)) continue
+        const merged = ch.op === 'delete'
+          ? { ...local, deleted_at: ch.deleted_at ?? new Date().toISOString(), updated_at: ch.updated_at, sync_version: ch.sync_version }
+          : { ...(local ?? {}), ...ch.data, id: ch.id }
+        // 本地这版会被覆盖且内容确实不同 → 先记下，循环后存「冲突副本」（永不丢数据）
+        if (local && typeof local.title === 'string' && JSON.stringify(local) !== JSON.stringify(merged)) {
+          displaced.push({ entity: ch.entity, local })
+        }
+        await table.put(merged)
+        pulled++
       }
-      pulled++
-    }
+    })
   })
 
-  // 冲突：保留本地版本 + 另存一份「冲突副本」
+  // 冲突副本：只有「本地这版输了」才值得留 —— 赢家那份等于本地现有版本，再存一份是纯噪音。
+  // 副本不抑制 hook：它要同步给其它设备，每台都能自行合并。
+  // 同一实体可能在「推送落败」和「拉取被覆盖」两条路径各命中一次，只留一份。
   let conflicts = 0
+  const copied = new Set<string>()
+  for (const d of displaced) {
+    if (await makeConflictCopy(d.entity, d.local)) { conflicts++; copied.add(`${d.entity}:${d.local.id}`) }
+  }
   for (const c of res.conflicts ?? []) {
-    const marker = `sync_conflict_${c.entity}_${c.id}`
-    if (await db.kv.get(marker)) continue
     const table = tableFor(c.entity)
     if (!table) continue
+    if (copied.has(`${c.entity}:${c.id}`)) continue
     const local = await table.get(c.id)
     if (!local) continue
-    const hasTitle = typeof local.title === 'string'
-    if (!hasTitle) continue
-    const copy = {
-      ...local,
-      id: uid(),
-      title: `${local.title}${CONFLICT_SUFFIX}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-    }
-    await table.put(copy) // 不抑制 hook：副本要继续同步给其它设备
-    await db.kv.put({ key: marker, value: true })
-    conflicts++
+    if (local.updated_at >= c.server_updated_at) continue // 本地是赢家，无副本可留
+    if (await makeConflictCopy(c.entity, local)) conflicts++
   }
 
   await saveSettings({
     sync_cursor: res.cursor ?? settings.sync_cursor,
     sync_last_at: new Date().toISOString(),
-    sync_last_error: null,
+    // 同步本身成功，但有变更因设备时钟异常被丢弃 —— 提示校时钟，不静默
+    sync_last_error: res.rejected?.length ? `已跳过 ${res.rejected.length} 条时钟异常的变更（未同步，请校正设备时间）` : null,
   })
 
   return { ok: true, pushed: changes.length, pulled, conflicts }
+}
+
+/** 与服务端 compare() 同一决胜规则：远端赢 iff 更新，或同刻且远端 device_id 更大 */
+function remoteWins(localUpdated: string, remoteUpdated: string, remoteDevice: string, localDevice: string): boolean {
+  if (localUpdated !== remoteUpdated) return localUpdated < remoteUpdated
+  return remoteDevice > localDevice
+}
+
+/** 把一版将被覆盖的本地实体另存为「（冲突副本）」；返回是否真存了 */
+async function makeConflictCopy(entity: SyncEntity, local: Record<string, unknown> & { title?: string }): Promise<boolean> {
+  if (typeof local.title !== 'string') return false
+  const table = tableFor(entity)
+  if (!table) return false
+  const now = new Date().toISOString()
+  await table.put({
+    ...local,
+    id: uid(),
+    title: `${local.title}${CONFLICT_SUFFIX}`,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
+  })
+  return true
 }

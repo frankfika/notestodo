@@ -115,6 +115,28 @@ fn restart_app(app: tauri::AppHandle) {
   app.restart();
 }
 
+/// 知识库选目录：系统选择器 + 把选中的目录加进 fs 插件的运行时 scope。
+/// 静态 capability 不再授予 $HOME/** 等整片目录（webview 内任何代码都能读
+/// 全家目录是不可接受的攻击面）；用户显式选择的目录在这里按需授权。
+#[tauri::command]
+fn pick_knowledge_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+  use tauri::Manager;
+  use tauri_plugin_dialog::DialogExt;
+  use tauri_plugin_fs::FsExt;
+  let picked = app.dialog().file().blocking_pick_folder();
+  match picked {
+    Some(file_path) => {
+      let p = file_path.into_path().map_err(|e| e.to_string())?;
+      app
+        .fs_scope()
+        .allow_directory(&p, true)
+        .map_err(|e| e.to_string())?;
+      Ok(Some(p.to_string_lossy().to_string()))
+    }
+    None => Ok(None),
+  }
+}
+
 // ── 入口 ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -132,9 +154,10 @@ pub fn run() {
         )?;
       }
       // Phase-3: knowledge folder reindex. FS plugin gives read_text_file /
-      // read_dir; dialog plugin gives an Open dialog (folder/file picker)
-      // from the frontend. Both are no-op unless the desktop capability scope
-      // grants them — see capabilities/default.json for "fs:scope" / "fs:default".
+      // read_dir; the pick goes through our `pick_knowledge_folder` command,
+      // which grants the chosen directory via the fs plugin's runtime scope —
+      // the static capability no longer carries any broad fs:scope (安全收窄，
+      // 见 capabilities/default.json)。
       app.handle().plugin(tauri_plugin_fs::init())?;
       app.handle().plugin(tauri_plugin_dialog::init())?;
       Ok(())
@@ -146,6 +169,7 @@ pub fn run() {
       system_audio_request_permission,
       open_screen_recording_settings,
       restart_app,
+      pick_knowledge_folder,
       builtin::models::builtin_models_list,
       builtin::models::builtin_model_download,
       builtin::models::builtin_model_cancel,

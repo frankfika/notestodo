@@ -43,6 +43,8 @@ export const useCaption = create<CaptionStore>(() => ({ status: 'off', error: nu
 export const captionSupported = (): boolean => Boolean(SRCtor())
 
 let current: { rec: SR; meetingId: string; startedAtMs: number; segStart: number | null } | null = null
+/** 代际计数：start 体内的 await 窗口里若有人调 stop/重新 start，旧 start 不得继续创建识别器 */
+let startGen = 0
 /** 本地实时字幕（桌面版 whisper）的停止句柄 */
 let localStop: (() => void) | null = null
 /** 录音引擎提供当前采集流（混音后），供会中页一键开启本地字幕 */
@@ -53,14 +55,19 @@ export function registerCaptionStreamProvider(fn: () => MediaStream | null): voi
 
 export async function startLiveCaption(meetingId: string, startedAtMs: number, stream?: MediaStream): Promise<void> {
   stopLiveCaption()
+  const gen = startGen
   const Ctor = SRCtor()
   const settings = await getSettings()
+  // await 窗口内用户可能已点停止 —— 别在「已停止」之后继续创建识别器
+  if (gen !== startGen) return
 
   // 本地 / 内置转录：音频不出本机 → 走本机 whisper 增量出字（桌面版），浏览器无本地模型则禁用
   if (settings.asr_mode !== 'cloud') {
     const pref = await db.kv.get(PREF_KEY)
+    if (gen !== startGen) return
     if (pref?.value === false) { useCaption.setState({ status: 'off', segments: [], interim: '' }); return }
     if (stream && await localAsrAvailable()) {
+      if (gen !== startGen) return
       useCaption.setState({ segments: [], interim: '', error: null, status: 'on' })
       localStop = startLocalLiveAsr(stream, {
         startedAtMs,
@@ -78,6 +85,7 @@ export async function startLiveCaption(meetingId: string, startedAtMs: number, s
   }
   if (!Ctor) { useCaption.setState({ status: 'unsupported', segments: [], interim: '' }); return }
   const pref = await db.kv.get(PREF_KEY)
+  if (gen !== startGen) return
   useCaption.setState({ segments: [], interim: '', error: null, status: 'off' })
   if (pref?.value !== true) return
 
@@ -136,6 +144,7 @@ export async function startLiveCaption(meetingId: string, startedAtMs: number, s
 }
 
 export function stopLiveCaption(): void {
+  startGen++
   const me = current
   current = null
   if (me) { try { me.rec.stop() } catch { /* ignore */ } }

@@ -41,6 +41,8 @@ export default function AiChat({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  /** 执行中的动作键（"msgIndex:pendingIndex"），防双击在 await 期间重复执行破坏性动作 */
+  const executingRef = useRef(new Set<string>())
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
@@ -95,27 +97,41 @@ export default function AiChat({
     const msg = messages[msgIndex]
     const item = msg?.pending?.[pendingIndex]
     if (!msg || !item) return
-    const outcome = await executeAction(item.action, msg.taskIds ?? new Map())
-    setMessages((prev) => {
-      const next = [...prev]
-      const cur = { ...next[msgIndex] }
-      const pending = (cur.pending ?? []).filter((_, i) => i !== pendingIndex)
-      const done = outcome.ok ? [...(cur.done ?? []), outcome] : (cur.done ?? [])
-      next[msgIndex] = { ...cur, pending, done }
-      return next
-    })
+    const key = `${msgIndex}:${pendingIndex}`
+    if (executingRef.current.has(key)) return // 双击守卫：第一次的 await 还没回来
+    executingRef.current.add(key)
+    try {
+      const outcome = await executeAction(item.action, msg.taskIds ?? new Map())
+      setMessages((prev) => {
+        const next = [...prev]
+        const cur = { ...next[msgIndex] }
+        const pending = (cur.pending ?? []).filter((_, i) => i !== pendingIndex)
+        const done = outcome.ok ? [...(cur.done ?? []), outcome] : (cur.done ?? [])
+        next[msgIndex] = { ...cur, pending, done }
+        return next
+      })
+    } finally {
+      executingRef.current.delete(key)
+    }
   }
 
   async function undo(msgIndex: number, doneIndex: number): Promise<void> {
     const outcome = messages[msgIndex]?.done?.[doneIndex]
     if (!outcome?.undo) return
-    await outcome.undo()
-    setMessages((prev) => {
-      const next = [...prev]
-      const cur = { ...next[msgIndex] }
-      next[msgIndex] = { ...cur, undone: [...(cur.undone ?? []), doneIndex] }
-      return next
-    })
+    const key = `u:${msgIndex}:${doneIndex}`
+    if (executingRef.current.has(key)) return
+    executingRef.current.add(key)
+    try {
+      await outcome.undo()
+      setMessages((prev) => {
+        const next = [...prev]
+        const cur = { ...next[msgIndex] }
+        next[msgIndex] = { ...cur, undone: [...(cur.undone ?? []), doneIndex] }
+        return next
+      })
+    } finally {
+      executingRef.current.delete(key)
+    }
   }
 
   return (

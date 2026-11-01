@@ -1263,6 +1263,7 @@ function SyncRow({ settings, patch }: {
           onChange={(v) => patch({ sync_token: v })}
           placeholder="命名空间凭证"
         />
+        <p className="text-[11px] text-text-3 mt-1">至少 12 个字符的随机串——它就是这台 relay 上你数据的唯一凭据，太短等于没设防。</p>
       </FieldRow>
       <FieldRow label="本机设备名">
         <input
@@ -1445,16 +1446,14 @@ function KnowledgeFolderEditor({
   }
 
   /**
-   * 在 Tauri 端调用 `plugin:dialog|open` 拿系统级目录选择器；返回 string|null。
-   * 多选会拿到 string[]，这里仅单选。
+   * Tauri 端走 Rust 命令 pick_knowledge_folder：系统目录选择器 + 把选中目录
+   * 加进 fs 运行时 scope（静态 $HOME/** 授权已移除，见 capabilities/default.json）。
    */
   async function pickTauriFolder(): Promise<void> {
     if (busy) return
     setBusy(true)
     try {
-      const picked = await invoke<string | null>('plugin:dialog|open', {
-        options: { directory: true, multiple: false, title: '选择知识库文件夹' },
-      })
+      const picked = await invoke<string | null>('pick_knowledge_folder')
       if (!picked) return
       const list = Array.isArray(picked) ? picked : [picked]
       const next = folders.concat(list.filter((p) => p && !folders.includes(p)))
