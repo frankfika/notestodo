@@ -13,6 +13,12 @@
 use serde::Serialize;
 
 mod api_server;
+// 内置模型只在 macOS 上真编译（依赖 whisper-rs / llama-cpp-2 / sherpa-onnx）；
+// 其它平台用签名一致的桩，桌面壳照常可用。
+#[cfg(target_os = "macos")]
+mod builtin;
+#[cfg(not(target_os = "macos"))]
+#[path = "builtin_stub.rs"]
 mod builtin;
 mod system_audio;
 
