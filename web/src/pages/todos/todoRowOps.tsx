@@ -3,6 +3,7 @@ import { db } from '../../db/db'
 import { now } from '../../lib/id'
 import type { Todo } from '../../types'
 import TagPicker from '../../components/TagPicker'
+import DateInput from '../../components/DateInput'
 
 export async function renameTodo(t: Todo, title: string): Promise<void> {
   const v = title.trim()
@@ -117,10 +118,9 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
             <TagPicker targetType="todo" targetId={t.id} />
           </div>
           <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line">截止日期</label>
-          <input
-            type="date"
+          <DateInput
             value={t.due_date ?? ''}
-            onChange={(e) => void setDue(t, e.target.value || null)}
+            onChange={(v) => void setDue(t, v || null)}
             className="input mx-1 mb-1 !w-auto !h-7 text-xs"
           />
           {t.parent_id && (

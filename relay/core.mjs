@@ -7,6 +7,8 @@
 export const MAX_CHANGES = 500
 /** 单次请求体上限（字节） */
 export const MAX_BODY_BYTES = 1_000_000
+/** 变更时间戳允许领先服务端时钟的上限（防设备时钟被设到未来，永久毒化冲突决胜） */
+export const MAX_SKEW_MS = 24 * 60 * 60 * 1000
 
 /**
  * 冲突决胜：updated_at 大者胜；相同则 device_id 字典序大者胜（保证两端一致）。
@@ -28,15 +30,23 @@ export function createState() {
  */
 export function applySync(state, request) {
   const conflicts = []
+  const rejected = []
   const changes = Array.isArray(request?.changes) ? request.changes : []
   const deviceId = typeof request?.device_id === 'string' ? request.device_id : ''
   const cursor = Number.isFinite(request?.cursor) ? request.cursor : 0
+  const now = Date.now()
 
   for (const ch of changes) {
     if (!ch || typeof ch.entity !== 'string' || typeof ch.id !== 'string') continue
+    const incomingUpdated = typeof ch.updated_at === 'string' ? ch.updated_at : ''
+    const incomingMs = Date.parse(incomingUpdated)
+    // 时间戳必须可解析，且不能领先服务端太多 —— 否则这台设备的变更会永远赢下冲突决胜
+    if (!Number.isFinite(incomingMs) || incomingMs - now > MAX_SKEW_MS) {
+      rejected.push({ entity: ch.entity, id: ch.id, updated_at: ch.updated_at })
+      continue
+    }
     const key = `${ch.entity}:${ch.id}`
     const prev = state.latest[key]
-    const incomingUpdated = typeof ch.updated_at === 'string' ? ch.updated_at : ''
     const prevUpdated = prev ? prev.updated_at : ''
 
     if (!prev || compare(incomingUpdated, deviceId, prevUpdated, prev.origin_device) > 0) {
@@ -86,6 +96,8 @@ export function applySync(state, request) {
       updated_at: e.updated_at,
       sync_version: e.sync_version,
       deleted_at: e.deleted_at,
+      // 客户端平局决胜要用：与服务端 compare() 同一规则，两端才不分叉
+      origin_device: e.origin_device,
     }))
 
   return {
@@ -93,5 +105,6 @@ export function applySync(state, request) {
     server_time: new Date().toISOString(),
     changes: pulled,
     conflicts,
+    rejected,
   }
 }

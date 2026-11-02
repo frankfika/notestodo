@@ -2,6 +2,7 @@ import { db } from '../db/db'
 import { now, uid } from '../lib/id'
 import { parseQuickAdd } from './quickAdd'
 import { createPage } from './notes'
+import { subtreeIds } from './okr'
 import type { AgentAction } from './aiAgent'
 
 /**
@@ -108,11 +109,16 @@ export async function executeAction(
       const id = resolveId(action, taskIds)
       const t = id ? await db.todos.get(id) : undefined
       if (!t) return { action, ok: false, risky: true, label: '删除任务', error: '找不到目标任务' }
-      await db.todos.update(t.id, { deleted_at: ts, updated_at: ts })
+      // 级联软删整棵子树。只删单节点会让子任务变孤儿：树中不可见却仍 live，
+      // 还计入 rollupProgress（UI 删除路径走 subtreeIds 级联，这里对齐）。
+      const ids = subtreeIds(t.id, await db.todos.toArray())
+      for (const tid of ids) await db.todos.update(tid, { deleted_at: ts, updated_at: ts })
       return {
         action, ok: true, risky: true,
         label: `删除「${t.title || '（无标题）'}」`,
-        undo: async () => { await db.todos.update(t.id, { deleted_at: null, updated_at: ts }) },
+        undo: async () => {
+          for (const tid of ids) await db.todos.update(tid, { deleted_at: null, updated_at: now() })
+        },
       }
     }
     default:

@@ -31,6 +31,8 @@ export interface SyncChange {
   updated_at: string
   sync_version: number
   deleted_at: string | null
+  /** 仅服务端下发：产生该变更的设备 id（平局决胜用，规则与服务端 compare() 一致） */
+  origin_device?: string
 }
 
 export interface SyncRequest {
@@ -61,6 +63,8 @@ export interface SyncResponse {
   changes: SyncChange[]
   /** 并发冲突（客户端据此保留本地 + 生成副本） */
   conflicts: SyncConflict[]
+  /** 时间戳异常被服务端丢弃的变更（较旧 relay 可能不返回该字段） */
+  rejected?: SyncRejected[]
 }
 
 export interface SyncStatus {
@@ -78,3 +82,10 @@ export interface SyncStatus {
 
 /** 冲突副本标题后缀 */
 export const CONFLICT_SUFFIX = '（冲突副本）'
+
+/** 被服务端拒绝的变更（时间戳非法或设备时钟领先过多），客户端应提示用户校时钟 */
+export interface SyncRejected {
+  entity: SyncEntity
+  id: string
+  updated_at: string
+}

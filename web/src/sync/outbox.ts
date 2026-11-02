@@ -1,5 +1,6 @@
 import type { Table } from 'dexie'
 import { db, type SyncOutboxRow } from '../db/db'
+import { saveSettings } from '../db/settings'
 import { SYNC_ENTITIES, type SyncEntity } from './protocol'
 
 /**
@@ -54,7 +55,17 @@ function watch<T extends Syncable>(entity: SyncEntity, table: Table<T, string>):
   const queue = (id: string, op: 'upsert' | 'delete', data: unknown): void => {
     if (applyingRemote) return
     const snapshot = data
-    setTimeout(() => { void enqueue(entity, id, op, snapshot).catch(() => {}) }, 0)
+    // 失败重试 3 次（间隔 1s）后仍败 → 写进同步错误，不能静默：
+    // 发件箱丢一条 = 这条变更永远推不出去且毫无迹象
+    const attempt = (n: number): void => {
+      setTimeout(() => {
+        void enqueue(entity, id, op, snapshot).catch(() => {
+          if (n < 3) attempt(n + 1)
+          else void saveSettings({ sync_last_error: '发件箱写入失败：最近的本地变更可能不会被同步' }).catch(() => {})
+        })
+      }, n === 0 ? 0 : 1000)
+    }
+    attempt(0)
   }
   table.hook('creating', (_pk, obj: T) => {
     queue(obj.id, obj.deleted_at ? 'delete' : 'upsert', obj)

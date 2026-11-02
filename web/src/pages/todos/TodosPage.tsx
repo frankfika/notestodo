@@ -7,6 +7,7 @@ import TodosTree from './TodosTree'
 import TodosList from './TodosList'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
+import DateInput from '../../components/DateInput'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -80,10 +81,9 @@ export default function TodosPage(): JSX.Element {
           placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
           className="input !h-8 flex-1 min-w-0 text-sm"
         />
-        <input
-          type="date"
+        <DateInput
           value={newDue}
-          onChange={(e) => setNewDue(e.target.value)}
+          onChange={setNewDue}
           title="截止日期（可选）"
           className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
         />
