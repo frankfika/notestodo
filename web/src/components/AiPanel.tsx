@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useUI } from '../state/ui'
 import AiChat from './AiChat'
 
@@ -10,6 +10,11 @@ export default function AiPanel(): JSX.Element | null {
   const open = useUI((s) => s.aiOpen)
   const setAiOpen = useUI((s) => s.setAiOpen)
   const [key, setKey] = useState(0)
+
+  // 切换页面时自动收起——面板盖着半屏，留着会挡住目标页
+  useEffect(() => useUI.subscribe((s, prev) => {
+    if (s.view !== prev.view && useUI.getState().aiOpen) setAiOpen(false)
+  }), [setAiOpen])
 
   if (!open) return null
 

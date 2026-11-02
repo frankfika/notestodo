@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { callLLM } from '../../llm/client'
 import { useSettings } from '../../db/settings'
+import { useUI } from '../../state/ui'
 import { resolveLLMConfig } from '../../types'
 
 export interface NoteAiPanelProps {
@@ -71,6 +72,11 @@ export function NoteAiPanel({ noteTitle, getBodyMarkdown, onInsert }: NoteAiPane
     return (
       <div className="p-4 text-sm text-text-3">
         还没有配置 AI。去「设置 → AI」配置后即可使用。
+        <button
+          type="button"
+          className="btn-ghost ml-1 text-accent"
+          onClick={() => useUI.getState().goSettings()}
+        >去配置 →</button>
       </div>
     )
   }

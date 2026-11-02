@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtDate, now, thisFriday, today as todayIso, uid } from '../../lib/id'
+import DateInput from '../../components/DateInput'
 import type { Board, Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import TodoTags from '../todos/TodoTags'
@@ -369,8 +370,8 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
           <button className={item} onClick={() => { onRename(); setOpen(false) }}>重命名</button>
           <label className="px-2 py-1.5 text-[11px] text-text-3 flex items-center gap-2">
             截止日期
-            <input type="date" value={t.due_date ?? ''}
-              onChange={(e) => void onTouch({ due_date: e.target.value || undefined })}
+            <DateInput value={t.due_date ?? ''}
+              onChange={(v) => void onTouch({ due_date: v || undefined })}
               className="input !h-6 !px-1.5 !py-0 text-[11px] flex-1" />
           </label>
           <button className={item} onClick={() => { void onTouch({ status: t.status === 'done' ? 'open' : 'done' }); setOpen(false) }}>

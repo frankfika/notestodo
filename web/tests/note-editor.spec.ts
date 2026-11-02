@@ -182,6 +182,41 @@ test.describe('笔记块编辑器', () => {
     expect(saved).toContain('# 斜杠创建的大标题')
   })
 
+  test('「[ ] 」快捷转待办：普通段落与任务项续行都转，且不留字面括号', async ({ page }) => {
+    test.setTimeout(45_000)
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(500)
+    const x = page.locator('button[aria-label="关闭"]').first()
+    if (await x.isVisible({ timeout: 1500 }).catch(() => false)) await x.click()
+
+    const noteId = await seedNote(page, '- [ ] 已有待办')
+    await openNote(page, noteId)
+    await page.waitForTimeout(800)
+
+    const ed = page.locator('.note-editor .ProseMirror')
+    await ed.click()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Enter') // 跳出清单，落回普通段落
+    await page.keyboard.type('[ ] 普通段落转待办')
+
+    // 任务项内回车续行，再敲 [ ] —— 应留在清单里（不能被踢出列表）
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('[ ] 续行转待办')
+
+    await page.waitForTimeout(800)
+    const items = ed.locator('ul[data-type="taskList"] > li')
+    await expect(items).toHaveCount(3)
+    await expect(ed).not.toContainText('[ ]')
+    await expect(items.nth(1)).toContainText('普通段落转待办')
+    await expect(items.nth(2)).toContainText('续行转待办')
+
+    const saved = await readBodyMd(page, noteId)
+    expect(saved).toContain('- [ ] 普通段落转待办')
+    expect(saved).toContain('- [ ] 续行转待办')
+    expect(saved).not.toMatch(/^\[ \]/m)
+  })
+
   test('块手柄：点击选中块，拖动调换两个段落的顺序并落库', async ({ page }) => {
     test.setTimeout(45_000)
     await page.goto(BASE, { waitUntil: 'domcontentloaded' })

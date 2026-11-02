@@ -4,7 +4,7 @@ import type { Editor } from '@tiptap/react'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'
 import { fmtDateTime, now } from '../../lib/id'
-import type { Todo } from '../../types'
+import type { Todo, ID } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
 import NoteEditor from '../../components/editor/NoteEditor'
@@ -55,6 +55,9 @@ export default function NoteDetailPage(): JSX.Element {
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
+  // 正文只有在本会话里被编辑器 onUpdate 触过才允许落盘——
+  // 防止编辑器尚未灌入内容时（异步竞态）把空串覆盖掉已有正文
+  const bodyTouchedRef = useRef(false)
   const [aiOpen, setAiOpen] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -80,6 +83,7 @@ export default function NoteDetailPage(): JSX.Element {
   }, [note, allNotes, notebooks])
 
   useEffect(() => {
+    bodyTouchedRef.current = false
     setDraftBody(note?.body_md ?? '')
     setDraftTitle(note?.title ?? '')
     // 只在打开笔记时灌一次草稿；保存回写引起的 body_md 变化不回灌，
@@ -104,11 +108,7 @@ export default function NoteDetailPage(): JSX.Element {
     pendingRef.current = { id: note.id, title: draftTitle, body: draftBody }
     const t = setTimeout(() => {
       pendingRef.current = null
-      void db.notes.update(note.id, {
-        title: draftTitle,
-        body_md: draftBody,
-        updated_at: now(),
-      })
+      void saveNoteFields(note.id, draftTitle, draftBody)
     }, 400)
     return () => clearTimeout(t)
   }, [draftBody, draftTitle, note?.id])
@@ -118,7 +118,7 @@ export default function NoteDetailPage(): JSX.Element {
     const p = pendingRef.current
     if (p) {
       pendingRef.current = null
-      void db.notes.update(p.id, { title: p.title, body_md: p.body, updated_at: now() })
+      void saveNoteFields(p.id, p.title, p.body)
     }
   }, [note?.id])
 
@@ -156,6 +156,15 @@ export default function NoteDetailPage(): JSX.Element {
       id: crypto.randomUUID(), note_id: note.id, quote, text, resolved: false,
       created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
     })
+  }
+
+  // 正文防误清空：只有编辑器 onUpdate 真正触过（bodyTouchedRef）才写 body_md；
+  // 否则只存标题——编辑器尚未灌入内容时的竞态不再能把正文抹成空串
+  function saveNoteFields(id: ID, title: string, body: string): void {
+    const allowBody = bodyTouchedRef.current
+    void db.notes.update(id, allowBody
+      ? { title, body_md: body, updated_at: now() }
+      : { title, updated_at: now() })
   }
 
   /** 扫描正文 `- [ ]` 行批量建任务；按标题去重保证幂等 */
@@ -324,7 +333,7 @@ export default function NoteDetailPage(): JSX.Element {
         <NoteEditor
           key={note.id}
           initialMarkdown={note.body_md}
-          onChange={setDraftBody}
+          onChange={(md) => { bodyTouchedRef.current = true; setDraftBody(md) }}
           onReady={(ed) => { editorRef.current = ed }}
           onWikiOpen={openWiki}
           currentNoteId={note.id}

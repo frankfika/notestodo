@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { Placeholder } from '@tiptap/extensions'
-import { Extension } from '@tiptap/core'
+import { Extension, InputRule } from '@tiptap/core'
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
 import { NodeSelection, PluginKey, TextSelection } from 'prosemirror-state'
 import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model'
@@ -272,6 +272,26 @@ export default function NoteEditor({ initialMarkdown, onChange, onReady, onWikiO
       }),
       TaskList,
       TaskItem.configure({ nested: false }),
+      // 「[ ] 」「[x] 」「- [ ] 」敲完空格即转待办——含任务项内回车续行后的下一行
+      Extension.create({
+        name: 'taskShortcut',
+        addInputRules() {
+          return [
+            new InputRule({
+              find: /^(?:[-*]\s)?\[([ xX])?\]\s$/,
+              handler: ({ range, match, chain }) => {
+                const checked = match[1] === 'x' || match[1] === 'X'
+                if (this.editor.isActive('taskItem')) {
+                  // 任务项内续行：就地翻转勾选态，不 toggle（toggle 会把行踢出清单）
+                  chain().deleteRange(range).updateAttributes('taskItem', { checked }).run()
+                } else {
+                  chain().deleteRange(range).toggleTaskList().updateAttributes('taskItem', { checked }).run()
+                }
+              },
+            }),
+          ]
+        },
+      }),
       WikiLink,
       BlockColor,
       Placeholder.configure({ placeholder: '写点什么，或输入 / 唤起命令……选中文字再点「插入待办」可基于选中片段建任务。' }),
