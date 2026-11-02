@@ -26,7 +26,7 @@
     "@tiptap/starter-kit": "^3.32.0",
     "@tiptap/static-renderer": "^3.32.0",
     "@tiptap/suggestion": "^3.32.0",
-    "dexie": "^4.0.10",
+    "dexie": "^4.4.7",
     "dexie-react-hooks": "^4.4.0",
     "fflate": "^0.8.3",
     "ical.js": "^2.2.1",
