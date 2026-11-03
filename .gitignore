@@ -6,6 +6,7 @@ dist/
 *.local
 test-results/
 playwright-report/
+.playwright-mcp/
 
 # promo 中间产物
 promo/audio/_scratch/
