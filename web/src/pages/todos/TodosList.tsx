@@ -7,6 +7,7 @@ import OriginChip from '../../components/OriginChip'
 import TodoTags from './TodoTags'
 import { EditableTitle, TodoMenu } from './todoRowOps'
 import { doneLast, passFilter, type TodoFilter } from './filter'
+import { useOriginTitles } from '../../lib/originTitles'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -40,7 +41,7 @@ async function toggle(t: Todo): Promise<void> {
   })
 }
 
-function Row({ t, byId, all, tagByTodo, tagsById }: { t: Todo; byId: Map<string, Todo>; all: Todo[]; tagByTodo: Map<string, string[]>; tagsById: Map<string, Tag> }): JSX.Element {
+function Row({ t, byId, all, tagByTodo, tagsById, noteTitle, meetingTitle }: { t: Todo; byId: Map<string, Todo>; all: Todo[]; tagByTodo: Map<string, string[]>; tagsById: Map<string, Tag>; noteTitle?: string; meetingTitle?: string }): JSX.Element {
   const crumbs: string[] = []
   let p = t.parent_id ? byId.get(t.parent_id) : undefined
   const seen = new Set<string>()
@@ -67,7 +68,7 @@ function Row({ t, byId, all, tagByTodo, tagsById }: { t: Todo; byId: Map<string,
         )}
       </div>
       <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
-      <OriginChip t={t} />
+      <OriginChip t={t} noteTitle={noteTitle} meetingTitle={meetingTitle} />
       {t.due_date && <span className={`text-[11px] font-mono shrink-0 ${dueCls}`}>{fmtDue(t.due_date)}</span>}
       <TodoMenu t={t} all={all} />
     </div>
@@ -79,6 +80,7 @@ export default function TodosList({ filter, tagByTodo }: { filter: TodoFilter; t
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])
+  const origins = useOriginTitles(all)
   const today = todayIso()
   const weekEnd = thisFriday().slice(0, 10)
 
@@ -108,7 +110,11 @@ export default function TodosList({ filter, tagByTodo }: { filter: TodoFilter; t
               {label} <span className="text-text-3 font-normal normal-case tracking-normal">{list.length}</span>
             </div>
             <div className="flex flex-col gap-0.5">
-              {list.map((t) => <Row key={t.id} t={t} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById} />)}
+              {list.map((t) => (
+                <Row key={t.id} t={t} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
+                  noteTitle={t.origin_note_id ? origins.noteTitles.get(t.origin_note_id) : undefined}
+                  meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
+              ))}
             </div>
           </section>
         )

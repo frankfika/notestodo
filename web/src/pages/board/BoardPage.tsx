@@ -8,6 +8,7 @@ import type { Board, Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import TodoTags from '../todos/TodoTags'
 import { buildTagByTodo } from '../todos/filter'
+import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
 
 const DONE_COL = '已完成'
 const DEFAULT_COLS = ['待办', '进行中', '待审']
@@ -80,6 +81,7 @@ export default function BoardPage(): JSX.Element {
   const tagByTodo = useMemo(() => buildTagByTodo(bindings), [bindings])
 
   const t0 = todayIso()
+  const origins = useOriginTitles(all)
   const cards = useMemo(() => {
     if (!board) return []
     const isDefault = boards[0]?.id === board.id
@@ -267,7 +269,7 @@ export default function BoardPage(): JSX.Element {
                   <Card key={t.id} t={t} kr={t.parent_id ? byId.get(t.parent_id) : undefined}
                     overdue={!!t.due_date && t.due_date < t0 && t.status !== 'done'}
                     dimmed={dragId === t.id}
-                    tagIds={tagByTodo.get(t.id) ?? []} tagsById={tagsById}
+                    tagIds={tagByTodo.get(t.id) ?? []} tagsById={tagsById} origins={origins}
                     cols={cols} onMoveTo={(col) => void move(t.id, col)}
                     onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move' }}
                     onOpen={() => (t.recurring === 'weekly-report' ? goReport() : goTodos(t.id))} />
@@ -302,11 +304,12 @@ export default function BoardPage(): JSX.Element {
 interface MenuItem { label: string; danger?: boolean; onClick: () => void }
 
 /** 看板卡片：checkbox 完成切换、双击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
-function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, cols, onMoveTo }: {
+function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, cols, onMoveTo, origins }: {
   t: Todo; kr: Todo | undefined; overdue: boolean; dimmed: boolean
   onDragStart: (e: React.DragEvent) => void; onOpen: () => void
   tagIds: string[]; tagsById: Map<string, Tag>
   cols: string[]; onMoveTo: (col: string) => void
+  origins: OriginTitles
 }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(t.title)
@@ -348,7 +351,9 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
         {kr && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[140px]">{kr.title}</span>}
         {t.recurring && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">草稿已生成</span>}
         <TodoTags ids={tagIds} tagsById={tagsById} />
-        <OriginChip t={t} />
+        <OriginChip t={t}
+          noteTitle={t.origin_note_id ? origins.noteTitles.get(t.origin_note_id) : undefined}
+          meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
         {t.due_date && (
           <span className={`ml-auto ${t.status !== 'done' && overdue ? 'text-danger' : t.due_date === todayIso() && t.status !== 'done' ? 'text-warning' : 'text-text-3'}`}>
             {fmtDate(t.due_date)}

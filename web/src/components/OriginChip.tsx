@@ -1,27 +1,24 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
 import { useUI } from '../state/ui'
 import type { Todo } from '../types'
 
-/** 任务来源溯源 chip：来自笔记 → 跳笔记；来自会议 → 跳会议详情 */
-export default function OriginChip({ t }: { t: Todo }): JSX.Element | null {
+/**
+ * 任务来源溯源 chip：来自笔记 → 跳笔记；来自会议 → 跳会议详情。
+ * 标题由页面级 useOriginTitles 提供（不再自己挂表级 liveQuery）。
+ */
+export default function OriginChip({ t, noteTitle, meetingTitle }: {
+  t: Todo
+  noteTitle?: string
+  meetingTitle?: string
+}): JSX.Element | null {
   const goNote = useUI((s) => s.goNote)
   const goMeeting = useUI((s) => s.goMeeting)
-  const note = useLiveQuery(
-    () => (t.origin_note_id ? db.notes.get(t.origin_note_id) : undefined),
-    [t.origin_note_id],
-  )
-  const meeting = useLiveQuery(
-    () => (t.meeting_id ? db.meetings.get(t.meeting_id) : undefined),
-    [t.meeting_id],
-  )
 
   const chips: { key: string; label: string; go: () => void }[] = []
-  if (t.origin_note_id && note) {
-    chips.push({ key: 'note', label: `✎ ${note.title || '无标题'}`, go: () => goNote(note.id) })
+  if (t.origin_note_id && noteTitle) {
+    chips.push({ key: 'note', label: `✎ ${noteTitle}`, go: () => goNote(t.origin_note_id!) })
   }
-  if (t.meeting_id && meeting) {
-    chips.push({ key: 'meeting', label: `● ${meeting.title}`, go: () => goMeeting(meeting.id) })
+  if (t.meeting_id && meetingTitle) {
+    chips.push({ key: 'meeting', label: `● ${meetingTitle}`, go: () => goMeeting(t.meeting_id!) })
   }
   if (chips.length === 0) return null
 
