@@ -30,23 +30,33 @@ export default function NotesPage(): JSX.Element {
   const byId = useMemo(() => new Map(notesRaw.map((n) => [n.id, n])), [notesRaw])
   const nbById = useMemo(() => new Map(notebooks.map((nb) => [nb.id, nb])), [notebooks])
 
-  // 行的归属链：笔记本名 · 父 › 祖父…
-  const pathOf = (n: Note): string => {
-    const parts: string[] = []
-    const nb = n.notebook_id ? nbById.get(n.notebook_id) : null
-    if (nb) parts.push(nb.name)
-    let p = n.parent_id ?? null
-    const seen = new Set<string>()
-    const parents: string[] = []
-    while (p && !seen.has(p)) {
-      seen.add(p)
-      const pn = byId.get(p)
-      if (!pn) break
-      parents.unshift(pn.title || '无标题')
-      p = pn.parent_id ?? null
+  // 每行的归属链 + 正文预览：数据不变就不重算。
+  // 原来这两件事在渲染里逐行现算（几百行 × 4 次正则 + 父链回溯），切个视图也要全量重烧一遍
+  const rowMeta = useMemo(() => {
+    const m = new Map<string, { path: string; preview: string }>()
+    for (const n of notesRaw) {
+      const parts: string[] = []
+      const nb = n.notebook_id ? nbById.get(n.notebook_id) : null
+      if (nb) parts.push(nb.name)
+      let p = n.parent_id ?? null
+      const seen = new Set<string>()
+      const parents: string[] = []
+      while (p && !seen.has(p)) {
+        seen.add(p)
+        const pn = byId.get(p)
+        if (!pn) break
+        parents.unshift(pn.title || '无标题')
+        p = pn.parent_id ?? null
+      }
+      // 预览只取开头一小段再洗格式：原来三遍正则跑在全文上（长笔记每次渲染全量扫）
+      const preview = n.body_md
+        ? n.body_md.replace(/<!--[\s\S]*?-->/g, '').slice(0, 600)
+            .replace(/[#>*_`\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80)
+        : '空白'
+      m.set(n.id, { path: [...parts, ...parents].join(' · '), preview })
     }
-    return [...parts, ...parents].join(' · ')
-  }
+    return m
+  }, [notesRaw, byId, nbById])
 
   const goNote = useUI((s) => s.goNote)
   const [view, setView] = useState<'list' | 'table'>('list')
@@ -167,7 +177,8 @@ export default function NotesPage(): JSX.Element {
         ) : (
           <ul className="card divide-y divide-line">
             {filtered.map((n) => {
-              const path = pathOf(n)
+              const meta = rowMeta.get(n.id)
+              const path = meta?.path ?? ''
               return (
                 <li key={n.id}>
                   <button
@@ -181,7 +192,7 @@ export default function NotesPage(): JSX.Element {
                       <div className="text-sm font-medium text-text-1 truncate">{n.title || '无标题'}</div>
                       <div className="text-[11px] text-text-3 truncate mt-0.5">
                         {path && <span className="text-text-2">{path} · </span>}
-                        {n.body_md ? n.body_md.replace(/<!--[\s\S]*?-->/g, '').replace(/[#>*_`\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) : '空白'}
+                        {meta?.preview ?? '空白'}
                       </div>
                     </div>
                     <span className="text-[11px] text-text-3 shrink-0">{fmtDateTime(n.updated_at)}</span>

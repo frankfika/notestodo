@@ -29,7 +29,10 @@ export async function moveToRoot(t: Todo): Promise<void> {
 export function subtreeIds(root: Todo, all: Todo[]): string[] {
   const byParent = new Map<string, Todo[]>()
   for (const x of all) {
-    if (x.parent_id) byParent.set(x.parent_id, [...(byParent.get(x.parent_id) ?? []), x])
+    if (!x.parent_id) continue
+    const arr = byParent.get(x.parent_id)
+    if (arr) arr.push(x)
+    else byParent.set(x.parent_id, [x])
   }
   const ids = [root.id]
   const seen = new Set(ids)
@@ -100,7 +103,8 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
     }
   }, [open])
 
-  const subs = subtreeIds(t, all).length - 1
+  // 子任务数只在菜单打开时才需要算：菜单关着也每行扫一遍全表是 O(行数×任务数)
+  const subs = open ? subtreeIds(t, all).length - 1 : 0
   return (
     <div ref={ref} className="relative shrink-0">
       <button

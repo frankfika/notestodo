@@ -25,17 +25,23 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const needle = q.trim().toLowerCase()
+  // 查询防抖：原来每个按键都触发三张表的全表 filter，连打几个字就是几十次全表扫
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(needle), 150)
+    return () => clearTimeout(t)
+  }, [needle])
 
   // 内容搜索：只有输入了关键字才查库（⌘K 空态保持纯导航）
   const hits = useLiveQuery(async () => {
-    if (!needle) return { notes: [], todos: [], meetings: [] }
+    if (!debounced) return { notes: [], todos: [], meetings: [] }
     const [notes, todos, meetings] = await Promise.all([
-      db.notes.filter((n) => n.deleted_at === null && (n.title || '').toLowerCase().includes(needle)).limit(6).toArray(),
-      db.todos.filter((t) => t.deleted_at === null && t.title.toLowerCase().includes(needle)).limit(6).toArray(),
-      db.meetings.filter((m) => m.deleted_at === null && m.title.toLowerCase().includes(needle)).limit(4).toArray(),
+      db.notes.filter((n) => n.deleted_at === null && (n.title || '').toLowerCase().includes(debounced)).limit(6).toArray(),
+      db.todos.filter((t) => t.deleted_at === null && t.title.toLowerCase().includes(debounced)).limit(6).toArray(),
+      db.meetings.filter((m) => m.deleted_at === null && m.title.toLowerCase().includes(debounced)).limit(4).toArray(),
     ])
     return { notes, todos, meetings }
-  }, [needle])
+  }, [debounced])
 
   useEffect(() => {
     if (open) {

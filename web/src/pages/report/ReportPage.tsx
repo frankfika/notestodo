@@ -33,7 +33,9 @@ export function buildReport(todos: Todo[], meetings: { title: string; started_at
   const byKr = new Map<string, Todo[]>()
   for (const t of done) {
     const key = t.parent_id && byId.get(t.parent_id) ? t.parent_id : ''
-    byKr.set(key, [...(byKr.get(key) ?? []), t])
+    const arr = byKr.get(key)
+    if (arr) arr.push(t)
+    else byKr.set(key, [t])
   }
   const lines: string[] = []
   lines.push(`## 本周总结`, `完成 ${done.length} 张卡片，开了 ${wk.length} 场会议。`, '')

@@ -12,7 +12,9 @@ export function buildTagByTodo(bindings: TagBinding[]): Map<string, string[]> {
   const m = new Map<string, string[]>()
   for (const b of bindings) {
     if (b.target_type !== 'todo' || b.deleted_at !== null) continue
-    m.set(b.target_id, [...(m.get(b.target_id) ?? []), b.tag_id])
+    const arr = m.get(b.target_id)
+    if (arr) arr.push(b.tag_id)
+    else m.set(b.target_id, [b.tag_id])
   }
   return m
 }

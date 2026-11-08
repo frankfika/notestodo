@@ -52,39 +52,34 @@ function isDescendant(nodeId: string, maybeAncestorId: string, byId: Map<string,
   return false
 }
 
-interface Node { todo: Todo; children: Node[] }
+interface Node { todo: Todo; children: Node[]; done: number; total: number }
 
 function buildTree(all: Todo[]): Node[] {
   const byParent = new Map<string | null, Todo[]>()
-  for (const t of all.filter(live)) {
+  const liveTodos = all.filter(live)
+  for (const t of liveTodos) {
     const k = t.parent_id ?? null
-    byParent.set(k, [...(byParent.get(k) ?? []), t])
+    const arr = byParent.get(k)
+    if (arr) arr.push(t)
+    else byParent.set(k, [t])
   }
   const byId = new Map(all.map((t) => [t.id, t]))
-  const make = (t: Todo): Node => ({
-    todo: t,
-    children: (byParent.get(t.id) ?? [])
-      .filter((c) => c.parent_id === t.id) // 防御：父指向不存在/环时只挂一遍
+  const make = (t: Todo): Node => {
+    const children = (byParent.get(t.id) ?? [])
       .sort((a, b) => doneLast(a, b) || a.sort_order - b.sort_order)
-      .map(make),
-  })
+      .map(make)
+    // 子树进度自底向上一次算完：原来每个 Row 各自递归一遍整棵子树（O(n·depth)）
+    let done = t.status === 'done' ? 1 : 0
+    let total = 1
+    for (const c of children) { done += c.done; total += c.total }
+    return { todo: t, children, done, total }
+  }
   const roots = (byParent.get(null) ?? []).filter((t) => !t.parent_id || !byId.has(t.parent_id) || !live(byId.get(t.parent_id)!))
   // 孤儿（父被删）也提到根层，避免从树里消失
-  const orphans = all.filter(live).filter((t) => t.parent_id && (!byId.has(t.parent_id) || !live(byId.get(t.parent_id)!)))
+  const orphans = liveTodos.filter((t) => t.parent_id && (!byId.has(t.parent_id) || !live(byId.get(t.parent_id)!)))
   return [...roots.filter((t) => !t.parent_id), ...orphans]
     .sort((a, b) => doneLast(a, b) || a.sort_order - b.sort_order)
     .map(make)
-}
-
-function countDone(n: Node): { done: number; total: number } {
-  let done = n.todo.status === 'done' ? 1 : 0
-  let total = 1
-  for (const c of n.children) {
-    const r = countDone(c)
-    done += r.done
-    total += r.total
-  }
-  return { done, total }
 }
 
 function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById }: {
@@ -103,9 +98,8 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
   const t = node.todo
   const focused = useUI((s) => s.todoFocusId === t.id)
   const hasKids = node.children.length > 0
-  const { done, total } = countDone(node)
-  const subTotal = total - 1
-  const subDone = done - (t.status === 'done' ? 1 : 0)
+  const subTotal = node.total - 1
+  const subDone = node.done - (t.status === 'done' ? 1 : 0)
 
   const onDrop = async (): Promise<void> => {
     setOver(false)

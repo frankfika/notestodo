@@ -1,6 +1,6 @@
 import { useUI, type ViewName } from '../state/ui'
 import { useRecorder } from '../state/recorder'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isTauri } from '../lib/tauri'
@@ -50,7 +50,6 @@ function PageTree(): JSX.Element {
 
   /** 防成环：target 是不是 dragged 的子孙 */
   const isDescendant = (draggedId: ID, targetId: ID): boolean => {
-    const byId = new Map(notes.map((n) => [n.id, n]))
     let p = byId.get(targetId)?.parent_id ?? null
     const seen = new Set<ID>()
     while (p && !seen.has(p)) {
@@ -91,10 +90,26 @@ function PageTree(): JSX.Element {
     })
   }
 
+  // 树索引：按 (父页, 笔记本) 一次分组 —— 每个节点都全表 filter 是 O(N²)，
+  // 页面一多（几百条）每次重渲染都在主线程上白烧几百毫秒
+  const childIndex = useMemo(() => {
+    const m = new Map<string, Note[]>()
+    for (const n of notes) {
+      const k = `${n.parent_id ?? ''}\u0000${n.notebook_id ?? ''}`
+      const arr = m.get(k)
+      if (arr) arr.push(n)
+      else m.set(k, [n])
+    }
+    for (const arr of m.values()) {
+      arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.updated_at.localeCompare(a.updated_at))
+    }
+    return m
+  }, [notes])
+  const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes])
+  const nbIds = useMemo(() => new Set(notebooks.map((nb) => nb.id)), [notebooks])
+
   const childrenOf = (pid: ID | null, notebookId: ID | null | undefined): Note[] =>
-    notes
-      .filter((n) => (n.parent_id ?? null) === pid && (n.notebook_id ?? null) === (notebookId ?? null))
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.updated_at.localeCompare(a.updated_at))
+    childIndex.get(`${pid ?? ''}\u0000${notebookId ?? ''}`) ?? []
 
   const toggle = (id: ID): void =>
     setCollapsed((s) => {
@@ -217,7 +232,7 @@ function PageTree(): JSX.Element {
 
   const hasUnassigned = notes.some((n) => {
     const nid = n.notebook_id ?? null
-    return nid === null || !notebooks.some((nb) => nb.id === nid)
+    return nid === null || !nbIds.has(nid)
   })
 
   // 无笔记本：保持原来的一棵「页面」树

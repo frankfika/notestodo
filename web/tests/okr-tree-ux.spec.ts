@@ -56,6 +56,28 @@ test('拖拽：把任务拖到另一个任务上 = 挂为它的子任务；非�
   expect(await parentOf(page, 'c1')).toBe('p1')
 })
 
+test('子树进度徽标：父任务行显示「已完成/子任务总数」（子树计数改成建树时一次算完）', async ({ page }) => {
+  await seed(page)
+  await page.evaluate(async () => {
+    const { db } = await import('/src/db/db.ts')
+    const ts = new Date().toISOString()
+    const base = { status: 'open', source: 'manual', notes_md: '', created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 }
+    await db.todos.bulkPut([
+      { id: 'k1', kind: 'task', scope: null, parent_id: 'p1', title: '子一', sort_order: 1, ...base },
+      { id: 'k2', kind: 'task', scope: null, parent_id: 'p1', title: '子二', sort_order: 2, ...base },
+      { id: 'k3', kind: 'task', scope: null, parent_id: 'p1', title: '子三', sort_order: 3, ...base, status: 'done' },
+    ])
+  })
+  await page.reload()
+  await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goTodos: () => void } } }).__uiStore.getState().goTodos())
+  await expect(page.locator('[data-todo="p1"]')).toBeVisible()
+
+  // 切「全部」——默认「进行中」会把已完成的子任务整棵滤掉，徽标分母只剩未完成的
+  await page.getByRole('button', { name: '全部', exact: true }).click()
+  // 父任务自身不计入分母：3 个子任务、1 个已完成 → 1/3
+  await expect(page.locator('[data-todo="p1"]')).toContainText('1/3')
+})
+
 test('⋯ 菜单「移到根级」= 取消挂载', async ({ page }) => {
   await seed(page)
   // 先挂进去

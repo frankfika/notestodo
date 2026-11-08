@@ -46,12 +46,14 @@ export default function NoteDetailPage(): JSX.Element {
     if (hit) goNote(hit.id)
   }, [allNotes, goNote])
   // 反向链接：其它笔记正文里 [[这篇的标题]]（含 [[标题|别名]] 写法）
+  // 依赖只取标题/ id —— 原来挂整个 note 对象，自动保存每次都新对象 → 全表正文重扫一遍
+  const noteTitle = note?.title?.trim() ?? ''
+  const curNoteId = note?.id ?? ''
   const backlinks = useMemo(() => {
-    const title = note?.title?.trim()
-    if (!title || !note) return []
-    const re = new RegExp(`\\[\\[${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\]\\]|\\|)`)
-    return allNotes.filter((n) => n.id !== note.id && n.deleted_at === null && re.test(n.body_md ?? ''))
-  }, [allNotes, note])
+    if (!noteTitle || !curNoteId) return []
+    const re = new RegExp(`\\[\\[${noteTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\]\\]|\\|)`)
+    return allNotes.filter((n) => n.id !== curNoteId && n.deleted_at === null && re.test(n.body_md ?? ''))
+  }, [allNotes, noteTitle, curNoteId])
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
@@ -63,24 +65,26 @@ export default function NoteDetailPage(): JSX.Element {
   const titleRef = useRef<HTMLInputElement>(null)
 
   // 面包屑：笔记本 › 父页 › … › 当前页（打通侧栏树与详情页）
+  const allById = useMemo(() => new Map(allNotes.map((n) => [n.id, n])), [allNotes])
+  const parentId = note?.parent_id ?? null
+  const notebookId = note?.notebook_id ?? null
   const crumbs = useMemo(() => {
     if (!note) return []
-    const byId = new Map(allNotes.map((n) => [n.id, n]))
     const chain: { id?: string; label: string }[] = []
-    const nb = notebooks.find((x) => x.id === note.notebook_id)
+    const nb = notebooks.find((x) => x.id === notebookId)
     if (nb) chain.push({ label: `${nb.icon} ${nb.name}` })
-    let p = note.parent_id ?? null
+    let p = parentId
     const seen = new Set<string>()
     const parents: { id: string; label: string }[] = []
     while (p && !seen.has(p)) {
       seen.add(p)
-      const pn = byId.get(p)
+      const pn = allById.get(p)
       if (!pn) break
       parents.unshift({ id: pn.id, label: pn.title || '无标题' })
       p = pn.parent_id ?? null
     }
     return [...chain, ...parents]
-  }, [note, allNotes, notebooks])
+  }, [note?.id, parentId, notebookId, allById, notebooks])
 
   useEffect(() => {
     bodyTouchedRef.current = false

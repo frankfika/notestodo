@@ -112,6 +112,18 @@ export default function BoardPage(): JSX.Element {
     return board?.columns[0] ?? DONE_COL
   }
 
+  // 卡片按列分组一次：原来每列都 cards.filter 一遍（列数 × 卡片数）
+  const cardsByCol = useMemo(() => {
+    const m = new Map<string, Todo[]>()
+    for (const c of cols) m.set(c, [])
+    for (const t of cards) {
+      const c = colOf(t)
+      const arr = m.get(c)
+      if (arr) arr.push(t)
+    }
+    return m
+  }, [cards, cols, board])
+
   const move = async (id: string, col: string): Promise<void> => {
     const t = byId.get(id)
     if (!t || colOf(t) === col) return
@@ -230,7 +242,7 @@ export default function BoardPage(): JSX.Element {
 
       <div className="flex-1 min-h-0 flex gap-4 overflow-x-auto">
         {cols.map((c, ci) => {
-          const list = cards.filter((t) => colOf(t) === c)
+          const list = cardsByCol.get(c) ?? []
           const isDone = c === DONE_COL
           return (
             <section key={c} data-testid={`board-col-${c}`}

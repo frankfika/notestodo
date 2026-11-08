@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { PREF_KEY as CAPTION_PREF_KEY } from '../../lib/liveCaption'
 import { dataFlow, isLoopbackUrl } from '../../lib/dataFlow'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { DEFAULT_SETTINGS, type AiMode, type AppSettings } from '../../types'
 import { DiarizationRow, EngineChooser, ModelPicker, useMissingBuiltin, missingNames } from '../../components/BuiltinModels'
@@ -523,7 +523,13 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
 function TagManager({ flash }: { flash: (msg: string) => void }): JSX.Element {
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
-  const countOf = (tagId: string): number => bindings.filter((b) => b.tag_id === tagId).length
+  // 引用计数一次算完：原来每个标签都全量 filter 一遍 bindings
+  const countByTag = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const b of bindings) m.set(b.tag_id, (m.get(b.tag_id) ?? 0) + 1)
+    return m
+  }, [bindings])
+  const countOf = (tagId: string): number => countByTag.get(tagId) ?? 0
 
   const rename = async (tagId: string, name: string): Promise<void> => {
     const v = name.trim()

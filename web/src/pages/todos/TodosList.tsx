@@ -87,7 +87,9 @@ export default function TodosList({ filter, tagByTodo }: { filter: TodoFilter; t
     const map = new Map<GroupKey, Todo[]>()
     for (const t of visible) {
       const g = groupOf(t, today, weekEnd)
-      map.set(g, [...(map.get(g) ?? []), t])
+      const arr = map.get(g)
+      if (arr) arr.push(t)
+      else map.set(g, [t])
     }
     for (const list of map.values()) {
       list.sort((a, b) => doneLast(a, b) || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.sort_order - b.sort_order)

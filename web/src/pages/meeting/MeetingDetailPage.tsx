@@ -91,6 +91,8 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     () => db.summaries.where('meeting_id').equals(meeting.id).first(),
     [meeting.id],
   )
+  // 转录全文：原来在 JSX 里现 join，每次渲染重拼一遍（还让下游 memo 每次失效）
+  const transcriptText = useMemo(() => transcript?.segments.map((s) => s.text).join(' '), [transcript])
   const reviewTodos = useLiveQuery(
     () => db.todos.where('meeting_id').equals(meeting.id).and((x) => x.status === 'pending_review').toArray(),
     [meeting.id],
@@ -172,7 +174,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
       <LiveMeetingView
         meeting={meeting}
         scribbleMd={scribbleMd}
-        transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
+        transcriptText={transcriptText}
       />
     )
   }
@@ -311,7 +313,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
           <AssistPane
             meeting={meeting}
             scribbleMd={scribbleMd}
-            transcriptText={transcript?.segments.map((s) => s.text).join(' ')}
+            transcriptText={transcriptText}
           />
         )}
         </div>
