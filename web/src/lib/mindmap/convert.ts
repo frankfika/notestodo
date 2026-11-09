@@ -75,11 +75,18 @@ export function todosToMindData(
         })),
       })
     }
+    const waiting = Boolean(t.waiting_reason && t.status === 'open')
+    const topic = waiting
+      ? `${t.title || '未命名'} · Waiting`
+      : t.title || '未命名'
     return {
       id: t.id,
-      topic: t.title || '未命名',
+      topic,
       expanded: true,
       children: children.length ? children : undefined,
+      style: waiting
+        ? { opacity: '0.82', fontStyle: 'italic', color: 'var(--warning, #c77c2a)' }
+        : undefined,
       metadata: {
         todoId: t.id,
         status: t.status,

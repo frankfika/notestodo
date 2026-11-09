@@ -16,6 +16,7 @@ import { isMindmapTasksEnabled } from '../lib/features'
 import { isDescendant } from '../lib/mindmap/cycle'
 import { indexByParent, isLeafTodo } from '../lib/mindmap/leaf'
 import { archiveMap, listMapRootsFiltered, publicMapRoot, restoreMap } from '../lib/mindmap/mapArchive'
+import { captureToInbox, listInboxCaptures } from '../lib/mindmap/inboxCapture'
 import { ensureInboxMap } from '../lib/mindmap/mapRoots'
 import {
   addSlot,
@@ -176,6 +177,26 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
       status: result.reason === 'not_found' ? 404 : 409,
       body: { error: result.reason, message: result.reason === 'not_archived' ? '未归档' : '图不存在' },
     }
+  }
+
+  // GET /inbox/captures
+  if (req.method === 'GET' && segments.length === 2 && segments[0] === 'inbox' && segments[1] === 'captures') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const rows = await listInboxCaptures()
+    const ctx = await todoPublicContext()
+    return { status: 200, body: rows.map((t) => publicTodo(t, ctx)) }
+  }
+
+  // POST /inbox/captures { title }
+  if (req.method === 'POST' && segments.length === 2 && segments[0] === 'inbox' && segments[1] === 'captures') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const body = parseBody(req.body)
+    if (!body) return { status: 400, body: { error: 'body 需为 JSON 对象' } }
+    const title = String(body.title ?? '').trim()
+    if (!title) return { status: 400, body: { error: 'title 必填' } }
+    const todo = await captureToInbox(title)
+    const ctx = await todoPublicContext()
+    return { status: 201, body: publicTodo(todo, ctx) }
   }
 
   // GET /today

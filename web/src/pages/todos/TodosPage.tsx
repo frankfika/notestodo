@@ -14,6 +14,7 @@ import { getFeatures } from '../../lib/features'
 import { listMapRoots } from '../../lib/mindmap/mapRoots'
 import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
 import MapLibraryPanel from './MapLibraryPanel'
+import InboxSidebar from './InboxSidebar'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -188,6 +189,7 @@ export default function TodosPage(): JSX.Element {
         {tab === 'mindmap' && mindmapEnabled ? (
           <div className="flex h-full min-h-0">
             <MapLibraryPanel rootId={rootId} onSelect={setRootId} />
+            <InboxSidebar onOpenInboxMap={setRootId} />
             {rootId ? (
               <>
                 <div className="flex-1 min-w-0 min-h-0">

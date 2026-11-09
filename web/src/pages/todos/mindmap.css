@@ -10,3 +10,20 @@
 .mindmap-canvas me-tpc {
   font-size: 14px;
 }
+
+.mindmap-coach {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  max-width: min(420px, 92%);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-1, #1c1c1e);
+  background: var(--bg-raise, #fff);
+  border: 1px solid var(--line, #e5e5ea);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 8%);
+  pointer-events: none;
+}
