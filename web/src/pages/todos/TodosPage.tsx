@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { now, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
 import TodosTree from './TodosTree'
 import TodosList from './TodosList'
+import MindmapCanvas from './MindmapCanvas'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
+import { getFeatures } from '../../lib/features'
+import { listMapRoots } from '../../lib/mindmap/mapRoots'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -15,16 +18,31 @@ const STATUS_TABS = [
   ['all', '全部'],
 ] as const
 
+type ViewTab = 'mindmap' | 'tree' | 'list'
+
 /**
  * 任务页：纯嵌套任务树 + 时间分组列表（OKR 三层概念已从 UI 移除，
  * 数据层 kind/scope 字段保留兼容）。看板在独立路由 board。
+ * mindmap_tasks 开启时默认脑图 Tab。
  */
 export default function TodosPage(): JSX.Element {
-  const [tab, setTab] = useState<'tree' | 'list'>('tree')
+  const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
+  const [tab, setTab] = useState<ViewTab>('tree')
   const goBoard = useUI((s) => s.goBoard)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
   const [newTitle, setNewTitle] = useState('')
   const [newDue, setNewDue] = useState('')
+  const roots = useLiveQuery(listMapRoots, []) ?? []
+  const [rootId, setRootId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (mindmapEnabled && tab === 'tree') setTab('mindmap')
+    if (!mindmapEnabled && tab === 'mindmap') setTab('tree')
+  }, [mindmapEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!rootId && roots[0]) setRootId(roots[0].id)
+  }, [roots, rootId])
 
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
@@ -35,10 +53,21 @@ export default function TodosPage(): JSX.Element {
     if (!raw) return
     const parsed = parseQuickAdd(raw)
     const ts = now()
+    const id = uid()
     await db.todos.add({
-      id: uid(), kind: 'task', parent_id: null, scope: null, title: parsed.title, status: 'open',
-      source: 'manual', sort_order: Date.now(), created_at: ts, updated_at: ts,
-      deleted_at: null, sync_version: 0,
+      id,
+      kind: 'task',
+      parent_id: null,
+      scope: null,
+      title: parsed.title,
+      status: 'open',
+      source: 'manual',
+      sort_order: Date.now(),
+      map_id: id,
+      created_at: ts,
+      updated_at: ts,
+      deleted_at: null,
+      sync_version: 0,
       ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
       ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
     })
@@ -52,10 +81,14 @@ export default function TodosPage(): JSX.Element {
       tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id],
     }))
 
+  const viewTabs = mindmapEnabled
+    ? ([['mindmap', '脑图'], ['tree', '大纲'], ['list', '按时间']] as const)
+    : ([['tree', '树'], ['list', '按时间']] as const)
+
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-1 px-4 pt-3 pb-2 border-b border-line shrink-0">
-        {([['tree', '树'], ['list', '按时间']] as const).map(([k, label]) => (
+      <div className="flex items-center gap-1 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
+        {viewTabs.map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -64,10 +97,23 @@ export default function TodosPage(): JSX.Element {
             }`}
           >{label}</button>
         ))}
-        <button
-          onClick={goBoard}
-          className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-        >看板 →</button>
+        {mindmapEnabled && roots.length > 1 && (
+          <select
+            className="ml-2 text-sm input !h-8 !w-auto"
+            value={rootId ?? ''}
+            onChange={(e) => setRootId(e.target.value)}
+          >
+            {roots.map((r) => (
+              <option key={r.id} value={r.id}>{r.title || '未命名'}</option>
+            ))}
+          </select>
+        )}
+        {!mindmapEnabled && (
+          <button
+            onClick={goBoard}
+            className="ml-auto px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+          >看板 →</button>
+        )}
       </div>
 
       <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
@@ -123,8 +169,18 @@ export default function TodosPage(): JSX.Element {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-        {tab === 'tree' ? <TodosTree filter={filter} tagByTodo={tagByTodo} /> : <TodosList filter={filter} tagByTodo={tagByTodo} />}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {tab === 'mindmap' && mindmapEnabled && rootId ? (
+          <MindmapCanvas rootId={rootId} />
+        ) : tab === 'tree' ? (
+          <div className="h-full overflow-y-auto px-4 py-3">
+            <TodosTree filter={filter} tagByTodo={tagByTodo} />
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto px-4 py-3">
+            <TodosList filter={filter} tagByTodo={tagByTodo} />
+          </div>
+        )}
       </div>
     </div>
   )

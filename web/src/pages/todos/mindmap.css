@@ -1,0 +1,12 @@
+.mindmap-canvas {
+  position: relative;
+  background: var(--bg-base, #fafafa);
+}
+
+.mindmap-canvas .map-container {
+  font-family: inherit;
+}
+
+.mindmap-canvas me-tpc {
+  font-size: 14px;
+}
