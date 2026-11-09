@@ -2,15 +2,17 @@ import { db } from '../../db/db'
 import { now, uid } from '../id'
 import type { ID, Meeting, Todo } from '../../types'
 import { isLive } from './leaf'
+import { listMapRootsFiltered } from './mapArchive'
 
 export const INBOX_TITLE = 'Inbox'
 
-/** 图根 = parent_id null 的活节点（含 Inbox、各项目根、冲突副本） */
+/** 图根 = parent_id null 的活节点（含 Inbox、各项目根）；默认排除已归档 */
 export async function listMapRoots(): Promise<Todo[]> {
-  const all = await db.todos.toArray()
-  return all
-    .filter((t) => isLive(t) && t.parent_id === null)
-    .sort((a, b) => a.sort_order - b.sort_order)
+  return listMapRootsFiltered({ archived: false })
+}
+
+export async function listArchivedMapRoots(): Promise<Todo[]> {
+  return listMapRootsFiltered({ archived: true })
 }
 
 export function resolveMapId(parent: Todo | null | undefined, selfId?: ID): ID {

@@ -13,6 +13,7 @@ import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
 import { listMapRoots } from '../../lib/mindmap/mapRoots'
 import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
+import MapLibraryPanel from './MapLibraryPanel'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -119,16 +120,8 @@ export default function TodosPage(): JSX.Element {
             }`}
           >{label}</button>
         ))}
-        {mindmapEnabled && roots.length > 1 && (
-          <select
-            className="ml-2 text-sm input !h-8 !w-auto"
-            value={rootId ?? ''}
-            onChange={(e) => setRootId(e.target.value)}
-          >
-            {roots.map((r) => (
-              <option key={r.id} value={r.id}>{r.title || '未命名'}</option>
-            ))}
-          </select>
+        {mindmapEnabled && !rootId && roots[0] && (
+          <span className="ml-2 text-xs text-text-3">在左侧图库选择或新建图</span>
         )}
         {!mindmapEnabled && (
           <button
@@ -192,12 +185,21 @@ export default function TodosPage(): JSX.Element {
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === 'mindmap' && mindmapEnabled && rootId ? (
+        {tab === 'mindmap' && mindmapEnabled ? (
           <div className="flex h-full min-h-0">
-            <div className="flex-1 min-w-0 min-h-0">
-              <MindmapCanvas rootId={rootId} />
-            </div>
-            <TodayTray />
+            <MapLibraryPanel rootId={rootId} onSelect={setRootId} />
+            {rootId ? (
+              <>
+                <div className="flex-1 min-w-0 min-h-0">
+                  <MindmapCanvas rootId={rootId} />
+                </div>
+                <TodayTray />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-text-3">
+                选择一张进行中的图，或快速添加创建新图
+              </div>
+            )}
           </div>
         ) : tab === 'tree' ? (
           <div className="h-full overflow-y-auto px-4 py-3">

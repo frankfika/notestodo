@@ -15,6 +15,7 @@ import { levelOf } from '../lib/okrMove'
 import { isMindmapTasksEnabled } from '../lib/features'
 import { isDescendant } from '../lib/mindmap/cycle'
 import { indexByParent, isLeafTodo } from '../lib/mindmap/leaf'
+import { archiveMap, listMapRootsFiltered, publicMapRoot, restoreMap } from '../lib/mindmap/mapArchive'
 import { ensureInboxMap } from '../lib/mindmap/mapRoots'
 import {
   addSlot,
@@ -132,6 +133,48 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
       enrich: true,
       byParent: indexByParent(all),
       todayLeafIds,
+    }
+  }
+
+  // GET /maps?archived=0|1
+  if (req.method === 'GET' && segments.length === 1 && segments[0] === 'maps') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const archived = q.get('archived') === '1' || q.get('archived') === 'true'
+    const rows = await listMapRootsFiltered({ archived })
+    return { status: 200, body: rows.map(publicMapRoot) }
+  }
+
+  // POST /maps/:id/archive
+  if (req.method === 'POST' && segments.length === 3 && segments[0] === 'maps' && segments[2] === 'archive') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const result = await archiveMap(segments[1])
+    if (result.ok) {
+      const root = (await db.todos.get(segments[1])) as Todo
+      return { status: 200, body: publicMapRoot(root) }
+    }
+    const code =
+      result.reason === 'not_found' ? 404
+        : result.reason === 'inbox' || result.reason === 'open_leaves' || result.reason === 'already' ? 409
+          : 400
+    const msg =
+      result.reason === 'inbox' ? 'Inbox 不可归档'
+        : result.reason === 'open_leaves' ? '仍有开放叶子，无法归档'
+          : result.reason === 'already' ? '已是归档状态'
+            : '图不存在'
+    return { status: code, body: { error: result.reason, message: msg } }
+  }
+
+  // POST /maps/:id/restore
+  if (req.method === 'POST' && segments.length === 3 && segments[0] === 'maps' && segments[2] === 'restore') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const result = await restoreMap(segments[1])
+    if (result.ok) {
+      const root = (await db.todos.get(segments[1])) as Todo
+      return { status: 200, body: publicMapRoot(root) }
+    }
+    return {
+      status: result.reason === 'not_found' ? 404 : 409,
+      body: { error: result.reason, message: result.reason === 'not_archived' ? '未归档' : '图不存在' },
     }
   }
 
