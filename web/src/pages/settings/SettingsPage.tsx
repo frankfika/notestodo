@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import type { Table } from 'dexie'
 import { PREF_KEY as CAPTION_PREF_KEY } from '../../lib/liveCaption'
 import { dataFlow, isLoopbackUrl } from '../../lib/dataFlow'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,6 +26,7 @@ import { reindexKnowledge } from '../../lib/knowledge'
 import { importGithubIssues } from '../../lib/github'
 import { importFeishuEvents } from '../../lib/feishu'
 import { getFeatures, setFeature } from '../../lib/features'
+import { useToast } from '../../state/toast'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -459,7 +461,7 @@ export default function SettingsPage(): JSX.Element {
                   )}
                 </Section>
 
-                <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据。">
+                <Section title="数据" desc="导出 = 单个 .zip（含所有表 + 录音原文）；导入会覆盖现有全部数据，导入前自动备份，出错自动回滚。">
                   <ExportImportRow flash={flash} />
                   <StorageStatusRow />
                 </Section>
@@ -545,6 +547,7 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
 }
 
 function TagManager({ flash }: { flash: (msg: string) => void }): JSX.Element {
+  const { show } = useToast()
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
   // 引用计数一次算完：原来每个标签都全量 filter 一遍 bindings
@@ -567,14 +570,26 @@ function TagManager({ flash }: { flash: (msg: string) => void }): JSX.Element {
     flash('已改名')
   }
 
+  /**
+   * 删标签：连带解绑 N 处引用；撤销 = 标签行 + 绑定关系原样写回，
+   * 撤销后「N 处引用」的计数必须回到删除前。
+   */
   const remove = async (tagId: string): Promise<void> => {
     const tag = tags.find((t) => t.id === tagId)
     if (!tag) return
     const n = countOf(tagId)
-    if (!window.confirm(`删除标签「${tag.name}」？${n > 0 ? `会同时解绑 ${n} 处引用。` : ''}`)) return
+    const snapBindings = await db.tagBindings.where('tag_id').equals(tagId).toArray()
     await db.tagBindings.where('tag_id').equals(tagId).delete()
     await db.tags.delete(tagId)
-    flash('已删除标签')
+    show(`已删除标签「${tag.name}」${n > 0 ? `，解绑 ${n} 处` : ''}`, {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          await db.tags.put(tag)
+          if (snapBindings.length) await db.tagBindings.bulkPut(snapBindings)
+        })()
+      },
+    }, 6000)
   }
 
   if (tags.length === 0) return <p className="text-xs text-text-3">还没有标签。在笔记或任务里输入 #标签 即可创建。</p>
@@ -1005,10 +1020,41 @@ function IcsListEditor({
   )
 }
 
+/** 一张表的快照（整行数据，含音频 blob） */
+interface TableSnap {
+  table: Table<unknown, string>
+  rows: unknown[]
+}
+
+/**
+ * 导入前的整库快照。导入会清空所有表再重写 —— 万一中途失败，用户数据就停在半截状态。
+ * 所以先 toArray 一份，出错时原样写回；导入成功时也能靠它「撤销」。
+ */
+async function snapshotAll(): Promise<TableSnap[]> {
+  const snap: TableSnap[] = []
+  for (const t of db.tables) {
+    // syncOutbox 不在导入范围内（importData 只清业务表），快照它只会把 ++id 计数器搞乱
+    if (t.name === 'syncOutbox') continue
+    snap.push({ table: t as Table<unknown, string>, rows: await t.toArray() })
+  }
+  return snap
+}
+
+/** 把快照写回数据库（回滚 / 撤销导入） */
+async function restoreAll(snap: TableSnap[]): Promise<void> {
+  await db.transaction('rw', snap.map((s) => s.table), async () => {
+    for (const s of snap) {
+      await s.table.clear()
+      if (s.rows.length) await s.table.bulkPut(s.rows)
+    }
+  })
+}
+
 function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Element {
   const ref = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [lastMsg, setLastMsg] = useState<string | null>(null)
+  const { show } = useToast()
 
   async function doExport(): Promise<void> {
     if (busy) return
@@ -1025,18 +1071,38 @@ function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Eleme
     }
   }
 
+  /**
+   * 导入 = 覆盖，覆盖没法靠「软删」撤销。所以：
+   *   1) 先整库快照
+   *   2) 导入失败 → 自动回滚 + toast 告知（数据回到导入前）
+   *   3) 导入成功 → 给一个「撤销」窗口，撤销就回滚并重载
+   */
   async function doImport(file: File): Promise<void> {
     if (busy) return
-    if (!window.confirm(`导入会覆盖当前所有数据，确认？`)) return
     setBusy(true)
-    setLastMsg('正在解压并写入…')
+    setLastMsg('正在备份当前数据…')
+    let backup: TableSnap[]
+    try {
+      backup = await snapshotAll()
+    } catch (e: unknown) {
+      setBusy(false)
+      setLastMsg('备份失败，已取消导入：' + (e instanceof Error ? e.message : String(e)))
+      return
+    }
     try {
       const r = await importData(file, (p) => setLastMsg(p.message))
       setLastMsg(`已恢复 ${r.audioCount} 段音频（${r.manifest.table_counts.meetings} 场会议）`)
-      flash('导入完成 — 即将重载')
-      setTimeout(() => location.reload(), 1200)
+      show('导入完成', {
+        label: '撤销',
+        onClick: () => { void restoreAll(backup).then(() => location.reload()) },
+      }, 6000)
+      // 撤销窗口结束后再重载：重载会清掉内存里的快照，撤销就点不到了
+      setTimeout(() => location.reload(), 7000)
     } catch (e: unknown) {
-      setLastMsg('导入失败：' + (e instanceof Error ? e.message : String(e)))
+      // 导入失败 → 回滚，别把用户数据留在半截状态
+      await restoreAll(backup).catch(() => undefined)
+      setLastMsg('导入失败：' + (e instanceof Error ? e.message : String(e)) + '（已回滚到导入前）')
+      show('导入失败，数据已回滚')
       setBusy(false)
     }
   }

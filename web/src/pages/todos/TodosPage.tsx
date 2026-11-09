@@ -25,13 +25,12 @@ const STATUS_TABS = [
 type ViewTab = 'mindmap' | 'tree' | 'list'
 
 /**
- * 任务页：纯嵌套任务树 + 时间分组列表（OKR 三层概念已从 UI 移除，
- * 数据层 kind/scope 字段保留兼容）。看板在独立路由 board。
- * mindmap_tasks 开启时默认脑图 Tab。
+ * 任务页：列表（按时间分组）+ 大纲（嵌套树）；mindmap_tasks 开启时
+ * 默认脑图 Tab（图库 + Inbox + Today 托盘）。看板在独立路由 board。
  */
 export default function TodosPage(): JSX.Element {
   const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
-  const [tab, setTab] = useState<ViewTab>('tree')
+  const [tab, setTab] = useState<ViewTab>('list')
   const goBoard = useUI((s) => s.goBoard)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
   const [newTitle, setNewTitle] = useState('')
@@ -40,8 +39,8 @@ export default function TodosPage(): JSX.Element {
   const [rootId, setRootId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (mindmapEnabled && tab === 'tree') setTab('mindmap')
-    if (!mindmapEnabled && tab === 'mindmap') setTab('tree')
+    if (mindmapEnabled && tab !== 'mindmap') setTab('mindmap')
+    if (!mindmapEnabled && tab === 'mindmap') setTab('list')
   }, [mindmapEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -107,56 +106,38 @@ export default function TodosPage(): JSX.Element {
 
   const viewTabs = mindmapEnabled
     ? ([['mindmap', '脑图'], ['tree', '大纲'], ['list', '按时间']] as const)
-    : ([['tree', '树'], ['list', '按时间']] as const)
+    : ([['list', '列表'], ['tree', '大纲']] as const)
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-1 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
-        {viewTabs.map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`px-3 h-8 rounded-[8px] text-sm transition-colors ${
-              tab === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
-            }`}
-          >{label}</button>
-        ))}
+      {/* 一行搞定：视图切换 + 搜索/筛选 */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
+        <div className="flex items-center gap-1">
+          {viewTabs.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`px-3 h-8 rounded-[8px] text-sm transition-colors ${
+                tab === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
+              }`}
+            >{label}</button>
+          ))}
+          {!mindmapEnabled && (
+            <button
+              onClick={goBoard}
+              className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+            >看板</button>
+          )}
+        </div>
         {mindmapEnabled && !rootId && roots[0] && (
           <span className="ml-2 text-xs text-text-3">在左侧图库选择或新建图</span>
         )}
-        {!mindmapEnabled && (
-          <button
-            onClick={goBoard}
-            className="ml-auto px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-          >看板 →</button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
-        <input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return
-            if (e.key === 'Enter') void addQuick()
-          }}
-          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
-          className="input !h-8 flex-1 min-w-0 text-sm"
-        />
-        <DateInput
-          value={newDue}
-          onChange={setNewDue}
-          title="截止日期（可选）"
-          className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
-        />
-      </div>
-
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0 flex-wrap">
+        <div className="flex-1" />
         <input
           value={filter.q}
           onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
-          placeholder="搜索任务…"
-          className="input !h-7 w-40 text-xs"
+          placeholder="搜索…"
+          className="input !h-7 w-32 text-xs"
         />
         <div className="flex items-center rounded-[8px] bg-bg-overlay p-0.5">
           {STATUS_TABS.map(([k, label]) => (
@@ -183,6 +164,25 @@ export default function TodosPage(): JSX.Element {
             })}
           </div>
         )}
+      </div>
+
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
+        <input
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter') void addQuick()
+          }}
+          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
+          className="input !h-8 flex-1 min-w-0 text-sm"
+        />
+        <DateInput
+          value={newDue}
+          onChange={setNewDue}
+          title="截止日期（可选）"
+          className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
+        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
