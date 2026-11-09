@@ -8,6 +8,7 @@ import {
   todosToMindData,
 } from '../../lib/mindmap/convert'
 import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
+import { pushTodoStatusUndo, setMindmapEditing } from '../../lib/mindmap/undoStack'
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
 import type { MeOperation } from '../../lib/mindmap/types'
 import type { ID } from '../../types'
@@ -55,9 +56,13 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       mei.bus.addListener('operation', (ev: MeOperation) => {
         if ((ev as { name?: string }).name === 'beginEdit') {
           editingRef.current = true
+          setMindmapEditing(true)
           return
         }
-        if (ev.name === 'finishEdit') editingRef.current = false
+        if (ev.name === 'finishEdit') {
+          editingRef.current = false
+          setMindmapEditing(false)
+        }
         const byId = new Map(todos.map((t) => [t.id, t]))
         const ops = mindEventToTodoPatches(ev, { all: todos, mapId: rootId, byId })
         void applyTodoPatches(ops)
@@ -107,6 +112,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       if (e.code === 'Space') {
         e.preventDefault()
         if (!isLeafTodo(t, byParent)) return
+        const prev = t.status
+        pushTodoStatusUndo(t.id, prev)
         void db.todos.update(t.id, {
           status: t.status === 'done' ? 'open' : 'done',
           updated_at: now(),

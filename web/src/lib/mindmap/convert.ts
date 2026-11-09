@@ -5,6 +5,7 @@ import type { ID, Todo } from '../../types'
 import { isDescendant } from './cycle'
 import { indexByParent, isLeafTodo, isLive } from './leaf'
 import type { MeOperation, MindmapNodeMeta, TodoOp } from './types'
+import { captureAndPushPatchUndo } from './undoStack'
 import { evictIfPresent } from './todaySlots'
 
 export type MENode = {
@@ -218,8 +219,13 @@ export function mindEventToTodoPatches(
 }
 
 /** 应用补丁；软删复刻 localApi DELETE；事后踢 Today 槽 */
-export async function applyTodoPatches(ops: TodoOp[]): Promise<void> {
+export async function applyTodoPatches(
+  ops: TodoOp[],
+  opts?: { recordUndo?: boolean },
+): Promise<void> {
   if (ops.length === 0) return
+  const recordUndo = opts?.recordUndo ?? true
+  if (recordUndo) await captureAndPushPatchUndo(ops)
   const evictIds: string[] = []
   await db.transaction('rw', db.todos, db.tagBindings, async () => {
     for (const op of ops) {
