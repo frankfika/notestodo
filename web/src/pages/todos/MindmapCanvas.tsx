@@ -85,7 +85,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     if (typeof mei.refresh === 'function') mei.refresh(data)
     else {
       const hash = todos
-        .map((t) => `${t.id}:${t.parent_id}:${t.title}:${t.status}:${t.sort_order}`)
+        .map((t) => `${t.id}:${t.parent_id}:${t.title}:${t.status}:${t.sort_order}:${t.waiting_reason ?? ''}`)
         .join('|')
       const prev = mei as MindElixirInstance & { __hash?: string }
       if (prev.__hash === hash) return

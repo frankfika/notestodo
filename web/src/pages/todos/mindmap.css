@@ -1,6 +1,7 @@
 .mindmap-canvas {
   position: relative;
   background: var(--bg-base, #fafafa);
+  --me-topic-radius: 8px;
 }
 
 .mindmap-canvas .map-container {
