@@ -32,6 +32,7 @@
     "ical.js": "^2.2.1",
     "markdown-it": "^15.0.3",
     "markdown-it-task-lists": "^2.1.1",
+    "mind-elixir": "^6.0.0",
     "pdfjs-dist": "^6.4.299",
     "prosemirror-markdown": "^1.13.9",
     "prosemirror-model": "^1.25.12",
