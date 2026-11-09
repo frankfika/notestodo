@@ -7,7 +7,7 @@ import {
   mindEventToTodoPatches,
   todosToMindData,
 } from '../../lib/mindmap/convert'
-import { addSlot } from '../../lib/mindmap/todaySlots'
+import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
 import type { MeOperation } from '../../lib/mindmap/types'
 import type { ID } from '../../types'
@@ -16,7 +16,6 @@ import './mindmap.css'
 
 export type MindmapCanvasProps = {
   rootId: ID
-  onNeedSwap?: (leafId: ID, mapId: ID) => void
 }
 
 type MindElixirInstance = {
@@ -29,7 +28,7 @@ type MindElixirInstance = {
   currentNode?: { nodeObj?: { id: string } }
 }
 
-export default function MindmapCanvas({ rootId, onNeedSwap }: MindmapCanvasProps): JSX.Element {
+export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Element {
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
   const editingRef = useRef(false)
@@ -117,14 +116,12 @@ export default function MindmapCanvas({ rootId, onNeedSwap }: MindmapCanvasProps
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') {
         e.preventDefault()
         if (!todayEligible(t, byParent)) return
-        void addSlot(t.id, rootId).then((r) => {
-          if (!r.ok && r.reason === 'full') onNeedSwap?.(t.id, rootId)
-        })
+        void tryAddTodaySlot(t.id, rootId)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [todos, rootId, onNeedSwap])
+  }, [todos, rootId])
 
   return <div ref={elRef} className="mindmap-canvas w-full h-full min-h-[420px]" />
 }

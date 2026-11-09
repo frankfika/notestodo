@@ -6,6 +6,7 @@ import { useUI } from '../../state/ui'
 import TodosTree from './TodosTree'
 import TodosList from './TodosList'
 import MindmapCanvas from './MindmapCanvas'
+import TodayTray from './TodayTray'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
@@ -171,7 +172,12 @@ export default function TodosPage(): JSX.Element {
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === 'mindmap' && mindmapEnabled && rootId ? (
-          <MindmapCanvas rootId={rootId} />
+          <div className="flex h-full min-h-0">
+            <div className="flex-1 min-w-0 min-h-0">
+              <MindmapCanvas rootId={rootId} />
+            </div>
+            <TodayTray />
+          </div>
         ) : tab === 'tree' ? (
           <div className="h-full overflow-y-auto px-4 py-3">
             <TodosTree filter={filter} tagByTodo={tagByTodo} />
