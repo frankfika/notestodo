@@ -85,3 +85,19 @@ export async function evictIfPresent(leafId: ID): Promise<boolean> {
   await removeSlot(leafId)
   return true
 }
+
+/** 结构或状态变化后清扫不再符合条件的槽位 */
+export async function purgeIneligibleSlots(): Promise<TodayState> {
+  const state = await getToday()
+  if (state.slots.length === 0) return state
+  const all = await db.todos.toArray()
+  const byParent = indexByParent(all)
+  const slots = state.slots.filter((s) => {
+    const t = all.find((x) => x.id === s.leafId)
+    return t && todayEligible(t, byParent)
+  })
+  if (slots.length === state.slots.length) return state
+  const next = { ...state, slots }
+  await setToday(next)
+  return next
+}
