@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
@@ -33,6 +33,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
   const editingRef = useRef(false)
+  const [coach, setCoach] = useState<string | null>(null)
   const todos = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const focusId = useUI((s) => s.todoFocusId)
 
@@ -122,7 +123,17 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') {
         e.preventDefault()
-        if (!todayEligible(t, byParent)) return
+        if (!todayEligible(t, byParent)) {
+          const msg = t.waiting_reason
+            ? 'Waiting 不能入 Today，先清除原因或拆步'
+            : !isLeafTodo(t, byParent)
+              ? '先拆成一步（按 Tab 加子节点），再 ⌘T'
+              : '当前节点不可入 Today'
+          setCoach(msg)
+          window.setTimeout(() => setCoach(null), 3200)
+          return
+        }
+        setCoach(null)
         void tryAddTodaySlot(t.id, rootId)
       }
     }
@@ -130,5 +141,14 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     return () => window.removeEventListener('keydown', onKey)
   }, [todos, rootId])
 
-  return <div ref={elRef} className="mindmap-canvas w-full h-full min-h-[420px]" />
+  return (
+    <div className="relative w-full h-full min-h-[420px]">
+      {coach && (
+        <div className="mindmap-coach" role="status">
+          {coach}
+        </div>
+      )}
+      <div ref={elRef} className="mindmap-canvas w-full h-full min-h-[420px]" />
+    </div>
+  )
 }
