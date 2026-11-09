@@ -12,6 +12,7 @@ import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
 import { listMapRoots } from '../../lib/mindmap/mapRoots'
+import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -44,6 +45,26 @@ export default function TodosPage(): JSX.Element {
   useEffect(() => {
     if (!rootId && roots[0]) setRootId(roots[0].id)
   }, [roots, rootId])
+
+  useEffect(() => {
+    if (tab !== 'mindmap' || !mindmapEnabled) return
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (
+        el &&
+        (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      ) {
+        return
+      }
+      if (isMindmapEditing()) return
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        void undoMindmap()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tab, mindmapEnabled])
 
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []

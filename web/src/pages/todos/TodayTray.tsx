@@ -4,6 +4,7 @@ import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { registerTodaySwapHandler } from '../../lib/mindmap/todayBridge'
 import { getToday, removeSlot, swapSlot } from '../../lib/mindmap/todaySlots'
+import { pushTodayStateUndo } from '../../lib/mindmap/undoStack'
 import type { ID } from '../../types'
 
 type PendingSwap = { leafId: ID; mapId: ID } | null
@@ -39,7 +40,13 @@ export default function TodayTray(): JSX.Element {
             <button
               type="button"
               className="text-xs text-text-3"
-              onClick={() => void removeSlot(s.leafId)}
+              onClick={() => {
+                void (async () => {
+                  const before = await getToday()
+                  await removeSlot(s.leafId)
+                  pushTodayStateUndo(before, '移出 Today')
+                })()
+              }}
               aria-label="移出 Today"
             >
               ×
@@ -47,7 +54,7 @@ export default function TodayTray(): JSX.Element {
           </li>
         ))}
         {state.slots.length === 0 && (
-          <li className="text-xs text-text-3 py-4">选中叶子按 ⌘T 加入</li>
+          <li className="text-xs text-text-3 py-4">选中叶子按 ⌘T 加入；⌘Z 撤销</li>
         )}
       </ul>
 
@@ -60,8 +67,12 @@ export default function TodayTray(): JSX.Element {
               type="button"
               className="block w-full text-left text-sm py-1 hover:text-accent"
               onClick={() => {
-                void swapSlot(pending.leafId, pending.mapId, s.leafId)
-                setPending(null)
+                void (async () => {
+                  const before = await getToday()
+                  await swapSlot(pending.leafId, pending.mapId, s.leafId)
+                  pushTodayStateUndo(before, '替换 Today')
+                  setPending(null)
+                })()
               }}
             >
               替换「{titleOf(s.leafId)}」
