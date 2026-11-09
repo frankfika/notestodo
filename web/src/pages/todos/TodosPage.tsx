@@ -11,9 +11,10 @@ import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
-import { listMapRoots } from '../../lib/mindmap/mapRoots'
+import { ensureInboxMap, listMapRoots } from '../../lib/mindmap/mapRoots'
 import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
 import MapLibraryPanel from './MapLibraryPanel'
+import InboxSidebar from './InboxSidebar'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -32,6 +33,7 @@ export default function TodosPage(): JSX.Element {
   const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
   const [tab, setTab] = useState<ViewTab>('tree')
   const goBoard = useUI((s) => s.goBoard)
+  const goTodos = useUI((s) => s.goTodos)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
   const [newTitle, setNewTitle] = useState('')
   const [newDue, setNewDue] = useState('')
@@ -77,23 +79,46 @@ export default function TodosPage(): JSX.Element {
     const parsed = parseQuickAdd(raw)
     const ts = now()
     const id = uid()
-    await db.todos.add({
-      id,
-      kind: 'task',
-      parent_id: null,
-      scope: null,
-      title: parsed.title,
-      status: 'open',
-      source: 'manual',
-      sort_order: Date.now(),
-      map_id: id,
-      created_at: ts,
-      updated_at: ts,
-      deleted_at: null,
-      sync_version: 0,
-      ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
-      ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
-    })
+    if (mindmapEnabled) {
+      const inbox = await ensureInboxMap()
+      await db.todos.add({
+        id,
+        kind: 'task',
+        parent_id: inbox.id,
+        scope: null,
+        title: parsed.title,
+        status: 'open',
+        source: 'manual',
+        sort_order: Date.now(),
+        map_id: inbox.id,
+        created_at: ts,
+        updated_at: ts,
+        deleted_at: null,
+        sync_version: 0,
+        ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
+        ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
+      })
+      setRootId(inbox.id)
+      goTodos(id)
+    } else {
+      await db.todos.add({
+        id,
+        kind: 'task',
+        parent_id: null,
+        scope: null,
+        title: parsed.title,
+        status: 'open',
+        source: 'manual',
+        sort_order: Date.now(),
+        map_id: id,
+        created_at: ts,
+        updated_at: ts,
+        deleted_at: null,
+        sync_version: 0,
+        ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
+        ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
+      })
+    }
     setNewTitle('')
     setNewDue('')
   }
@@ -139,7 +164,11 @@ export default function TodosPage(): JSX.Element {
             if (e.nativeEvent.isComposing) return
             if (e.key === 'Enter') void addQuick()
           }}
-          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
+          placeholder={
+            mindmapEnabled
+              ? '＋ 捕获到 Inbox，回车创建（支持「明天 交方案 @张三」）'
+              : '＋ 添加任务，回车创建（支持「明天 交方案 @张三」）'
+          }
           className="input !h-8 flex-1 min-w-0 text-sm"
         />
         <DateInput
@@ -187,7 +216,10 @@ export default function TodosPage(): JSX.Element {
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === 'mindmap' && mindmapEnabled ? (
           <div className="flex h-full min-h-0">
-            <MapLibraryPanel rootId={rootId} onSelect={setRootId} />
+            <div className="flex flex-col shrink-0 min-h-0 max-h-full">
+              <InboxSidebar onOpenInbox={setRootId} />
+              <MapLibraryPanel rootId={rootId} onSelect={setRootId} />
+            </div>
             {rootId ? (
               <>
                 <div className="flex-1 min-w-0 min-h-0">

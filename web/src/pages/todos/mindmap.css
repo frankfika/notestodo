@@ -10,3 +10,10 @@
 .mindmap-canvas me-tpc {
   font-size: 14px;
 }
+
+.mindmap-canvas .mindmap-tag-waiting {
+  font-size: 10px;
+  color: var(--text-3, #8e8e93);
+  font-weight: 500;
+  opacity: 0.9;
+}

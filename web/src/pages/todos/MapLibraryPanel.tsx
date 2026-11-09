@@ -59,7 +59,7 @@ export default function MapLibraryPanel({ rootId, onSelect }: MapLibraryPanelPro
     activeRoots.some((r) => r.id === rootId)
 
   return (
-    <aside className="w-44 shrink-0 border-r border-line flex flex-col bg-bg-base">
+    <aside className="w-44 shrink-0 border-r border-line flex flex-col flex-1 min-h-0 bg-bg-base">
       <div className="px-2 pt-2 pb-1 border-b border-line">
         <div className="text-[11px] text-text-3 mb-1.5 px-1">图库</div>
         <div className="flex rounded-[6px] bg-bg-overlay p-0.5">

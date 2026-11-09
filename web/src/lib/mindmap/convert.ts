@@ -5,8 +5,19 @@ import type { ID, Todo } from '../../types'
 import { isDescendant } from './cycle'
 import { indexByParent, isLeafTodo, isLive } from './leaf'
 import type { MeOperation, MindmapNodeMeta, TodoOp } from './types'
+import type { TagObj } from 'mind-elixir'
 import { captureAndPushPatchUndo } from './undoStack'
 import { evictIfPresent } from './todaySlots'
+
+function waitingTags(reason: string | undefined): TagObj[] | undefined {
+  if (!reason?.trim()) return undefined
+  return [{ text: `Waiting · ${reason.trim()}`, className: 'mindmap-tag-waiting' }]
+}
+
+function waitingStyle(reason: string | undefined): Record<string, string> | undefined {
+  if (!reason?.trim()) return undefined
+  return { color: 'var(--text-2, #6e6e73)' }
+}
 
 export type MENode = {
   id: string
@@ -14,6 +25,7 @@ export type MENode = {
   children?: MENode[]
   expanded?: boolean
   style?: Record<string, string>
+  tags?: TagObj[]
   metadata?: MindmapNodeMeta
 }
 
@@ -80,6 +92,8 @@ export function todosToMindData(
       topic: t.title || '未命名',
       expanded: true,
       children: children.length ? children : undefined,
+      tags: waitingTags(t.waiting_reason),
+      style: waitingStyle(t.waiting_reason),
       metadata: {
         todoId: t.id,
         status: t.status,
