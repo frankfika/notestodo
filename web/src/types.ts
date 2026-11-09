@@ -160,6 +160,10 @@ export interface Todo extends EntityMeta {
   board_id?: ID | null
   /** 循环卡：每周自动出现，点开即周报草稿 */
   recurring?: 'weekly-report'
+  /** 所属脑图根 id；根节点上 map_id === id */
+  map_id?: ID
+  /** 非空 = Waiting，不可入 Today */
+  waiting_reason?: string
 }
 
 // ── 评论（块级，锚定引文）─────────────────────────────────────────────────────

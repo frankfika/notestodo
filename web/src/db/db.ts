@@ -87,6 +87,40 @@ export class ShibeiDB extends Dexie {
     this.version(9).stores({
       syncOutbox: '++id, [entity+entity_id], entity, created_at',
     })
+    // v10: 脑图任务 —— Todo.map_id 索引 + 存量 backfill
+    this.version(10)
+      .stores({
+        todos:
+          'id,parent_id,kind,status,due_date,meeting_id,origin_note_id,source,scope,period,board_id,map_id',
+      })
+      .upgrade(async (tx) => {
+        const table = tx.table('todos')
+        const rows = await table.toArray()
+        const byId = new Map(rows.map((r: { id: string }) => [r.id, r]))
+
+        const findRoot = (startId: string): string => {
+          let cur: string | null = startId
+          const seen = new Set<string>()
+          while (cur && !seen.has(cur)) {
+            seen.add(cur)
+            const row = byId.get(cur) as { id: string; parent_id: string | null } | undefined
+            if (!row || row.parent_id == null) return row?.id ?? startId
+            if (!byId.has(row.parent_id)) return row.id // 孤儿：自封为根
+            cur = row.parent_id
+          }
+          return startId
+        }
+
+        for (const r of rows as Array<{ id: string; parent_id: string | null; map_id?: string }>) {
+          if (r.map_id) continue
+          const root = r.parent_id == null ? r.id : findRoot(r.id)
+          await table.update(r.id, { map_id: root })
+        }
+        // 纠偏：根上 map_id 必须 === id
+        for (const r of rows as Array<{ id: string; parent_id: string | null }>) {
+          if (r.parent_id == null) await table.update(r.id, { map_id: r.id })
+        }
+      })
   }
 }
 
