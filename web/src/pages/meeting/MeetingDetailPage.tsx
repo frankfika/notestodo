@@ -17,6 +17,10 @@ import { canPlayNatively, toWav } from '../../audio/playable'
 import { scribblesToMarkdown } from '../../llm/prompts'
 import { levelLabel, suggestKr } from '../../lib/okr'
 import { attachTask, discardTask } from '../../lib/todoActions'
+import { isMindmapTasksEnabled } from '../../lib/features'
+import { attachTaskToMap, defaultConfirmTarget } from '../../lib/mindmap/attachToMap'
+import { ensureMeetingBranch } from '../../lib/mindmap/mapRoots'
+import MapPickerDisclosure from '../todos/MapPickerDisclosure'
 import { deleteMeetingCascade } from '../../lib/meetingActions'
 import { MODEL_MISSING } from '../../llm/builtin'
 import { displayStatus, statusText, type DisplayStatus } from '../../lib/meetingStatus'
@@ -276,7 +280,12 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
         {tab === 'notes' && (
           <div className="space-y-6">
             {reviewTodos.length > 0 && (
-              <PendingTodos todos={reviewTodos} krs={openKrs} onJumpToTranscript={jumpToTranscript} />
+              <PendingTodos
+                todos={reviewTodos}
+                krs={openKrs}
+                meeting={meeting}
+                onJumpToTranscript={jumpToTranscript}
+              />
             )}
             {note?.body_md ? (
               <MarkdownView source={note.body_md} />
@@ -643,9 +652,139 @@ function BulletRow({
 }
 
 // ── 待确认待办（笔记 Tab 顶部）─────────────────────────────────────
-// 每条一行：✓ 确认（挂到建议 KR，没有建议则进 Inbox）/ ✕ 丢弃；
-// 建议 KR 以 chip 显示，点 chip 可取消挂载改进 Inbox。「全部确认」按每行当前选择一次落库。
 function PendingTodos({
+  todos, krs, meeting, onJumpToTranscript,
+}: {
+  todos: Todo[]
+  krs: Todo[]
+  meeting: Meeting
+  onJumpToTranscript: (t: Todo) => void
+}): JSX.Element {
+  const mindmapOn = useLiveQuery(isMindmapTasksEnabled, []) ?? false
+  if (mindmapOn) {
+    return (
+      <PendingTodosMindmap
+        todos={todos}
+        meeting={meeting}
+        onJumpToTranscript={onJumpToTranscript}
+      />
+    )
+  }
+  return (
+    <PendingTodosLegacy
+      todos={todos}
+      krs={krs}
+      onJumpToTranscript={onJumpToTranscript}
+    />
+  )
+}
+
+/** flag 开：一键落图；「改位置…」才披露图选择器 */
+function PendingTodosMindmap({
+  todos, meeting, onJumpToTranscript,
+}: {
+  todos: Todo[]
+  meeting: Meeting
+  onJumpToTranscript: (t: Todo) => void
+}): JSX.Element {
+  const [picker, setPicker] = useState(false)
+  const [label, setLabel] = useState('…')
+  const [target, setTarget] = useState<{ mapId: string; parentId: string } | null>(null)
+
+  useEffect(() => {
+    void defaultConfirmTarget(meeting).then((t) => {
+      setTarget({ mapId: t.mapId, parentId: t.parentId })
+      setLabel(t.label)
+    })
+  }, [meeting.id, meeting.title])
+
+  const confirmAll = async (): Promise<void> => {
+    if (!target) return
+    await Promise.all(todos.map((t) => attachTaskToMap(t, target)))
+  }
+  const confirmOne = async (t: Todo): Promise<void> => {
+    if (!target) return
+    await attachTaskToMap(t, target)
+  }
+
+  const onPickMap = async (mapId: string, _parentId: string): Promise<void> => {
+    const branch = await ensureMeetingBranch(mapId, meeting)
+    const root = await db.todos.get(mapId)
+    const mapTitle = root?.title ?? 'Inbox'
+    setTarget({ mapId, parentId: branch.id })
+    setLabel(`${mapTitle} / ${branch.title}`)
+  }
+
+  return (
+    <section className="card p-4 border-accent/30">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="section-title">会议待办 · {todos.length}</div>
+        <span className="text-[11px] text-text-3 hidden sm:inline">AI 从转录里提取，确认后进入任务</span>
+        <button
+          type="button"
+          onClick={() => void confirmAll()}
+          disabled={!target}
+          className="btn-primary text-xs h-7 px-3 ml-auto"
+        >
+          全部确认到「{label}」
+        </button>
+        <button
+          type="button"
+          onClick={() => setPicker((v) => !v)}
+          className="text-xs text-text-3 underline"
+        >
+          改位置…
+        </button>
+      </div>
+      <MapPickerDisclosure
+        open={picker}
+        onClose={() => setPicker(false)}
+        onPick={(mapId, parentId) => { void onPickMap(mapId, parentId) }}
+      />
+      <ul className="divide-y divide-line">
+        {todos.map((t) => (
+          <li key={t.id} className="flex items-start gap-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => void confirmOne(t)}
+              disabled={!target}
+              className="mt-0.5 h-5 w-5 shrink-0 rounded-full border border-line-strong hover:border-accent hover:bg-accent/10 text-[11px] text-accent disabled:opacity-40"
+              aria-label="确认"
+              title={target ? `确认到「${label}」` : '加载落点…'}
+            >✓</button>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-text-1 leading-snug">{t.title}</div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-text-3">
+                {t.assignee && <span>@{t.assignee}</span>}
+                {t.due_date && <span>{t.due_date}</span>}
+                {t.transcript_span && (
+                  <button
+                    type="button"
+                    onClick={() => onJumpToTranscript(t)}
+                    className="hover:text-accent truncate max-w-[32ch]"
+                    title="跳到转录原文"
+                  >
+                    「{t.transcript_span.quote || fmtClock(t.transcript_span.start_ms)}」
+                  </button>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void discardTask(t)}
+              className="mt-0.5 text-text-disabled hover:text-danger text-xs shrink-0"
+              aria-label="丢弃"
+              title="不是待办，丢弃"
+            >✕</button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** flag 关：现网 KR chip + attachTask */
+function PendingTodosLegacy({
   todos, krs, onJumpToTranscript,
 }: {
   todos: Todo[]
@@ -666,6 +805,7 @@ function PendingTodos({
         <div className="section-title">会议待办 · {todos.length}</div>
         <span className="text-[11px] text-text-3 hidden sm:inline">AI 从转录里提取，确认后进入任务</span>
         <button
+          type="button"
           onClick={() => void Promise.all(todos.map((t) => attachTask(t, targetOf(t))))}
           className="btn-primary text-xs h-7 px-3 ml-auto"
         >全部确认</button>
@@ -677,6 +817,7 @@ function PendingTodos({
           return (
             <li key={t.id} className="flex items-start gap-2.5 py-2">
               <button
+                type="button"
                 onClick={() => void attachTask(t, target)}
                 className="mt-0.5 h-5 w-5 shrink-0 rounded-full border border-line-strong hover:border-accent hover:bg-accent/10 text-[11px] text-accent"
                 aria-label="确认"
@@ -688,12 +829,18 @@ function PendingTodos({
                   {t.assignee && <span>@{t.assignee}</span>}
                   {t.due_date && <span>{t.due_date}</span>}
                   {t.transcript_span && (
-                    <button onClick={() => onJumpToTranscript(t)} className="hover:text-accent truncate max-w-[32ch]" title="跳到转录原文">
+                    <button
+                      type="button"
+                      onClick={() => onJumpToTranscript(t)}
+                      className="hover:text-accent truncate max-w-[32ch]"
+                      title="跳到转录原文"
+                    >
                       「{t.transcript_span.quote || fmtClock(t.transcript_span.start_ms)}」
                     </button>
                   )}
                   {kr && (
                     <button
+                      type="button"
                       onClick={() => toggleKr(t.id)}
                       className={`px-1.5 rounded border transition-colors ${target ? 'border-accent/40 bg-accent/8 text-accent' : 'border-line text-text-3 line-through'}`}
                       title={target ? '点一下改为只进 Inbox' : '点一下恢复挂到这个 KR'}
@@ -703,6 +850,7 @@ function PendingTodos({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => void discardTask(t)}
                 className="mt-0.5 text-text-disabled hover:text-danger text-xs shrink-0"
                 aria-label="丢弃"
