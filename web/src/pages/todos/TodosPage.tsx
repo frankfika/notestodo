@@ -180,7 +180,7 @@ export default function TodosPage(): JSX.Element {
           </div>
         ) : tab === 'tree' ? (
           <div className="h-full overflow-y-auto px-4 py-3">
-            <TodosTree filter={filter} tagByTodo={tagByTodo} />
+            <TodosTree filter={filter} tagByTodo={tagByTodo} readOnly={mindmapEnabled} />
           </div>
         ) : (
           <div className="h-full overflow-y-auto px-4 py-3">

@@ -101,3 +101,25 @@ export async function purgeIneligibleSlots(): Promise<TodayState> {
   await setToday(next)
   return next
 }
+
+/** API 响应用 snake_case */
+export function todayStatePublic(state: TodayState, todos: { id: string; title: string }[]): unknown {
+  const titleOf = (id: string) => todos.find((t) => t.id === id)?.title ?? ''
+  return {
+    capacity: state.capacity,
+    slots: state.slots.map((s) => ({
+      leaf_id: s.leafId,
+      map_id: s.mapId,
+      title: titleOf(s.leafId),
+      slotted_at: s.slottedAt,
+    })),
+  }
+}
+
+export function slotsPublicOnly(state: TodayState): { leaf_id: string; map_id: string; slotted_at: string }[] {
+  return state.slots.map((s) => ({
+    leaf_id: s.leafId,
+    map_id: s.mapId,
+    slotted_at: s.slottedAt,
+  }))
+}

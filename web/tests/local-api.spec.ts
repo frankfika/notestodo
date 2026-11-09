@@ -126,3 +126,103 @@ test('笔记：列表 / 搜索 / 创建 / 详情；错误路径', async ({ page 
   r = await call(page, 'GET', '/nope')
   expect(r.status).toBe(404)
 })
+
+test('PATCH completed 兼容映射 status；mindmap 时暴露 map_id', async ({ page }) => {
+  await seed(page)
+  let r = await call(page, 'PATCH', '/todos/t2', { completed: true })
+  expect(r.status).toBe(200)
+  expect((r.body as { status: string }).status).toBe('done')
+  r = await call(page, 'PATCH', '/todos/t2', { completed: false })
+  expect((r.body as { status: string }).status).toBe('open')
+  r = await call(page, 'GET', '/todos')
+  const t2 = (r.body as { id: string; map_id?: string | null }[]).find((t) => t.id === 't2')
+  expect(t2?.map_id).toBeDefined()
+})
+
+test('Today API：flag 关 404；开启后入槽 / 满槽 / 完成踢槽', async ({ page }) => {
+  await seed(page)
+  let r = await call(page, 'GET', '/today')
+  expect(r.status).toBe(404)
+
+  await page.evaluate(async () => {
+    const { setFeature } = await import('/src/lib/features.ts')
+    await setFeature('mindmap_tasks', true)
+    const { db } = await import('/src/db/db.ts')
+    const ts = new Date().toISOString()
+    await db.todos.put({
+      id: 'leafA',
+      kind: 'task',
+      parent_id: null,
+      scope: null,
+      title: '叶子 A',
+      status: 'open',
+      source: 'manual',
+      sort_order: 1,
+      map_id: 'leafA',
+      created_at: ts,
+      updated_at: ts,
+      deleted_at: null,
+      sync_version: 0,
+    })
+    await db.todos.put({
+      id: 'leafB',
+      kind: 'task',
+      parent_id: null,
+      scope: null,
+      title: '叶子 B',
+      status: 'open',
+      source: 'manual',
+      sort_order: 2,
+      map_id: 'leafB',
+      created_at: ts,
+      updated_at: ts,
+      deleted_at: null,
+      sync_version: 0,
+    })
+    await db.todos.put({
+      id: 'leafC',
+      kind: 'task',
+      parent_id: null,
+      scope: null,
+      title: '叶子 C',
+      status: 'open',
+      source: 'manual',
+      sort_order: 3,
+      map_id: 'leafC',
+      created_at: ts,
+      updated_at: ts,
+      deleted_at: null,
+      sync_version: 0,
+    })
+    const { setToday } = await import('/src/lib/mindmap/todaySlots.ts')
+    await setToday({ capacity: 3, slots: [] })
+  })
+
+  r = await call(page, 'POST', '/today/slots', { leaf_id: 'leafA', map_id: 'leafA' })
+  expect(r.status).toBe(200)
+  r = await call(page, 'POST', '/today/slots', { leaf_id: 'leafC', map_id: 'leafC' })
+  expect(r.status).toBe(200)
+  r = await call(page, 'POST', '/today/slots', { leaf_id: 't2', map_id: 't2' })
+  expect(r.status).toBe(200)
+  expect((r.body as { slots: { leaf_id: string }[] }).slots).toHaveLength(3)
+
+  r = await call(page, 'POST', '/today/slots', { leaf_id: 'leafB', map_id: 'leafB' })
+  expect(r.status).toBe(409)
+  expect((r.body as { error: string }).error).toBe('full')
+
+  r = await call(page, 'POST', '/today/slots', { leaf_id: 'leafB', map_id: 'leafB', swap_out_id: 'leafA' })
+  expect(r.status).toBe(200)
+  expect((r.body as { slots: { leaf_id: string }[] }).slots.some((s) => s.leaf_id === 'leafB')).toBe(true)
+  expect((r.body as { slots: { leaf_id: string }[] }).slots.some((s) => s.leaf_id === 'leafA')).toBe(false)
+
+  r = await call(page, 'GET', '/today')
+  expect(r.status).toBe(200)
+  expect((r.body as { capacity: number }).capacity).toBeGreaterThanOrEqual(3)
+
+  await call(page, 'PATCH', '/todos/leafB', { status: 'done' })
+  r = await call(page, 'GET', '/today')
+  expect((r.body as { slots: { leaf_id: string }[] }).slots.some((s) => s.leaf_id === 'leafB')).toBe(false)
+
+  r = await call(page, 'DELETE', '/today/slots/leafC')
+  expect(r.status).toBe(200)
+})
