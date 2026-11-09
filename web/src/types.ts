@@ -164,6 +164,8 @@ export interface Todo extends EntityMeta {
   map_id?: ID
   /** 非空 = Waiting，不可入 Today */
   waiting_reason?: string
+  /** 图根归档时间；仅 parent_id=null 有效 */
+  map_archived_at?: string
 }
 
 // ── 评论（块级，锚定引文）─────────────────────────────────────────────────────

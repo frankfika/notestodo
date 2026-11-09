@@ -12,6 +12,7 @@ import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
 import { listMapRoots } from '../../lib/mindmap/mapRoots'
+import MapLibrary from './MapLibrary'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -35,6 +36,7 @@ export default function TodosPage(): JSX.Element {
   const [newDue, setNewDue] = useState('')
   const roots = useLiveQuery(listMapRoots, []) ?? []
   const [rootId, setRootId] = useState<string | null>(null)
+  const [mapLibOpen, setMapLibOpen] = useState(false)
 
   useEffect(() => {
     if (mindmapEnabled && tab === 'tree') setTab('mindmap')
@@ -98,9 +100,18 @@ export default function TodosPage(): JSX.Element {
             }`}
           >{label}</button>
         ))}
+        {mindmapEnabled && (
+          <button
+            type="button"
+            onClick={() => setMapLibOpen(true)}
+            className="ml-2 px-2 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay"
+          >
+            图库
+          </button>
+        )}
         {mindmapEnabled && roots.length > 1 && (
           <select
-            className="ml-2 text-sm input !h-8 !w-auto"
+            className="ml-1 text-sm input !h-8 !w-auto max-w-[12rem]"
             value={rootId ?? ''}
             onChange={(e) => setRootId(e.target.value)}
           >
@@ -169,6 +180,16 @@ export default function TodosPage(): JSX.Element {
           </div>
         )}
       </div>
+
+      <MapLibrary
+        open={mapLibOpen}
+        onClose={() => setMapLibOpen(false)}
+        currentId={rootId}
+        onPick={(id) => {
+          setRootId(id)
+          setMapLibOpen(false)
+        }}
+      />
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === 'mindmap' && mindmapEnabled && rootId ? (

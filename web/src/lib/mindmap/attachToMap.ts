@@ -1,7 +1,7 @@
 import { db } from '../../db/db'
 import { now } from '../id'
 import type { ID, Meeting, Todo } from '../../types'
-import { ensureInboxMap, ensureMeetingBranch } from './mapRoots'
+import { ensureInboxMap, ensureMeetingBranch, listMapRoots } from './mapRoots'
 import type { ConfirmTarget } from './types'
 
 const LAST_MAP_KEY = 'mindmap.last_map_id'
@@ -21,7 +21,10 @@ export async function defaultConfirmTarget(
   meeting: Meeting,
   lastMapId?: ID | null,
 ): Promise<ConfirmTarget> {
-  const mapId = lastMapId ?? (await getLastMapId()) ?? (await ensureInboxMap()).id
+  const active = await listMapRoots()
+  const activeIds = new Set(active.map((r) => r.id))
+  let mapId = lastMapId ?? (await getLastMapId()) ?? null
+  if (!mapId || !activeIds.has(mapId)) mapId = (await ensureInboxMap()).id
   const branch = await ensureMeetingBranch(mapId, meeting)
   const root = await db.todos.get(mapId)
   const mapTitle = root?.title ?? 'Inbox'

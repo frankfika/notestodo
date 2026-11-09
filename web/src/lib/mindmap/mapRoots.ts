@@ -5,12 +5,55 @@ import { isLive } from './leaf'
 
 export const INBOX_TITLE = 'Inbox'
 
-/** 图根 = parent_id null 的活节点（含 Inbox、各项目根、冲突副本） */
-export async function listMapRoots(): Promise<Todo[]> {
+export function isMapRoot(t: Todo): boolean {
+  return isLive(t) && t.parent_id === null
+}
+
+function isArchivedRoot(t: Todo): boolean {
+  return Boolean(t.map_archived_at)
+}
+
+/** 图根 = parent_id null 的活节点；默认不含已归档 */
+export async function listMapRoots(opts?: { includeArchived?: boolean }): Promise<Todo[]> {
   const all = await db.todos.toArray()
   return all
-    .filter((t) => isLive(t) && t.parent_id === null)
+    .filter((t) => {
+      if (!isMapRoot(t)) return false
+      if (!opts?.includeArchived && isArchivedRoot(t)) return false
+      return true
+    })
     .sort((a, b) => a.sort_order - b.sort_order)
+}
+
+export async function listArchivedMapRoots(): Promise<Todo[]> {
+  const all = await db.todos.toArray()
+  return all
+    .filter((t) => isMapRoot(t) && isArchivedRoot(t))
+    .sort((a, b) => (b.map_archived_at ?? '').localeCompare(a.map_archived_at ?? ''))
+}
+
+/** 归档图根（不可归档 Inbox） */
+export async function archiveMapRoot(mapId: ID): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const root = await db.todos.get(mapId)
+  if (!root || !isMapRoot(root)) return { ok: false, reason: 'not_root' }
+  if (root.title === INBOX_TITLE) return { ok: false, reason: 'inbox' }
+  if (isArchivedRoot(root)) return { ok: true }
+  const ts = now()
+  await db.todos.update(mapId, { map_archived_at: ts, updated_at: ts, sync_version: root.sync_version + 1 })
+  return { ok: true }
+}
+
+export async function unarchiveMapRoot(mapId: ID): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const root = await db.todos.get(mapId)
+  if (!root || !isMapRoot(root)) return { ok: false, reason: 'not_root' }
+  if (!isArchivedRoot(root)) return { ok: true }
+  const ts = now()
+  await db.todos.update(mapId, {
+    map_archived_at: undefined,
+    updated_at: ts,
+    sync_version: root.sync_version + 1,
+  })
+  return { ok: true }
 }
 
 export function resolveMapId(parent: Todo | null | undefined, selfId?: ID): ID {

@@ -15,7 +15,13 @@ import { levelOf } from '../lib/okrMove'
 import { isMindmapTasksEnabled } from '../lib/features'
 import { isDescendant } from '../lib/mindmap/cycle'
 import { indexByParent, isLeafTodo } from '../lib/mindmap/leaf'
-import { ensureInboxMap } from '../lib/mindmap/mapRoots'
+import {
+  archiveMapRoot,
+  ensureInboxMap,
+  listArchivedMapRoots,
+  listMapRoots,
+  unarchiveMapRoot,
+} from '../lib/mindmap/mapRoots'
 import {
   addSlot,
   evictIfPresent,
@@ -132,6 +138,39 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
       enrich: true,
       byParent: indexByParent(all),
       todayLeafIds,
+    }
+  }
+
+  // GET /maps — 活跃图根；?archived=1 仅归档
+  if (req.method === 'GET' && segments.length === 1 && segments[0] === 'maps') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const archived = q.get('archived') === '1' || q.get('archived') === 'true'
+    const roots = archived ? await listArchivedMapRoots() : await listMapRoots()
+    return {
+      status: 200,
+      body: roots.map((r) => ({
+        id: r.id,
+        title: r.title,
+        map_archived_at: r.map_archived_at ?? null,
+      })),
+    }
+  }
+
+  // PATCH /maps/:id { archived: boolean }
+  if (req.method === 'PATCH' && segments.length === 2 && segments[0] === 'maps') {
+    if (!mindmap) return { status: 404, body: { error: 'mindmap_tasks 未开启' } }
+    const body = parseBody(req.body)
+    if (!body || body.archived === undefined) return { status: 400, body: { error: 'archived 必填' } }
+    const mapId = segments[1]
+    const result = body.archived ? await archiveMapRoot(mapId) : await unarchiveMapRoot(mapId)
+    if (!result.ok) {
+      return { status: 400, body: { error: result.reason } }
+    }
+    const root = await db.todos.get(mapId)
+    if (!root) return { status: 404, body: { error: 'map 不存在' } }
+    return {
+      status: 200,
+      body: { id: root.id, title: root.title, map_archived_at: root.map_archived_at ?? null },
     }
   }
 
