@@ -79,6 +79,8 @@ export default function CommandPalette() {
         go.goTodos(id)
       } },
       { group: '动作', label: '导出全部数据', run: () => void go.goSettings() },
+      { group: '动作', label: '快捷键速查', run: () => go.setShortcutsOpen(true) },
+      { group: '跳转', label: '今天', run: () => go.goToday() },
       { group: '跳转', label: '会议', hint: '1', run: () => go.goMeetings() },
       { group: '跳转', label: '笔记', hint: '2', run: () => go.goNotes() },
       { group: '跳转', label: '待办', hint: '3', run: () => go.goTodos() },

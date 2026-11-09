@@ -2,17 +2,34 @@
  * 多会议列表 e2e — 用户高频路径：累积多次录音后会议列表表现
  *
  * 验证：
- *   1. 同一天的多场会议正确合并到同一分组
- *   2. 不同天的会议按时间倒序分组（最近日期在最上）
- *   3. 「今天/昨天」相对日期标签
+ *   1. 列表按「进行中 / 今天 / 更早」分组，每组带计数
+ *   2. 每行有状态徽章（录音中 / 转录中 / 整理中 / 已完成 / 失败）
+ *   3. 「今天」分组内的会议标题可见
  *   4. 点列表某条 → MeetingPreview 渲染该会议
- *   5. 状态点（●◌★）区分 transcribed/processing/failed
+ *   5. 空列表给的是「这是什么 + 开始录音」而不是干巴巴一句「还没有会议」
  */
 import { test, expect } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
-test('多会议列表：日期分组 + 同日合并 + 排序 + MeetingPreview 联动', async ({ page }) => {
+test('会议列表空状态：说清这是啥 + 给「开始录音」按钮', async ({ page }) => {
+  test.setTimeout(30_000)
+
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(600)
+  const x = page.locator('button[aria-label="关闭"]').first()
+  if (await x.isVisible({ timeout: 1500 }).catch(() => false)) await x.click()
+
+  await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goMeetings: () => void } } }).__uiStore?.getState().goMeetings())
+  await page.waitForTimeout(600)
+
+  // 空列表不是只写「还没有会议」—— 得解释一句这是啥
+  await expect(page.getByText(/一场会议 = 一次录音/).first()).toBeAttached({ timeout: 5_000 })
+  // 再给一个明确的行动按钮
+  await expect(page.getByRole('button', { name: /开始录音/ }).first()).toBeAttached()
+})
+
+test('多会议列表：分组 + 计数 + 状态徽章 + MeetingPreview 联动', async ({ page }) => {
   test.setTimeout(30_000)
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
@@ -81,21 +98,29 @@ test('多会议列表：日期分组 + 同日合并 + 排序 + MeetingPreview �
   const allMeetingButtons = await page.locator('.w-\\[300px\\] ul li button').count()
   expect(allMeetingButtons).toBe(6)
 
-  // 2) 分组：今天 / 昨天 / N天前 — 「今天」分组在最上（withYear=true → 用年月格式）
-  // grouped.map renders each group's label inside .tracking-widest div
+  // 2) 分组：进行中 / 今天 / 更早，每组带计数
+  //    进行中 = 还在流水线里的（transcribed×2 + processing×1）
+  //    今天   = 今天开始且已跑完流程的（failed×1）
+  //    更早   = 之前的（failed×1 + summarized×1）
   const groupLabels = await page.locator('.w-\\[300px\\] .tracking-widest').allInnerTexts()
-  expect(groupLabels.length).toBeGreaterThanOrEqual(3)
-  expect(groupLabels[0]).toMatch(/今天|\d{1,2}月/) // 日：今天相对 or 绝对年月
-  expect(groupLabels[1]).toMatch(/昨天|\d{1,2}月/)
+  expect(groupLabels.length).toBe(3)
+  expect(groupLabels[0]).toContain('进行中')
+  expect(groupLabels[1]).toContain('今天')
+  expect(groupLabels[2]).toContain('更早')
+  expect(groupLabels[0]).toMatch(/进行中\s*3/)
+  expect(groupLabels[1]).toMatch(/今天\s*1/)
+  expect(groupLabels[2]).toMatch(/更早\s*2/)
 
-  // 3) 「今天」分组内 2 场会议标题可见
+  // 3) 「今天」分组内的会议标题可见
   expect(await page.getByText('今天·晨会').count()).toBeGreaterThanOrEqual(1)
   expect(await page.getByText('今天·分享').count()).toBeGreaterThanOrEqual(1)
 
-  // 4) 状态点：每个列表项都有圆点（●/◌/★）
-  // 第一条会议「今天·晨会」是 transcribed → 蓝色 accent 圆点（statusDot 返回 'bg-accent'）
-  const firstStatusDot = await page.locator('.w-\\[300px\\] ul li button').first().locator('span.rounded-full').first()
-  await expect(firstStatusDot).toBeAttached()
+  // 4) 状态徽章 + 状态点：每行都带徽章，transcribed→整理中 / summarized→已完成 / failed→失败
+  const firstRow = page.locator('.w-\\[300px\\] ul li button').first()
+  await expect(firstRow.locator('span.rounded-full').first()).toBeAttached()
+  await expect(firstRow.getByText('整理中').first()).toBeAttached()
+  await expect(page.getByText('已完成').first()).toBeAttached()
+  await expect(page.getByText('失败').first()).toBeAttached()
 
   // 5) 点「昨天·会议」(summarized) → MeetingPreview 渲染其标题
   await page.getByRole('button', { name: /昨天·会议/ }).first().click({ timeout: 5_000 })

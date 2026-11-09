@@ -163,6 +163,12 @@ body {
   }
 }
 
+/* 触屏没有 hover 态：靠 hover 才浮现的行内按钮在触屏上必须常驻，
+   否则 ⋯ 菜单、＋子任务这类操作在手机上根本点不到。 */
+@media (hover: none) {
+  .hover-only { opacity: 1 !important; }
+}
+
 /* 动效原则：150-250ms ease-out，禁弹跳 */
 @theme inline {
   --transition-fast: 150ms var(--ease-out-expo);

@@ -10,6 +10,7 @@ import { callLLM } from '../../llm/client'
 import { fmtClock, now, uid } from '../../lib/id'
 import type { SummaryTemplate } from '../../types'
 import EmptyState from '../../components/EmptyState'
+import { useToast } from '../../state/toast'
 
 /**
  * 模板编辑页：左列模板列表（🔒 builtin 标记只读）+ 右列编辑器。
@@ -17,8 +18,10 @@ import EmptyState from '../../components/EmptyState'
  * 还没接，提示「需要在设置里填好 API Key 并由 Agent A 实现 LLM client」。
  */
 export default function TemplatesPage(): JSX.Element {
+  const { show } = useToast()
+  // 软删的模板不进列表（撤销 = deleted_at 置回 null）
   const templates = useLiveQuery(
-    () => db.templates.toArray(),
+    async () => (await db.templates.toArray()).filter((t) => t.deleted_at === null),
     [],
   ) ?? []
 
@@ -55,11 +58,25 @@ export default function TemplatesPage(): JSX.Element {
     setSelectedId(t.id)
   }
 
+  /** 软删 + 可撤销：先删再给「撤销」，6 秒内点能把 deleted_at 置回 null */
   async function deleteTemplate(t: SummaryTemplate): Promise<void> {
     if (t.builtin) return
-    if (!window.confirm(`删除自定义模板「${t.name}」？`)) return
-    await db.templates.delete(t.id)
+    const ts = now()
+    await db.templates.update(t.id, { deleted_at: ts, updated_at: ts, sync_version: t.sync_version + 1 })
     if (selectedId === t.id) setSelectedId(null)
+    show(`已删除模板「${t.name}」`, {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const cur = await db.templates.get(t.id)
+          await db.templates.update(t.id, {
+            deleted_at: null,
+            updated_at: now(),
+            sync_version: (cur?.sync_version ?? t.sync_version) + 1,
+          })
+        })()
+      },
+    }, 6000)
   }
 
   return (

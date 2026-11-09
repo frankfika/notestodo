@@ -7,7 +7,6 @@ import TodosTree from './TodosTree'
 import TodosList from './TodosList'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
-import DateInput from '../../components/DateInput'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -16,15 +15,13 @@ const STATUS_TABS = [
 ] as const
 
 /**
- * 任务页：纯嵌套任务树 + 时间分组列表（OKR 三层概念已从 UI 移除，
- * 数据层 kind/scope 字段保留兼容）。看板在独立路由 board。
+ * 任务页：列表（按时间分组，默认）+ 大纲（嵌套树）。看板在独立路由 board。
  */
 export default function TodosPage(): JSX.Element {
-  const [tab, setTab] = useState<'tree' | 'list'>('tree')
+  const [tab, setTab] = useState<'list' | 'tree'>('list')
   const goBoard = useUI((s) => s.goBoard)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
   const [newTitle, setNewTitle] = useState('')
-  const [newDue, setNewDue] = useState('')
 
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
@@ -40,10 +37,9 @@ export default function TodosPage(): JSX.Element {
       source: 'manual', sort_order: Date.now(), created_at: ts, updated_at: ts,
       deleted_at: null, sync_version: 0,
       ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
-      ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
+      ...(parsed.due_date ? { due_date: parsed.due_date } : {}),
     })
     setNewTitle('')
-    setNewDue('')
   }
 
   const toggleTag = (id: string): void =>
@@ -54,47 +50,29 @@ export default function TodosPage(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-1 px-4 pt-3 pb-2 border-b border-line shrink-0">
-        {([['tree', '树'], ['list', '按时间']] as const).map(([k, label]) => (
+      {/* 一行搞定：视图切换 + 搜索/筛选 */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
+        <div className="flex items-center gap-1">
+          {([['list', '列表'], ['tree', '大纲']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`px-3 h-8 rounded-[8px] text-sm transition-colors ${
+                tab === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
+              }`}
+            >{label}</button>
+          ))}
           <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`px-3 h-8 rounded-[8px] text-sm transition-colors ${
-              tab === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
-            }`}
-          >{label}</button>
-        ))}
-        <button
-          onClick={goBoard}
-          className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-        >看板 →</button>
-      </div>
-
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
-        <input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return
-            if (e.key === 'Enter') void addQuick()
-          }}
-          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
-          className="input !h-8 flex-1 min-w-0 text-sm"
-        />
-        <DateInput
-          value={newDue}
-          onChange={setNewDue}
-          title="截止日期（可选）"
-          className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
-        />
-      </div>
-
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0 flex-wrap">
+            onClick={goBoard}
+            className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+          >看板</button>
+        </div>
+        <div className="flex-1" />
         <input
           value={filter.q}
           onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
-          placeholder="搜索任务…"
-          className="input !h-7 w-40 text-xs"
+          placeholder="搜索…"
+          className="input !h-7 w-32 text-xs"
         />
         <div className="flex items-center rounded-[8px] bg-bg-overlay p-0.5">
           {STATUS_TABS.map(([k, label]) => (
@@ -121,6 +99,19 @@ export default function TodosPage(): JSX.Element {
             })}
           </div>
         )}
+      </div>
+
+      <div className="px-4 py-2 border-b border-line shrink-0">
+        <input
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter') void addQuick()
+          }}
+          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
+          className="input !h-8 w-full text-sm"
+        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">

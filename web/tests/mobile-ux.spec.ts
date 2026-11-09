@@ -32,7 +32,7 @@ test('iPhone 13 — 各页面', async ({ page }) => {
     await page.screenshot({ path: `tests/screenshots/${fname}.png`, fullPage: false })
   }
   // 看板 / 周报 是独立 view（旧 tab 已移除）
-  await page.getByRole('button', { name: '看板 →' }).click()
+  await page.getByRole('button', { name: '看板', exact: true }).click()
   await page.waitForTimeout(300)
   await page.screenshot({ path: 'tests/screenshots/mobile-board.png', fullPage: false })
   await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goReport: () => void } } }).__uiStore.getState().goReport())

@@ -109,6 +109,24 @@ fn open_screen_recording_settings() -> Result<(), String> {
   }
 }
 
+/// 直接打开「系统设置 → 隐私与安全性 → 麦克风」。
+/// 录音条上「没检测到声音」时的快捷修复入口（麦克风被静音/未授权是录不到声的常见原因）。
+#[tauri::command]
+fn open_microphone_settings() -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    std::process::Command::new("open")
+      .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+      .spawn()
+      .map(|_| ())
+      .map_err(|e| e.to_string())
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    Err("仅 macOS 需要麦克风授权".to_string())
+  }
+}
+
 /// 重启 App（授权后让 TCC 生效）。
 #[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
@@ -168,6 +186,7 @@ pub fn run() {
       system_audio_stop,
       system_audio_request_permission,
       open_screen_recording_settings,
+      open_microphone_settings,
       restart_app,
       pick_knowledge_folder,
       builtin::models::builtin_models_list,

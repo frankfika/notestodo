@@ -23,6 +23,7 @@ import { displayStatus, statusText, type DisplayStatus } from '../../lib/meeting
 import { useMissingBuiltin, missingNames } from '../../components/BuiltinModels'
 import { useSettings } from '../../db/settings'
 import { useRecorder } from '../../state/recorder'
+import { useToast } from '../../state/toast'
 import { setLiveCaptionEnabled, useCaption } from '../../lib/liveCaption'
 import {
   listPinnedCards,
@@ -35,7 +36,8 @@ import type { KnowledgeEntry, PinnedAssistCard } from '../../types'
 // Foresight 式：一场会一份笔记。速记 / 待办确认并入「笔记」，录音并入「转录」
 type Tab = 'notes' | 'transcript' | 'assist'
 
-function statusTone(s: DisplayStatus): string {
+/** 状态徽章配色：会议列表也用这套（列表页从这儿 import，避免两处各写一份） */
+export function statusTone(s: DisplayStatus): string {
   switch (s) {
     case 'waiting_model': return 'border-warning/40 text-warning bg-warning/8'
     case 'recording': return 'border-danger/30 text-danger bg-danger/8'
@@ -44,6 +46,59 @@ function statusTone(s: DisplayStatus): string {
     case 'summarizing': return 'border-warning/40 text-warning bg-warning/8'
     case 'summarized': return 'border-accent/40 text-accent bg-accent/8'
     case 'failed': return 'border-danger/40 text-danger bg-danger/8'
+  }
+}
+
+/**
+ * 删除会议（级联）+ 撤销闭包。
+ *
+ * 级联会硬删 10 张表（含音频 blob），所以删除前必须整场快照 —— 撤销时原样写回，
+ * 否则「误删一场会」= 录音、转录、纪要、待办全没了，谁都救不回来。
+ * （列表页 MeetingsPage 也用这个，所以导出给那边复用。）
+ */
+export async function deleteMeetingWithUndo(m: Meeting): Promise<() => Promise<void>> {
+  const cur = (await db.meetings.get(m.id)) ?? m
+  const todos = await db.todos.where('meeting_id').equals(m.id).toArray()
+  const todoIds = todos.map((t) => t.id)
+  const snap = {
+    meeting: { ...cur },
+    audioChunks: await db.audioChunks.where('meeting_id').equals(m.id).toArray(),
+    transcripts: await db.transcripts.where('meeting_id').equals(m.id).toArray(),
+    summaries: await db.summaries.where('meeting_id').equals(m.id).toArray(),
+    todos,
+    chatMessages: await db.chatMessages.where('meeting_id').equals(m.id).toArray(),
+    scribbles: await db.scribbles.where('meeting_id').equals(m.id).toArray(),
+    pinnedAssistCards: await db.pinnedAssistCards.where('meeting_id').equals(m.id).toArray(),
+    bindings: await db.tagBindings.where('[target_type+target_id]').equals(['meeting', m.id]).toArray(),
+    todoBindings: todoIds.length
+      ? await db.tagBindings.where('[target_type+target_id]').anyOf(todoIds.map((id): [string, string] => ['todo', id])).toArray()
+      : [],
+    note: cur.note_id ? await db.notes.get(cur.note_id) : undefined,
+    kv: [await db.kv.get(`live_caption_${m.id}`), await db.kv.get(`meeting_template_${m.id}`)]
+      .filter((x): x is { key: string; value: unknown } => x !== undefined),
+  }
+
+  await deleteMeetingCascade(m)
+
+  return async (): Promise<void> => {
+    const ts = now()
+    // 恢复时把 sync_version 往上推一格，同步端才知道这条又变了
+    const stamp = <T extends { updated_at: string; sync_version: number }>(r: T): T =>
+      ({ ...r, updated_at: ts, sync_version: r.sync_version + 1 })
+
+    await db.meetings.put(stamp(snap.meeting))
+    if (snap.audioChunks.length) await db.audioChunks.bulkPut(snap.audioChunks)
+    if (snap.transcripts.length) await db.transcripts.bulkPut(snap.transcripts.map(stamp))
+    if (snap.summaries.length) await db.summaries.bulkPut(snap.summaries.map(stamp))
+    if (snap.todos.length) await db.todos.bulkPut(snap.todos.map(stamp))
+    if (snap.chatMessages.length) await db.chatMessages.bulkPut(snap.chatMessages.map(stamp))
+    if (snap.scribbles.length) await db.scribbles.bulkPut(snap.scribbles)
+    if (snap.pinnedAssistCards.length) await db.pinnedAssistCards.bulkPut(snap.pinnedAssistCards.map(stamp))
+    if (snap.bindings.length) await db.tagBindings.bulkPut(snap.bindings.map(stamp))
+    if (snap.todoBindings.length) await db.tagBindings.bulkPut(snap.todoBindings.map(stamp))
+    // 纪要笔记在级联里被软删了 —— 恢复成删除前的样子
+    if (snap.note) await db.notes.update(snap.note.id, { deleted_at: snap.note.deleted_at, updated_at: ts })
+    if (snap.kv.length) await db.kv.bulkPut(snap.kv)
   }
 }
 
@@ -83,6 +138,7 @@ export default function MeetingDetailPage(): JSX.Element {
 }
 
 function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
+  const { show } = useToast()
   const transcript = useLiveQuery(
     () => db.transcripts.where('meeting_id').equals(meeting.id).first(),
     [meeting.id],
@@ -106,7 +162,7 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
     [],
   ) ?? []
   const templates = useLiveQuery(
-    () => db.templates.toArray(),
+    async () => (await db.templates.toArray()).filter((t) => t.deleted_at === null),
     [],
   ) ?? []
 
@@ -163,8 +219,8 @@ function MeetingDetailInner({ meeting }: { meeting: Meeting }): JSX.Element {
   }
 
   async function deleteMeeting(): Promise<void> {
-    if (!window.confirm(`删除「${meeting.title}」？所有关联转录、纪要、待办都会被清理。`)) return
-    await deleteMeetingCascade(meeting)
+    const undo = await deleteMeetingWithUndo(meeting)
+    show(`已删除「${meeting.title}」`, { label: '撤销', onClick: () => void undo() }, 6000)
     useUI.getState().goMeetings()
   }
 
@@ -1122,6 +1178,17 @@ function ChatPanel({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const { show } = useToast()
+
+  /** 清空对话：先快照再删，撤销时原样写回 */
+  async function clearChat(): Promise<void> {
+    const snap = await db.chatMessages.where('meeting_id').equals(meeting.id).toArray()
+    await db.chatMessages.where('meeting_id').equals(meeting.id).delete()
+    show('已清空对话记录', {
+      label: '撤销',
+      onClick: () => { void db.chatMessages.bulkPut(snap) },
+    }, 6000)
+  }
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
@@ -1217,11 +1284,7 @@ ${summaryText}
         <span className="chip">{messages.length}</span>
         {messages.length > 0 && (
           <button
-            onClick={() => {
-              if (window.confirm('清空这场会议的全部对话记录？')) {
-                void db.chatMessages.where('meeting_id').equals(meeting.id).delete()
-              }
-            }}
+            onClick={() => void clearChat()}
             className="btn-ghost text-[11px] h-6 px-2 ml-auto"
             title="清空对话记录"
           >清空</button>

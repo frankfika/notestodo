@@ -41,10 +41,12 @@ test.describe('Shibei shell smoke', () => {
     await page.goto(BASE)
     await dismissOnboarding(page)
     await expect(page.locator('aside', { hasText: 'openNotion' })).toBeVisible()
-    // 默认落地页是 AI 工作台；任务树在「任务」tab
-    await expect(page.getByText('AI 工作台').first()).toBeVisible()
+    // 默认落地页是「今天」；任务树在「任务」tab
+    const today = page.getByTestId('today-page')
+    await expect(today).toBeVisible()
+    await expect(today.getByRole('heading', { name: '今天' })).toBeVisible()
     await nav(page, '任务')
-    await expect(page.getByRole('button', { name: '树', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '大纲', exact: true })).toBeVisible()
     await expect(page.getByPlaceholder('＋ 添加任务，回车创建（支持「明天 交方案 @张三」）')).toBeVisible()
     await page.screenshot({ path: 'tests/screenshots/01-today.png', fullPage: true })
   })
@@ -74,7 +76,7 @@ test.describe('Shibei shell smoke', () => {
     await page.getByRole('button', { name: '纪要模板 →' }).click()
     await page.waitForTimeout(200)
     await nav(page, '任务')
-    await page.getByRole('button', { name: '看板 →' }).click()
+    await page.getByRole('button', { name: '看板', exact: true }).click()
     await page.waitForTimeout(600) // BoardPage 挂载时会补建本周周报循环卡
     // 卡片单击不再跳走：hover 出 ⋯ 菜单 → 在任务树中打开
     const card = page.locator('article', { hasText: '写本周周报' }).first()
@@ -126,7 +128,7 @@ test.describe('Shibei shell smoke', () => {
     await nav(page, '任务')
     await page.waitForTimeout(300)
 
-    const newBtn = page.getByRole('button', { name: '＋ 新建任务' })
+    const newBtn = page.getByRole('button', { name: '＋ 添加任务' })
     await newBtn.waitFor({ state: 'visible', timeout: 5000 })
     const beforeCount = await page.evaluate(async () => {
       return new Promise<number>((res) => {
@@ -156,10 +158,10 @@ test.describe('Shibei shell smoke', () => {
     })
     expect(afterCount).toBe(beforeCount + 1)
 
-    // 双击行内标题改名（新行是空标题 → 显示「（无标题）」）并回车保存
-    const newTitle = page.locator('div[data-todo]').last().locator('span[title="双击改名"]')
-    await newTitle.dblclick()
-    await page.locator('div[data-todo]').last().locator('input.input').fill('新工作目标')
+    // 新建后自动进入编辑态（焦点已在输入框），直接填标题并回车保存
+    const editInput = page.locator('div[data-todo]').last().locator('input.input')
+    await editInput.waitFor({ state: 'visible', timeout: 3000 })
+    await editInput.fill('新工作目标')
     await page.keyboard.press('Enter')
     await page.waitForTimeout(500)
     // 新建的标题应该出现在页面上 + 落库
@@ -196,7 +198,7 @@ test.describe('Shibei shell smoke', () => {
     // 触发第一个真实动作 — 创建任务（bootstrap 监听 todos.creating 自动收引导）
     await nav(page, '任务')
     await page.waitForTimeout(300)
-    await page.getByRole('button', { name: '＋ 新建任务' }).click()
+    await page.getByRole('button', { name: '＋ 添加任务' }).click()
     await page.waitForTimeout(1000)
     // onboarding 卡片应该自动消失（卡片头「openNotion · 新用户引导」不再渲染）
     await expect(page.locator('text=新用户引导')).toHaveCount(0, { timeout: 3000 })
@@ -209,7 +211,8 @@ test.describe('Shibei shell smoke', () => {
     await dismissOnboarding(page)
     await page.locator('body').click({ position: { x: 10, y: 10 } })
     await page.keyboard.press('Meta+k')
-    const kbd = page.locator('.kbd').first()
+    // .kbd 提示在 ⌘K 命令面板里 —— scope 到弹层，避免命中今天页顶部的 ? 键帽
+    const kbd = page.locator('.bg-scrim .kbd').first()
     await expect(kbd).toBeVisible({ timeout: 8000 })
     const isMac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))
     const expected = isMac ? '⌘' : '⌃'
