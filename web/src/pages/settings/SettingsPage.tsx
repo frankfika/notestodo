@@ -24,6 +24,7 @@ import { systemAudioStatus, type SystemAudioStatus } from '../../lib/tauriSystem
 import { reindexKnowledge } from '../../lib/knowledge'
 import { importGithubIssues } from '../../lib/github'
 import { importFeishuEvents } from '../../lib/feishu'
+import { getFeatures, setFeature } from '../../lib/features'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -418,6 +419,12 @@ export default function SettingsPage(): JSX.Element {
               </Section>
             )}
 
+            {group === 'labs' && (
+              <Section title="实验功能" desc="预览中的能力，默认关闭；可随时关掉回退到经典任务树。">
+                <MindmapTasksToggle flash={flash} />
+              </Section>
+            )}
+
             {group === 'sync' && (
               <Section title="多端同步" desc="把笔记 / 任务 / 看板同步到你自己的 relay 服务器，多设备离线可用、联网自动对齐。冲突不会覆盖你的数据——会保留本地并生成一份「冲突副本」由你合并。">
                 <SyncRow settings={settings} patch={patch} />
@@ -484,7 +491,7 @@ export default function SettingsPage(): JSX.Element {
   )
 }
 
-type SettingsGroup = 'ai' | 'asr' | 'integrations' | 'api' | 'sync' | 'appearance'
+type SettingsGroup = 'ai' | 'asr' | 'integrations' | 'api' | 'sync' | 'appearance' | 'labs'
 
 const SETTINGS_GROUPS: { key: SettingsGroup; label: string }[] = [
   { key: 'ai', label: 'AI 模型' },
@@ -493,7 +500,24 @@ const SETTINGS_GROUPS: { key: SettingsGroup; label: string }[] = [
   { key: 'api', label: '本机 API' },
   { key: 'sync', label: '多端同步' },
   { key: 'appearance', label: '外观与数据' },
+  { key: 'labs', label: '实验功能' },
 ]
+
+function MindmapTasksToggle({ flash }: { flash: (msg: string) => void }): JSX.Element {
+  const enabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
+  const onChange = async (v: boolean): Promise<void> => {
+    await setFeature('mindmap_tasks', v)
+    flash(v ? '脑图任务已开启' : '脑图任务已关闭')
+  }
+  return (
+    <Toggle
+      checked={enabled}
+      onChange={(v) => void onChange(v)}
+      label="脑图任务"
+      hint="打开后任务页以脑图为主、大纲只读，并启用 Today 槽与本机 /today API。"
+    />
+  )
+}
 
 /** 云端 LLM 一键预设：普通用户只需再粘一个 API Key */
 const LLM_PRESETS: { label: string; provider: AppSettings['llm_provider']; base_url: string; model: string; key_url: string }[] = [

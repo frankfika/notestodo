@@ -83,7 +83,7 @@ function buildTree(all: Todo[]): Node[] {
     .map(make)
 }
 
-function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins }: {
+function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, readOnly }: {
   node: Node
   depth: number
   collapsed: Set<string>
@@ -95,6 +95,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
   tagByTodo: Map<string, string[]>
   tagsById: Map<string, Tag>
   origins: OriginTitles
+  readOnly?: boolean
 }): JSX.Element {
   const [over, setOver] = useState(false)
   const t = node.todo
@@ -104,6 +105,7 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
   const subDone = node.done - (t.status === 'done' ? 1 : 0)
 
   const onDrop = async (): Promise<void> => {
+    if (readOnly) return
     setOver(false)
     if (!dragId || dragId === t.id) return
     const dragged = byId.get(dragId)
@@ -118,10 +120,10 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
   return (
     <>
       <div
-        draggable
-        onDragStart={(e) => { setDragId(t.id); e.dataTransfer.effectAllowed = 'move' }}
+        draggable={!readOnly}
+        onDragStart={(e) => { if (readOnly) return; setDragId(t.id); e.dataTransfer.effectAllowed = 'move' }}
         onDragEnd={() => setDragId(null)}
-        onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== t.id) setOver(true) }}
+        onDragOver={(e) => { if (readOnly) return; e.preventDefault(); if (dragId && dragId !== t.id) setOver(true) }}
         onDragLeave={() => setOver(false)}
         onDrop={() => void onDrop()}
         data-todo={t.id}
@@ -136,33 +138,42 @@ function Row({ node, depth, collapsed, setCollapsed, dragId, setDragId, byId, al
         <input
           type="checkbox"
           checked={t.status === 'done'}
+          disabled={readOnly}
           onChange={() => void toggle(t)}
           className="shrink-0 accent-[var(--accent)]"
         />
-        <EditableTitle t={t} className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`} />
+        {readOnly ? (
+          <span className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}>{t.title}</span>
+        ) : (
+          <EditableTitle t={t} className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`} />
+        )}
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
         <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
         <OriginChip t={t}
           noteTitle={t.origin_note_id ? origins.noteTitles.get(t.origin_note_id) : undefined}
           meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
         <DueBadge due={t.due_date} />
-        <button
-          onClick={() => void addChild(t)}
-          title="新建子任务"
-          className="w-6 h-6 rounded-[6px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 transition-opacity"
-        >＋</button>
-        <TodoMenu t={t} all={all} />
+        {!readOnly && (
+          <>
+            <button
+              onClick={() => void addChild(t)}
+              title="新建子任务"
+              className="w-6 h-6 rounded-[6px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 transition-opacity"
+            >＋</button>
+            <TodoMenu t={t} all={all} />
+          </>
+        )}
       </div>
       {!collapsed.has(t.id) && node.children.map((c) => (
         <Row key={c.todo.id} node={c} depth={depth + 1} collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
-          origins={origins} />
+          origins={origins} readOnly={readOnly} />
       ))}
     </>
   )
 }
 
-export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; tagByTodo: Map<string, string[]> }): JSX.Element {
+export default function TodosTree({ filter, tagByTodo, readOnly }: { filter: TodoFilter; tagByTodo: Map<string, string[]>; readOnly?: boolean }): JSX.Element {
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
@@ -201,14 +212,16 @@ export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; t
       {tree.map((n) => (
         <Row key={n.todo.id} node={n} depth={0} collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
-          origins={origins} />
+          origins={origins} readOnly={readOnly} />
       ))}
       {tree.length === 0 && (
         <div className="text-sm text-text-3 py-8 text-center">
           {all.some(live) ? '没有符合条件的任务' : '还没有任务'}
         </div>
       )}
-      <button onClick={() => void addRoot()} className="btn-ghost self-start mt-2">＋ 新建任务</button>
+      {!readOnly && (
+        <button onClick={() => void addRoot()} className="btn-ghost self-start mt-2">＋ 新建任务</button>
+      )}
     </div>
   )
 }
