@@ -39,8 +39,14 @@ test('连录两场：状态完全隔离（无 ghost meeting / 残留录制条）
   // 侧栏的「● 开始录音」常驻（旧 IA 的「今天」页已移除）
   await page.locator('aside').getByRole('button', { name: /● 开始录音/ }).click()
   await expect(page.locator('span.rec-dot').first()).toBeVisible({ timeout: 8000 })
-  // 验证录制条内的 elapsed 计时独立 — 显式 scope 到 RecordingBar
-  const elapsedText = await page.locator('.rec-dot ~ span.font-mono.tabular-nums').first().innerText()
+  // 验证录制条内的 elapsed 计时独立 — 显式 scope 到录音中的 REC 计时器
+  // 注意：不能用 `.rec-dot ~ span.font-mono.tabular-nums` ——
+  //   侧栏品牌行也有 .rec-dot，后面跟的是「墙上时钟」（如 09:00），
+  //   会被通用兄弟选择器优先命中，读到的是当前时间而不是计时器。
+  const elapsedText = await page
+    .locator('span.inline-flex:has(> .rec-dot) > span.tabular-nums')
+    .first()
+    .innerText()
   // 第二次刚开始，elapsed 应≤5s
   const elapsedSec = Number(elapsedText.split(':').reduce((s, v) => Number(s) * 60 + Number(v), 0))
   expect(elapsedSec).toBeLessThanOrEqual(10)

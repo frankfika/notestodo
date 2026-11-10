@@ -21,6 +21,28 @@ test.describe('inbox capture', () => {
     expect(r.items[0]!.parent_id).toBe(r.inboxId)
   })
 
+  test('Inbox 根图只建一个（StrictMode 双挂载不会重复建）', async ({ page }) => {
+    await page.goto(BASE)
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts')
+      const { setFeature } = await import('/src/lib/features.ts')
+      await db.kv.put({ key: 'onboarding_done_v1', value: true })
+      await db.todos.clear()
+      await setFeature('mindmap_tasks', true)
+    })
+    // 进任务页 → 脑图 Tab → InboxSidebar 挂载
+    // （dev 下 React StrictMode 会把 effect 跑两遍 → ensureInboxMap 被并发调两次）
+    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await page.locator('.mindmap-canvas').waitFor({ state: 'visible', timeout: 15000 })
+    await page.waitForTimeout(1500)
+    const inboxRoots = await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts')
+      const all = await db.todos.toArray()
+      return all.filter((t) => t.parent_id === null && t.title === 'Inbox').map((t) => t.id)
+    })
+    expect(inboxRoots).toHaveLength(1)
+  })
+
   test('Waiting 节点标题带标记', async ({ page }) => {
     await page.goto(BASE)
     const topic = await page.evaluate(async () => {

@@ -8,6 +8,7 @@ import TodoTags from './TodoTags'
 import { EditableTitle, TodoMenu, createTodo, useRowKeys } from './todoRowOps'
 import { doneLast, passFilter, type TodoFilter } from './filter'
 import { useOriginTitles } from '../../lib/originTitles'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -33,12 +34,13 @@ function fmtDue(iso: string): string {
   return `${Number(m)}/${Number(d)}`
 }
 
+/** 完成日期（ISO 时间戳 → 11/10） */
+function fmtCompleted(iso: string): string {
+  return fmtDue(iso.slice(0, 10))
+}
+
 async function toggle(t: Todo): Promise<void> {
-  await db.todos.update(t.id, {
-    status: t.status === 'done' ? 'open' : 'done',
-    updated_at: now(),
-    sync_version: t.sync_version + 1,
-  })
+  await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
 }
 
 function Row({ t, byId, all, tagByTodo, tagsById, noteTitle, meetingTitle, tabbable, setActiveId }: {
@@ -79,13 +81,25 @@ function Row({ t, byId, all, tagByTodo, tagsById, noteTitle, meetingTitle, tabba
       <div className="flex-1 min-w-0">
         <EditableTitle
           t={t}
-          className={`block truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}
+          className={`block truncate text-sm ${
+            t.status === 'done' || t.status === 'cancelled' ? 'line-through text-text-3' : 'text-text-1'
+          }`}
         />
         {crumbs.length > 0 && (
           <div className="truncate text-[11px] text-text-3">{crumbs.join(' › ')}</div>
         )}
       </div>
       <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
+      {/* 关联人 + 完成日期：把「谁 · 什么时候 · 完成了什么」串在一行里 */}
+      {t.assignee && (
+        <span className="text-[11px] text-text-2 shrink-0" title="关联人（在「⋯」里改）">@{t.assignee}</span>
+      )}
+      {t.completed_at && (
+        <span className="text-[11px] font-mono text-text-3 shrink-0" title="完成日期">完成 {fmtCompleted(t.completed_at)}</span>
+      )}
+      {t.archived_at && (
+        <span className="text-[11px] font-mono text-text-3 shrink-0" title="归档日期">归档 {fmtCompleted(t.archived_at)}</span>
+      )}
       <span className="hover-only opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
         <OriginChip t={t} noteTitle={noteTitle} meetingTitle={meetingTitle} />
       </span>
@@ -108,7 +122,15 @@ export default function TodosList({ filter, tagByTodo }: { filter: TodoFilter; t
   const containerRef = useRef<HTMLDivElement>(null)
   const onKeyDown = useRowKeys(containerRef, all)
 
-  const visible = useMemo(() => all.filter(live).filter((t) => passFilter(t, filter, tagByTodo)), [all, filter, tagByTodo])
+  const visible = useMemo(() => {
+    // 「已归档」视图看的是被关闭掉的那批（它们平时被 live() 滤掉）
+    if (filter.status === 'archived') {
+      return all
+        .filter((t) => t.deleted_at === null && t.status === 'cancelled')
+        .filter((t) => passFilter(t, filter, tagByTodo))
+    }
+    return all.filter(live).filter((t) => passFilter(t, filter, tagByTodo))
+  }, [all, filter, tagByTodo])
   const grouped = useMemo(() => {
     const map = new Map<GroupKey, Todo[]>()
     for (const t of visible) {

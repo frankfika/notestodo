@@ -10,14 +10,18 @@ import {
 import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
 import { pushTodoStatusUndo, setMindmapEditing } from '../../lib/mindmap/undoStack'
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
-import { listMapRoots } from '../../lib/mindmap/mapRoots'
 import type { MeOperation } from '../../lib/mindmap/types'
 import type { ID, Todo } from '../../types'
 import { mod, now } from '../../lib/id'
 import './mindmap.css'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 export type MindmapCanvasProps = {
   rootId: ID
+  /** 有序的图根 id 列表（⌘] / ⌘[ 用它算下一张 / 上一张） */
+  mapIds?: ID[]
+  /** 切图回调（由页面持有图根状态） */
+  onSelectMap?: (id: ID) => void
 }
 
 /**
@@ -39,9 +43,147 @@ type MindElixirInstance = {
   addChild?: () => Promise<void> | void
   insertSibling?: (type: 'before' | 'after') => Promise<void> | void
   beginEdit?: () => Promise<void> | void
+  /** 直接对某个节点进编辑态（传的是 .me-tpc 元素） */
+  editTopic?: (el: unknown) => void
   removeNodes?: (nodes: unknown[]) => Promise<void> | void
   moveNodesIn?: (from: unknown[], to: unknown) => Promise<void> | void
   moveNodesAfter?: (from: unknown[], to: unknown) => Promise<void> | void
+  /** 缩放到刚好放得下 + 按整棵树居中 */
+  scaleFit?: () => void
+  /**
+   * 画布上现在的树。
+   * 注意 ME 的两个 API 形状不一样，别踩：
+   *   `getData()`      → 对象 `{ nodeData, arrows, ... }`
+   *   `stringifyData()` → **JSON 字符串**（不是对象，取 `.nodeData` 永远是 undefined）
+   */
+  getData?: () => { nodeData?: BranchNode } | undefined
+  stringifyData?: () => string | { nodeData?: BranchNode } | undefined
+}
+
+/** 拿到 ME 画布上当前的根节点（两个 API 都兼容） */
+function readMeNode(mei: MindElixirInstance): BranchNode | undefined {
+  const direct = mei.getData?.()?.nodeData
+  if (direct) return direct
+  const raw = mei.stringifyData?.()
+  if (typeof raw !== 'string') return raw?.nodeData
+  try {
+    const parsed = JSON.parse(raw) as { nodeData?: BranchNode }
+    return parsed.nodeData
+  } catch {
+    return undefined
+  }
+}
+
+/** ME 分支生成器的入参（父节点 / 子节点的几何） */
+type BranchArgs = {
+  pT: number
+  pL: number
+  pW: number
+  pH: number
+  cT: number
+  cL: number
+  cW: number
+  cH: number
+  direction: 'lhs' | 'rhs' | 'down'
+  containerHeight?: number
+  containerWidth?: number
+  isFirst?: boolean
+}
+
+type BranchNode = {
+  id?: string
+  topic?: string
+  children?: BranchNode[]
+}
+
+/**
+ * F-09 · 有机树枝 · 主分支（根 → 一级）。
+ *
+ * ME 默认是「从父节点垂直上冲 → 折一下」，看着像流程图的连线。
+ * 这里改成脑图的样子：**水平出入父/子节点，中间一条连续的三次贝塞尔**。
+ */
+function organicMainBranch({
+  pT,
+  pL,
+  pW,
+  pH,
+  cT,
+  cL,
+  cW,
+  cH,
+  direction,
+}: BranchArgs): string {
+  const py = pT + pH / 2
+  const cy = cT + cH / 2
+  if (direction === 'down') {
+    const sx = pL + pW / 2
+    const ex = cL + cW / 2
+    const sy = pT + pH
+    const ey = cT
+    const k = Math.max(16, Math.min(120, (ey - sy) * 0.55))
+    return `M ${sx} ${sy} C ${sx} ${sy + k} ${ex} ${ey - k} ${ex} ${ey}`
+  }
+  const right = direction !== 'lhs'
+  const sx = right ? pL + pW : pL
+  const ex = right ? cL : cL + cW
+  const k = Math.max(16, Math.min(140, Math.abs(ex - sx) * 0.55))
+  const c1 = right ? sx + k : sx - k
+  const c2 = right ? ex - k : ex + k
+  return `M ${sx} ${py} C ${c1} ${py} ${c2} ${cy} ${ex} ${cy}`
+}
+
+/**
+ * F-09 · 有机树枝 · 子分支（一级 → 二级）。
+ *
+ * 子分支的坐标系跟主分支**不一样**：ME 把 subLines 的 SVG 挂在节点自己的
+ * wrapper 里，父节点的坐标是 wrapper 局部坐标，子节点的坐标却是子节点自己
+ * 盒子里的局部坐标 —— 两者不能直接相减。
+ * 所以这里沿用 ME 自己的落点换算（起点 / 终点都不变，保证一定落在子节点上），
+ * 只把 ME 的「三次贝塞尔 + 一段直线 H」换成**一条连续的三次贝塞尔**：
+ * 去掉了那条最像流程图的直线段。
+ */
+function organicSubBranch(
+  this: { container?: HTMLElement },
+  { pT, pL, pW, pH, cT, cL, cH }: BranchArgs,
+): string {
+  // 子分支的坐标系：subLines 的 SVG 挂在节点的 wrapper 里。
+  //   p* = 父节点 topic 在 wrapper 里的位置（直接用）
+  //   c* = 子节点 wrapper 在同一个 wrapper 里的位置 —— 比 topic 多了左右各
+  //        一个 --node-gap-x 的内边距，所以 topic 左缘要 + gap
+  // （这几条换算是对着真实 DOM 量出来的，见 docs/phase2-claude-acceptance.md）
+  const gapRaw =
+    this.container && typeof getComputedStyle === 'function'
+      ? getComputedStyle(this.container).getPropertyValue('--node-gap-x')
+      : ''
+  const gap = Number.parseInt(gapRaw, 10) || 24
+  const sx = pL + pW
+  const sy = pT + pH / 2
+  const ex = cL + gap
+  const ey = cT + cH / 2
+  const k = Math.max(14, Math.min(120, Math.abs(ex - sx) * 0.55))
+  return `M ${sx} ${sy} C ${sx + k} ${sy} ${ex - k} ${ey} ${ex} ${ey}`
+}
+
+/**
+ * 画布上这棵树的签名（id + 标题 + 结构）。
+ *
+ * 用来回答一个问题：「Dexie 里的数据，画布上是不是已经画好了？」
+ * 如果是，就别再 `refresh` 重画一遍 —— 重画会重建整棵 DOM，
+ * ME 自己的动画、选中态全被抹掉，手感一下就变「不丝滑」了。
+ *
+ * 标题要做归一化：ME 新建节点的占位是 `New Node`（ME 的构造函数里
+ * `newTopicName: ''` 是 falsy，会退回默认文案），而我们这边空标题渲染成
+ * `未命名` —— 不归一化的话两者永远对不上，每次新建节点都会重画一次。
+ */
+function treeSignature(node: BranchNode | undefined): string {
+  if (!node) return ''
+  const kids = node.children ?? []
+  return `${node.id ?? ''}~${normTopic(node.topic)}(${kids.map(treeSignature).join(',')})`
+}
+
+function normTopic(topic: string | undefined): string {
+  const v = (topic ?? '').trim()
+  return v === '' || v === 'New Node' ? '未命名' : v
 }
 
 /** 由应用层统一实现的键（避免 ME 内建键位重复触发） */
@@ -72,23 +214,20 @@ function keyLabel(k: string): string {
 }
 
 /**
- * F-02 · 切图走图库面板的按钮（真相源仍在图库，键盘只是「代劳点击」）。
- * TODO(Fang): TodosPage 若能透出 onSelect，这里换成直接回调更干净。
+ * ME 的 findEle 找不到节点时是**抛异常**（"FindEle: Node x not found, maybe it's
+ * collapsed"），不是返回 null。节点完成 / 删除后会被折进折叠的「已完成」组，
+ * 此时必须兜住 —— 否则画布组件崩溃，页面被 ErrorBoundary 吞掉，
+ * 快捷键（含 ⌘Z 撤销）随之全部失灵。
  */
-function clickLibraryMap(title: string): boolean {
-  const lib = Array.from(document.querySelectorAll('aside')).find((a) =>
-    a.textContent?.includes('图库'),
-  )
-  if (!lib) return false
-  const btn = Array.from(lib.querySelectorAll('ul li button')).find(
-    (b) => b.textContent?.trim() === title,
-  )
-  if (!(btn instanceof HTMLElement)) return false
-  btn.click()
-  return true
+function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
+  try {
+    return mei?.findEle?.(id)
+  } catch {
+    return undefined
+  }
 }
 
-export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Element {
+export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCanvasProps): JSX.Element {
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
   const editingRef = useRef(false)
@@ -98,6 +237,15 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
   const [ready, setReady] = useState(0)
   const todos = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const focusId = useUI((s) => s.todoFocusId)
+
+  /**
+   * 最新 todos 快照。
+   * ME 的 operation 监听器在 mount 时注册一次（effect deps 只有 rootId），
+   * 直接闭包捕获 todos 会永远拿到初始的空数组 → byId 为空 →
+   * removeNodes / moveNodes* 的补丁被整段跳过，结构操作不落库。
+   */
+  const todosRef = useRef(todos)
+  todosRef.current = todos
 
   /** R1 · 规则提示：非模态浮层，3.2s 后自动消失 */
   const say = useCallback((msg: string): void => {
@@ -113,6 +261,26 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     [],
   )
 
+  /**
+   * F-09 · 画布自适应。
+   *
+   * ME 默认按**根节点**居中（toCenter），树会整体偏在右下角、跟画布重心脱节；
+   * 而画布比树窄时（右侧被 Today 托盘挤过），树的右半边直接被切掉看不见。
+   * scaleFit() 按**整棵树**的包围盒居中，并在内容超出画布时自动缩小。
+   */
+  const fitToView = useCallback((): void => {
+    const mei = meiRef.current
+    if (!mei?.scaleFit) return
+    // 等 ME 的布局算完再量，否则量到的是上一帧的尺寸
+    requestAnimationFrame(() => {
+      try {
+        mei.scaleFit?.()
+      } catch {
+        /* 布局未就绪：下一帧再试 */
+      }
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -127,10 +295,20 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
         contextMenu: false,
         allowUndo: false,
         newTopicName: '',
-        theme: { name: 'Minimal', type: 'light', palette: MINIMAL_PALETTE },
+        // F-09 · 用有机树枝替换 ME 默认的「折线 + 直线段」
+        // （必须挂在 theme 上：ME 的 setTheme 会用 theme.generateMainBranch
+        //   覆盖构造函数的同名选项）
+        theme: {
+          name: 'Minimal',
+          type: 'light',
+          palette: MINIMAL_PALETTE,
+          generateMainBranch: organicMainBranch,
+          generateSubBranch: organicSubBranch,
+        },
       }) as unknown as MindElixirInstance
       const data = todosToMindData(todos, rootId)
       await mei.init(data)
+      fitToView()
 
       // F-02 · 键位语义统一由应用层实现（见 SHORTCUT_ROWS）：
       // 把 ME 内建的 Tab/Enter/删除/编辑接管过来，避免同一动作触发两次。
@@ -146,6 +324,28 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
         }
       }
 
+      /**
+       * 双击节点 → 直接进编辑。
+       *
+       * ME v6 的 map 视图没有 dblclick 处理，它靠「再点一次已选中的节点」
+       * 进编辑态。于是「双击一个还没选中的节点」经常不生效（第二次点击
+       * 到达时选中态还没生效）—— 实测：Tab 加完节点后再双击改名就失灵。
+       * 官方文档里「双击节点直接编辑」是承诺的行为，这里补回来。
+       */
+      container?.addEventListener('dblclick', (e: Event) => {
+        // 已经在编辑了就别再开一个
+        if (document.querySelector('#input-box')) return
+        const tpc = (e.target as HTMLElement | null)?.closest?.(
+          '.me-tpc',
+        ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
+        if (!tpc?.nodeObj) return
+        // 合成节点（「已完成 (N)」这类）不是真待办，不能进编辑
+        if (String(tpc.nodeObj.id ?? '').startsWith('done-group:')) return
+        e.preventDefault()
+        e.stopPropagation()
+        void mei.editTopic?.(tpc)
+      })
+
       mei.bus.addListener('operation', (ev: MeOperation) => {
         if ((ev as { name?: string }).name === 'beginEdit') {
           editingRef.current = true
@@ -156,8 +356,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
           editingRef.current = false
           setMindmapEditing(false)
         }
-        const byId = new Map(todos.map((t) => [t.id, t]))
-        const ops = mindEventToTodoPatches(ev, { all: todos, mapId: rootId, byId })
+        const byId = new Map(todosRef.current.map((t) => [t.id, t]))
+        const ops = mindEventToTodoPatches(ev, { all: todosRef.current, mapId: rootId, byId })
         void applyTodoPatches(ops)
       })
       meiRef.current = mei
@@ -176,28 +376,49 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     const mei = meiRef.current
     if (!mei || editingRef.current) return
     const data = todosToMindData(todos, rootId)
+    /**
+     * 渲染结果没变就别重画。
+     *
+     * refresh 会重建 ME 的整棵 DOM（清掉选中态、吞掉进行中的点击 / 双击）。
+     * 而像「Inbox 根图创建」这种**与本图无关**的 DB 变更也会触发 todos 变化，
+     * 于是画布被无谓地重画一次 —— 双击恰好落在那个窗口里就会丢。
+     * 哈希取的是真正要渲染的那棵树（含 metadata），比按 todo 字段拼更准。
+     */
+    const hash = JSON.stringify(data)
+    const prev = mei as MindElixirInstance & { __hash?: string }
+    if (prev.__hash === hash) return
+    /**
+     * ME 刚在画布上做完操作（加节点 / 移动 / 改名），数据也同步回 Dexie 了 ——
+     * 这时候画布**已经是最新**的，再按 Dexie refresh 一次只会：
+     *   ① 重建整棵 DOM（ME 的动画没了、选中态闪一下）
+     *   ② 把正在进行的点击 / 双击吞掉
+     * 所以先比一下「画布上现在的树」和「Dexie 要画的树」，一致就不画。
+     */
+    const meSig = treeSignature(readMeNode(mei))
+    const ourSig = treeSignature(data.nodeData)
+    if (meSig && meSig === ourSig) {
+      prev.__hash = hash
+      return
+    }
+    prev.__hash = hash
     if (typeof mei.refresh === 'function') {
       // refresh 会清空选中态；把原选中的节点选回来，连按快捷键才不断
       const keepId = mei.currentNode?.nodeObj?.id
       mei.refresh(data)
       if (keepId) {
-        const el = mei.findEle?.(keepId)
+        const el = findEleSafe(mei, keepId)
         if (el) mei.selectNode?.(el)
       }
+      fitToView()
     } else {
-      const hash = todos
-        .map((t) => `${t.id}:${t.parent_id}:${t.title}:${t.status}:${t.sort_order}:${t.waiting_reason ?? ''}`)
-        .join('|')
-      const prev = mei as MindElixirInstance & { __hash?: string }
-      if (prev.__hash === hash) return
-      prev.__hash = hash
       void mei.init(data)
+      fitToView()
     }
-  }, [todos, rootId, ready])
+  }, [todos, rootId, ready, fitToView])
 
   useEffect(() => {
     if (!focusId || !meiRef.current) return
-    const el = meiRef.current.findEle?.(focusId)
+    const el = findEleSafe(meiRef.current, focusId)
     if (el) meiRef.current.selectNode?.(el, true)
     useUI.setState({ todoFocusId: null })
   }, [focusId])
@@ -207,20 +428,36 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     meiRef.current?.container?.focus?.({ preventScroll: true })
   }, [])
 
+  // 画布尺寸变了（窗口缩放 / 侧栏折叠）就重新自适应
+  useEffect(() => {
+    const el = elRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => fitToView())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fitToView])
+
   /** F-02 · 切图：⌘] / ⌘[ 在图库面板里前后翻 */
+  /**
+   * F-02 · ⌘] / ⌘[ 切图。
+   *
+   * 原来是「找到左侧图库面板里的按钮，替用户点一下」—— 靠 DOM 结构猜，
+   * 图库一改成浮层就断了。现在图库把「有序的图 id 列表 + 选中回调」透进来，
+   * 键盘直接切，DOM 长什么样都不影响。
+   */
   const switchMap = useCallback(
-    async (dir: 1 | -1): Promise<void> => {
-      const roots = await listMapRoots()
-      if (roots.length <= 1) {
-        say('只有一张图 —— 在左侧图库新建')
+    (dir: 1 | -1): void => {
+      const ids = mapIds ?? []
+      if (ids.length <= 1) {
+        say('只有一张图 —— 在左上角切图入口新建')
         return
       }
-      const idx = roots.findIndex((r) => r.id === rootId)
-      const next = roots[(idx + dir + roots.length) % roots.length]
-      if (!next) return
-      if (!clickLibraryMap(next.title || '未命名')) say('切图失败 —— 请在左侧图库选择')
+      const idx = ids.findIndex((id) => id === rootId)
+      const next = ids[(idx + dir + ids.length) % ids.length]
+      if (!next || !onSelectMap) return
+      onSelectMap(next)
     },
-    [rootId, say],
+    [mapIds, onSelectMap, rootId, say],
   )
 
   useEffect(() => {
@@ -236,7 +473,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       // 切图不依赖选中节点
       if (isMod && (e.key === ']' || e.key === '[')) {
         e.preventDefault()
-        void switchMap(e.key === ']' ? 1 : -1)
+        switchMap(e.key === ']' ? 1 : -1)
         return
       }
 
@@ -256,11 +493,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
         }
         const prev = t.status
         pushTodoStatusUndo(t.id, prev)
-        void db.todos.update(t.id, {
-          status: t.status === 'done' ? 'open' : 'done',
-          updated_at: now(),
-          sync_version: t.sync_version + 1,
-        })
+        void applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
         return
       }
 
@@ -294,8 +527,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
             say('已经是最外层了')
             return
           }
-          const from = mei.findEle?.(t.id)
-          const to = mei.findEle?.(t.parent_id)
+          const from = findEleSafe(mei, t.id)
+          const to = findEleSafe(mei, t.parent_id)
           if (from && to) void mei.moveNodesAfter?.([from], to)
           return
         }
@@ -310,8 +543,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
             say('已经是第一个同级 —— 没有更上一层可挂')
             return
           }
-          const from = mei.findEle?.(t.id)
-          const to = mei.findEle?.(prevSib.id)
+          const from = findEleSafe(mei, t.id)
+          const to = findEleSafe(mei, prevSib.id)
           if (from && to) void mei.moveNodesIn?.([from], to)
           return
         }
@@ -355,11 +588,11 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
 
   return (
     <div className="mindmap-wrap relative w-full h-full min-h-[420px]" onMouseDown={focusCanvas}>
-      {coach && (
-        <div className="mindmap-coach" role="status">
-          {coach}
-        </div>
-      )}
+      {/* 教练提示常驻挂载、用 visibility 切显隐 —— 这样消失时能淡出，
+          而不是「啪」地没了（内容为空时对读屏无影响）。 */}
+      <div className="mindmap-coach" role="status" data-show={coach ? '1' : '0'}>
+        {coach ?? ''}
+      </div>
       <div ref={elRef} className="mindmap-canvas w-full h-full min-h-[420px]" />
       {/* F-02 · 轻量提示：默认只有一个角标，点开才是清单（R5 · 不堆画布噪点） */}
       <div className="mindmap-hint">

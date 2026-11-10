@@ -4,6 +4,7 @@ import { parseQuickAdd } from './quickAdd'
 import { createPage } from './notes'
 import { subtreeIds } from './okr'
 import type { AgentAction } from './aiAgent'
+import { applyTodoStatus } from './todoStatus'
 
 /**
  * AI 动作执行层：每个动作都能回滚（undo），删除类动作标记 risky 由 UI 先确认。
@@ -74,7 +75,7 @@ export async function executeAction(
       const id = resolveId(action, taskIds)
       const t = id ? await db.todos.get(id) : undefined
       if (!t) return { action, ok: false, risky: false, label: '完成任务', error: '找不到目标任务' }
-      await db.todos.update(t.id, { status: 'done', updated_at: ts, sync_version: t.sync_version + 1 })
+      await applyTodoStatus(t, 'done')
       return {
         action, ok: true, risky: false,
         label: `完成「${t.title || '（无标题）'}」`,

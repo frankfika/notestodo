@@ -10,6 +10,7 @@ import TodoTags from '../todos/TodoTags'
 import { buildTagByTodo } from '../todos/filter'
 import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
 import { useToast } from '../../state/toast'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 const DONE_COL = '已完成'
 const DEFAULT_COLS = ['待办', '进行中', '待审']
@@ -357,8 +358,13 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
 }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(t.title)
-  const touch = (patch: Partial<Todo>): Promise<number> =>
-    db.todos.update(t.id, { ...patch, updated_at: now(), sync_version: t.sync_version + 1 })
+  const touch = (patch: Partial<Todo>): Promise<number> => {
+    // 状态变化顺带把完成日期记上（看板的勾选也是一次「完成」）
+    if (patch.status && patch.status !== t.status) {
+      return applyTodoStatus(t, patch.status)
+    }
+    return db.todos.update(t.id, { ...patch, updated_at: now(), sync_version: t.sync_version + 1 })
+  }
 
   const saveTitle = (): void => {
     const v = draft.trim()

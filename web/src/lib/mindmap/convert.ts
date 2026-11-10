@@ -14,6 +14,8 @@ export type MENode = {
   children?: MENode[]
   expanded?: boolean
   style?: Record<string, string>
+  /** ME 原生节点标签（渲染成小 chip）：关联人 / 完成日期 */
+  tags?: string[]
   metadata?: MindmapNodeMeta
 }
 
@@ -64,10 +66,16 @@ export function todosToMindData(
           id: d.id,
           topic: d.title || '未命名',
           style: { textDecoration: 'line-through', color: 'var(--text-3, #8e8e93)' },
+          // 完成项：关联人 + 完成日期 —— 「谁 · 什么时候 · 完成了什么」
+          tags: [d.assignee ? `@${d.assignee}` : undefined, d.completed_at ? `完成 ${d.completed_at.slice(5, 10).replace('-', '/')}` : undefined].filter(
+            (x): x is string => Boolean(x),
+          ),
           metadata: {
             todoId: d.id,
             status: d.status,
             due_date: d.due_date,
+            completed_at: d.completed_at,
+            assignee: d.assignee,
             waiting_reason: d.waiting_reason,
             meeting_id: d.meeting_id,
             isLeaf: true,
@@ -83,6 +91,7 @@ export function todosToMindData(
       id: t.id,
       topic,
       expanded: true,
+      tags: t.assignee ? [`@${t.assignee}`] : undefined,
       children: children.length ? children : undefined,
       style: waiting
         ? { opacity: '0.82', fontStyle: 'italic', color: 'var(--warning, #c77c2a)' }
@@ -91,6 +100,8 @@ export function todosToMindData(
         todoId: t.id,
         status: t.status,
         due_date: t.due_date,
+        completed_at: t.completed_at,
+        assignee: t.assignee,
         waiting_reason: t.waiting_reason,
         meeting_id: t.meeting_id,
         isLeaf: isLeafTodo(t, byParent),
