@@ -99,6 +99,12 @@ export async function openScreenRecordingSettings(): Promise<void> {
   await invoke('open_screen_recording_settings')
 }
 
+/** 直达「系统设置 → 隐私与安全性 → 麦克风」。 */
+export async function openMicrophoneSettings(): Promise<void> {
+  if (!isTauri()) return
+  await invoke('open_microphone_settings')
+}
+
 /** 重启 App 使授权生效。 */
 export async function restartApp(): Promise<void> {
   if (!isTauri()) return

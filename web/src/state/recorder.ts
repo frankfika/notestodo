@@ -36,6 +36,8 @@ interface RecorderStore {
   captureMode: CaptureMode
   /** captureMode='unsupported' 时的原因（中文一句话） */
   captureModeNote: string | null
+  /** 本次录音收到的系统音频 chunk 数。0 = 一直没捕到系统声音（会议里对方的声音会丢） */
+  systemChunks: number
   error: string | null
 
   // 以下 action 由引擎实现注入（见 audio/engine.ts 的 bindRecorderEngine）
@@ -53,6 +55,7 @@ export const useRecorder = create<RecorderStore>((set) => ({
   audioLevel: 0,
   captureMode: 'mic-only',
   captureModeNote: null,
+  systemChunks: 0,
   error: null,
 
   // 默认实现会被 engine.ts 覆盖；这里给安全兜底

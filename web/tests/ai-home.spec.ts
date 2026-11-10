@@ -1,9 +1,9 @@
 /**
- * AI 工作台（首页）e2e —— AI 从「能答」到「能动手」
+ * AI 工作台 e2e —— AI 从「能答」到「能动手」
  *
  * 验证：
- *   1. 默认落地页是 AI 工作台（侧栏有 AI 一级入口）
- *   2. 快捷动作 chips 可见
+ *   1. 默认落地页是「今天」（侧栏有 AI 一级入口）
+ *   2. AI 页快捷动作 chips 可见
  *   3. 未配置 AI 时提问不白屏，给出错误提示
  *   4. 动作层：create_task 走自然语言解析（明天 / @负责人），delete 标记为破坏性
  */
@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
-test('首页是 AI 工作台：快捷动作 + 未配置时优雅报错', async ({ page }) => {
+test('落地页是「今天」；AI 工作台可进入且快捷动作可见', async ({ page }) => {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(600)
   const close = page.locator('button[aria-label="关闭"]').first()
@@ -19,7 +19,11 @@ test('首页是 AI 工作台：快捷动作 + 未配置时优雅报错', async (
 
   // 一级导航有 AI
   await expect(page.getByRole('button', { name: '✦ AI' })).toBeVisible()
-  // 默认落地页 = AI 工作台
+  // 默认落地页 = 今天（先看今天要做什么）
+  await expect(page.getByTestId('today-page')).toBeVisible()
+  // AI 是一级入口，点进去就是 AI 工作台
+  await page.getByRole('button', { name: '✦ AI' }).click()
+  await page.waitForTimeout(400)
   await expect(page.getByText('AI 工作台').first()).toBeVisible()
   // 快捷动作
   await expect(page.getByRole('button', { name: '新建任务：明天交方案 @张三' })).toBeVisible()

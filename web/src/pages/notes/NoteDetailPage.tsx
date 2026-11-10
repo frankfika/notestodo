@@ -10,6 +10,7 @@ import OverflowMenu from '../../components/OverflowMenu'
 import NoteEditor from '../../components/editor/NoteEditor'
 import { NoteAiPanel } from '../../components/editor/NoteAiPanel'
 import TagPicker from '../../components/TagPicker'
+import { useToast } from '../../state/toast'
 
 /**
  * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
@@ -22,6 +23,7 @@ export default function NoteDetailPage(): JSX.Element {
   const goNote = useUI((s) => s.goNote)
   const goMeeting = useUI((s) => s.goMeeting)
   const goTodos = useUI((s) => s.goTodos)
+  const { show } = useToast()
   const note = useLiveQuery(
     async () => {
       const n = noteId ? await db.notes.get(noteId) : undefined
@@ -223,13 +225,36 @@ export default function NoteDetailPage(): JSX.Element {
     await db.todos.add(todo)
   }
 
-  /** 软删：子页提升到被删页的父级；关联任务/评论保留，笔记可从备份恢复 */
+  /** 软删 + 可撤销：子页提升到被删页的父级；关联任务/评论保留，笔记可从备份恢复 */
   async function deleteNote(): Promise<void> {
     if (!note) return
-    if (!window.confirm('删除这条笔记？子页面会上移一层，关联任务保留。')) return
     const ts = now()
-    await db.notes.where('parent_id').equals(note.id).modify({ parent_id: note.parent_id ?? null, updated_at: ts })
-    await db.notes.update(note.id, { deleted_at: ts, updated_at: ts })
+    const parentId = note.parent_id ?? null
+    // 子页会上移一层 —— 先记下被挪走的是哪些页，撤销时原样挂回来
+    const childIds = await db.notes.where('parent_id').equals(note.id).primaryKeys()
+    await db.notes.where('parent_id').equals(note.id).modify((x) => {
+      x.parent_id = parentId
+      x.updated_at = ts
+      x.sync_version += 1
+    })
+    await db.notes.update(note.id, { deleted_at: ts, updated_at: ts, sync_version: note.sync_version + 1 })
+    show('已删除笔记', {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const ts2 = now()
+          const cur = await db.notes.get(note.id)
+          if (cur) await db.notes.update(note.id, { deleted_at: null, updated_at: ts2, sync_version: cur.sync_version + 1 })
+          if (childIds.length) {
+            await db.notes.where('id').anyOf(childIds).modify((x) => {
+              x.parent_id = note.id
+              x.updated_at = ts2
+              x.sync_version += 1
+            })
+          }
+        })()
+      },
+    }, 6000)
     goNotes()
   }
 

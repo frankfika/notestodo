@@ -9,6 +9,7 @@ import OriginChip from '../../components/OriginChip'
 import TodoTags from '../todos/TodoTags'
 import { buildTagByTodo } from '../todos/filter'
 import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
+import { useToast } from '../../state/toast'
 
 const DONE_COL = '已完成'
 const DEFAULT_COLS = ['待办', '进行中', '待审']
@@ -61,6 +62,7 @@ async function ensureWeeklyReportCard(): Promise<void> {
 export default function BoardPage(): JSX.Element {
   const goTodos = useUI((s) => s.goTodos)
   const goReport = useUI((s) => s.goReport)
+  const { show } = useToast()
   const [boardId, setBoardId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<string | null>(null)
@@ -166,9 +168,10 @@ export default function BoardPage(): JSX.Element {
     await db.boards.update(b.id, { name, updated_at: now(), sync_version: b.sync_version + 1 })
   }
 
+  /** 删看板：软删看板，卡片回默认看板；撤销 = 恢复看板 + 把卡片挂回去 */
   const deleteBoard = async (b: Board): Promise<void> => {
-    if (!window.confirm(`删除看板「${b.name}」？板上卡片会回到默认看板，不会被删除。`)) return
     const ts = now()
+    const cardIds = await db.todos.where('board_id').equals(b.id).primaryKeys()
     await db.todos.where('board_id').equals(b.id).modify((x) => {
       x.board_id = null
       x.updated_at = ts
@@ -176,6 +179,23 @@ export default function BoardPage(): JSX.Element {
     })
     await db.boards.update(b.id, { deleted_at: ts, updated_at: ts, sync_version: b.sync_version + 1 })
     if (boardId === b.id) setBoardId(null)
+    show(`已删除看板「${b.name}」`, {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const ts2 = now()
+          const cur = await db.boards.get(b.id)
+          if (cur) await db.boards.update(b.id, { deleted_at: null, updated_at: ts2, sync_version: cur.sync_version + 1 })
+          if (cardIds.length) {
+            await db.todos.where('id').anyOf(cardIds).modify((x) => {
+              x.board_id = b.id
+              x.updated_at = ts2
+              x.sync_version += 1
+            })
+          }
+        })()
+      },
+    }, 6000)
   }
 
   const renameCol = async (col: string): Promise<void> => {
@@ -194,17 +214,41 @@ export default function BoardPage(): JSX.Element {
     })
   }
 
+  /** 删列：列消失，卡片移到第一列；撤销 = 恢复列（连同顺序）+ 卡片回到该列 */
   const deleteCol = async (col: string): Promise<void> => {
     if (!board || board.columns.length <= 1) return
-    if (!window.confirm(`删除列「${col}」？该列卡片会移到第一列。`)) return
-    const rest = board.columns.filter((c) => c !== col)
+    const origCols = [...board.columns]
+    const rest = origCols.filter((c) => c !== col)
     const ts = now()
     await db.boards.update(board.id, { columns: rest, updated_at: ts, sync_version: board.sync_version + 1 })
-    await db.todos.filter((x) => x.board_id === board.id && x.board_col === col).modify((x) => {
+    const colCards = db.todos.where('board_id').equals(board.id).and((x) => x.board_col === col)
+    const cardIds = await colCards.primaryKeys()
+    await colCards.modify((x) => {
       x.board_col = rest[0]
       x.updated_at = ts
       x.sync_version += 1
     })
+    show(`已删除列「${col}」`, {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const ts2 = now()
+          const cur = await db.boards.get(board.id)
+          await db.boards.update(board.id, {
+            columns: origCols,
+            updated_at: ts2,
+            sync_version: (cur?.sync_version ?? board.sync_version) + 1,
+          })
+          if (cardIds.length) {
+            await db.todos.where('id').anyOf(cardIds).modify((x) => {
+              x.board_col = col
+              x.updated_at = ts2
+              x.sync_version += 1
+            })
+          }
+        })()
+      },
+    }, 6000)
   }
 
   const addColumn = async (): Promise<void> => {
@@ -303,7 +347,7 @@ export default function BoardPage(): JSX.Element {
 
 interface MenuItem { label: string; danger?: boolean; onClick: () => void }
 
-/** 看板卡片：checkbox 完成切换、双击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
+/** 看板卡片：checkbox 完成切换、单击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
 function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, cols, onMoveTo, origins }: {
   t: Todo; kr: Todo | undefined; overdue: boolean; dimmed: boolean
   onDragStart: (e: React.DragEvent) => void; onOpen: () => void
@@ -339,7 +383,7 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
             }}
             className="input flex-1 !py-0.5 text-sm" />
         ) : (
-          <div onDoubleClick={(e) => { e.stopPropagation(); setDraft(t.title); setEditing(true) }}
+          <div onClick={(e) => { e.stopPropagation(); setDraft(t.title); setEditing(true) }}
             className={`flex-1 text-sm leading-snug cursor-text ${t.status === 'done' ? 'line-through text-text-3' : ''}`}>
             {t.recurring && <span className="text-accent mr-1">↻</span>}{t.title}
           </div>
@@ -371,12 +415,23 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { show } = useToast()
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent): void => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
+
+  const doDelete = async (): Promise<void> => {
+    await onTouch({ deleted_at: now() })
+    show('已删除卡片', {
+      label: '撤销',
+      onClick: () => void db.todos.update(t.id, { deleted_at: null, updated_at: now() }),
+    }, 6000)
+    setOpen(false)
+  }
+
   const item = 'px-2 py-1.5 rounded-[6px] text-[13px] text-left hover:bg-bg-overlay transition-colors text-text-1 w-full'
   return (
     <div ref={ref} className="relative shrink-0">
@@ -399,10 +454,7 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
             <button key={col} className={item} onClick={() => { onMoveTo(col); setOpen(false) }}>→ {col}</button>
           ))}
           <button className={item} onClick={() => { onOpen(); setOpen(false) }}>在任务树中打开</button>
-          <button className={`${item} text-danger`} onClick={() => {
-            if (window.confirm(`删除卡片「${t.title}」？`)) void onTouch({ deleted_at: now() })
-            setOpen(false)
-          }}>删除</button>
+          <button className={`${item} text-danger`} onClick={() => void doDelete()}>删除</button>
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 export type ViewName =
+  | 'today'
   | 'ai'
   | 'meetings'
   | 'meeting-detail'
@@ -19,8 +20,27 @@ export interface RouteState {
   todoFocusId: string | null
 }
 
+/* ── 记住上次所在页面 ──────────────────────────────────────────────
+   刷新 / 崩溃恢复时回到原地，而不是一律弹回落地页（会议中途刷新尤其烦）。
+   用 sessionStorage 而不是 localStorage：刷新保留，关掉应用重开就没有了 ——
+   每天重新打开仍从「今天」开始，这才是落地页该有的行为。
+   只记顶层页面：详情页带 id，刷新后那个 id 可能已经失效。 */
+const LAST_VIEW_KEY = 'openNotion.lastView.v1'
+const PERSISTABLE: ViewName[] = ['today', 'ai', 'meetings', 'notes', 'todos', 'board', 'report', 'templates', 'settings']
+
+function readLastView(): ViewName {
+  if (typeof window === 'undefined') return 'today'
+  try {
+    const v = window.sessionStorage.getItem(LAST_VIEW_KEY)
+    return v && (PERSISTABLE as string[]).includes(v) ? (v as ViewName) : 'today'
+  } catch {
+    return 'today'
+  }
+}
+
 interface UIStore extends RouteState {
   route: (r: Partial<RouteState>) => void
+  goToday: () => void
   goAi: () => void
   goMeetings: () => void
   goMeeting: (meetingId: string) => void
@@ -41,6 +61,10 @@ interface UIStore extends RouteState {
   permGuideOpen: boolean
   setPermGuideOpen: (open: boolean) => void
 
+  /** 快捷键速查卡（? 打开） */
+  shortcutsOpen: boolean
+  setShortcutsOpen: (open: boolean) => void
+
   sidebarCollapsed: boolean
   setSidebarCollapsed: (v: boolean) => void
 
@@ -49,12 +73,15 @@ interface UIStore extends RouteState {
 }
 
 export const useUI = create<UIStore>((set) => ({
-  view: 'ai',
+  // 落地页是「今天」：先看到今天要做什么，而不是直接甩一个 AI 输入框
+  // （首次访问；之后记住上次所在页面，见下方 readLastView）
+  view: readLastView(),
   meetingId: null,
   noteId: null,
   todoFocusId: null,
 
   route: (r) => set(r),
+  goToday: () => set({ view: 'today', meetingId: null, noteId: null, todoFocusId: null }),
   goAi: () => set({ view: 'ai', meetingId: null, noteId: null, todoFocusId: null }),
   goMeetings: () => set({ view: 'meetings', meetingId: null, noteId: null }),
   goMeeting: (meetingId) => set({ view: 'meeting-detail', meetingId, noteId: null }),
@@ -75,6 +102,9 @@ export const useUI = create<UIStore>((set) => ({
   permGuideOpen: false,
   setPermGuideOpen: (open) => set({ permGuideOpen: open }),
 
+  shortcutsOpen: false,
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
+
   sidebarCollapsed: false,
   setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
 
@@ -87,6 +117,18 @@ export const useUI = create<UIStore>((set) => ({
     document.documentElement.classList.toggle('dark', resolved === 'dark')
   },
 }))
+
+// 页面切换时记住位置（只记顶层页面）
+if (typeof window !== 'undefined') {
+  useUI.subscribe((s) => {
+    if (!PERSISTABLE.includes(s.view)) return
+    try {
+      window.sessionStorage.setItem(LAST_VIEW_KEY, s.view)
+    } catch {
+      // 隐私模式 / 配额满 —— 记不住无所谓，忽略
+    }
+  })
+}
 
 // 监听系统主题变化 —— 选「system」的用户在 OS 切换深/浅时立即跟随
 if (typeof window !== 'undefined' && window.matchMedia) {

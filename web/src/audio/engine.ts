@@ -139,6 +139,7 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
     chunkCount: 0,
     captureMode: 'mic-only',
     captureModeNote: null,
+    systemChunks: 0,
   })
 
   let stream: MediaStream
@@ -292,7 +293,11 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
     const rms = Math.sqrt(sum / levelBuf.length)
     // 人耳听感是非线性的：正常说话 RMS 只有 0.02~0.1，x2.5 根本看不到。
     // 提高增益 + 留噪声地板，让说话明显顶起来、安静时回到接近 0。
-    setRecorderPartial({ audioLevel: Math.min(1, Math.max(0, (rms - 0.008) * 8)) })
+    setRecorderPartial({
+      audioLevel: Math.min(1, Math.max(0, (rms - 0.008) * 8)),
+      // 系统音频 chunk 数：录完还在 0 = 一直没捕到系统声音（对方说话会丢）
+      systemChunks: active.sysMix?.received ?? 0,
+    })
   }, 100)
   active.levelTimer = levelTimer
 
