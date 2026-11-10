@@ -9,9 +9,13 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function saveSettings(patch: Partial<AppSettings>): Promise<void> {
-  const current = await getSettings()
-  const next = { ...current, ...patch }
-  await db.kv.put({ key: 'settings', value: next })
+  // get+put 必须在同一读写事务里：跨事务的读-改-写和并发写入互相覆盖
+  //（bootstrap 的一次性迁移就曾因此吞掉启动窗口内的并发 settings 写入）
+  await db.transaction('rw', db.kv, async () => {
+    const row = await db.kv.get('settings')
+    const value = (row?.value ?? {}) as Partial<AppSettings>
+    await db.kv.put({ key: 'settings', value: { ...DEFAULT_SETTINGS, ...value, ...patch } })
+  })
 }
 
 /** 内存缓存，避免每次读取都走 IndexedDB */
