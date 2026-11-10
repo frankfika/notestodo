@@ -78,6 +78,7 @@
   outline: none !important;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border-radius: 6px;
+  transition: background-color 160ms var(--ease-out-expo, ease-out);
 }
 
 /* 分支线：细发丝线，接分隔线令牌，不抢焦点 */
@@ -86,6 +87,11 @@
   stroke: var(--line) !important;
   stroke-width: 1.5 !important;
 }
+
+/* 注意：画布的 transform **不要**加过渡。
+ * 画布一动，点击 / 双击的落点就在移动 —— dblclick 会被拆开、
+ * 命中不同的元素（实测：加了 220ms 过渡后「双击进入编辑」直接失效）。
+ * 丝滑靠的是「不重建 DOM」，不是让画布飘。 */
 
 /* 折叠/展开的小圆点：ME 自带图片，降到半透明当轻量 hover 控件 */
 .mindmap-canvas .map-container .me-epd {
@@ -112,12 +118,12 @@
 }
 
 /* ── 内联教练提示（R1 · 规则可见可教）────────────────────────────
- * 非模态浮层：不吃指针事件、不抢焦点，3.2s 后自动消失。 */
+ * 非模态浮层：不吃指针事件、不抢焦点，3.2s 后自动消失。
+ * 常驻挂载 + visibility 切显隐：消失时能淡出，不会「啪」地没了。 */
 .mindmap-coach {
   position: absolute;
   top: 12px;
   left: 50%;
-  transform: translateX(-50%);
   z-index: 10;
   max-width: min(420px, 92%);
   padding: 8px 14px;
@@ -129,12 +135,19 @@
   border: 1px solid var(--line, #e5e5ea);
   box-shadow: var(--shadow-2, 0 8px 24px -6px rgba(15, 15, 15, 0.14));
   pointer-events: none;
-  animation: mindmap-fade-in 180ms var(--ease-out-expo, ease-out);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -4px);
+  transition: opacity 180ms var(--ease-out-expo, ease-out),
+    transform 180ms var(--ease-out-expo, ease-out), visibility 0s linear 180ms;
 }
 
-@keyframes mindmap-fade-in {
-  from { opacity: 0; transform: translate(-50%, -4px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+.mindmap-coach[data-show='1'] {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 180ms var(--ease-out-expo, ease-out),
+    transform 180ms var(--ease-out-expo, ease-out), visibility 0s;
 }
 
 /* ── 快捷键提示（F-02 · 轻量，不做工具条）────────────────────────
@@ -243,7 +256,30 @@
   }
   .mindmap-canvas .map-container .me-parent > .me-tpc,
   .mindmap-canvas .map-container .me-epd,
+  .mindmap-canvas .map-container .selected,
+  .mindmap-canvas .map-container .map-canvas,
   .mindmap-hint-btn {
     transition: none;
   }
+}
+
+/* ── 节点标签（关联人 / 完成日期）─────────────────────────────────────────
+ * ME 原生支持节点 tags（渲染成 .tags > span），这里只做「压到最轻」：
+ * 跟正文同一行、去掉 ME 默认的蓝底、只用最淡的字色。
+ * 极简风下，节点依然是纯文字 + 一小段灰字，不抢焦点。 */
+.mindmap-canvas .map-container .me-tpc .tags {
+  display: inline-block;
+  vertical-align: baseline;
+  margin-left: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mindmap-canvas .map-container .me-tpc .tags span {
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 6px 0 0;
+  white-space: nowrap;
 }

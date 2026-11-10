@@ -19,6 +19,7 @@ import InboxSidebar from './InboxSidebar'
 const STATUS_TABS = [
   ['active', '进行中'],
   ['done', '已完成'],
+  ['archived', '已归档'],
   ['all', '全部'],
 ] as const
 

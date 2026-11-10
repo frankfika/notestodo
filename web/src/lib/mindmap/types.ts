@@ -5,6 +5,10 @@ export type MindmapNodeMeta = {
   todoId: ID
   status: TodoStatus
   due_date?: ISODate
+  /** 完成日期（status=done 时有值） */
+  completed_at?: ISODateTime | null
+  /** 关联人（自由文本名字） */
+  assignee?: string
   waiting_reason?: string
   meeting_id?: ID
   isLeaf: boolean

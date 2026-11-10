@@ -11,16 +11,13 @@ import { EditableTitle, TodoMenu } from '../todos/todoRowOps'
 import TodoTags from '../todos/TodoTags'
 import EmptyState from '../../components/EmptyState'
 import type { Tag, Todo } from '../../types'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 /** 勾选完成 / 取消完成 */
 async function toggle(t: Todo): Promise<void> {
-  await db.todos.update(t.id, {
-    status: t.status === 'done' ? 'open' : 'done',
-    updated_at: now(),
-    sync_version: t.sync_version + 1,
-  })
+  await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
 }
 
 /** 今日焦点的一行：勾选框 + 单击即改的标题 + 标签 + 日期 + 行尾菜单 */

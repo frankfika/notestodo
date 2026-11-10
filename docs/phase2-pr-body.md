@@ -36,6 +36,41 @@
 - `docs/phase2-claude-acceptance.md`：事实 vs 假设、命令与数字、需求对比、风险
 - `docs/phase2-pr-body.md`：本文件
 
+## 这一轮追加：视觉 · 手感 · 完成记录与关联人
+
+### 视觉 —— 「线条感太强，不像脑图」
+
+根因是**形状**不是颜色：ME 默认次分支是「横 + 竖 + 横」的折线加长直线段，看着像流程图连接线。改用 ME **官方支持的主题扩展点** `theme.generateMainBranch` / `theme.generateSubBranch` 换成连续三次贝塞尔的**有机树枝**，主分支落子节点左缘、次分支落子节点左缘（ME 传的 `c*` 是 wrapper 几何，topic 左缘要 `cL + --node-gap-x`，取错线会从节点底下穿过去）。
+
+> ⚠️ 这两个函数必须写在 **`theme`** 里，不能放构造函数顶层 —— ME 的 `setTheme` 会用 `theme.generateMainBranch || 默认实现` 覆盖掉顶层选项，**静默失效**。
+
+同时画布自适应：1280 宽下整棵树缩放 0.865 放得下（原来右侧被裁掉 204px），1680/1920 下左右留白对称。
+
+### 手感 —— 「不够丝滑」
+
+三个真因：
+
+1. 每次数据变化都 `refresh()` **重建整棵 DOM** → 加重绘前的「画布签名」比对（id + 标题 + 结构），一致就不重画。实测 Tab 加节点、双击改名后**原节点 DOM 不被重建**。
+   （ME 的 `stringifyData()` 返回的是 **JSON 字符串**，取 `.nodeData` 恒为 `undefined` —— 得用 `getData()`）
+2. 给画布加的 `transform` 过渡让**点击落点跟着动**，双击被拆开、「双击进入编辑」直接失效 → **撤掉过渡**。丝滑靠不重建 DOM，不靠让画布飘。
+3. 教练提示改常驻 + `visibility/opacity` 过渡，从「啪」一下出现变成淡入。
+
+外加：**双击进编辑**。ME v6 的 map 视图没有 dblclick 处理，靠「再点一次已选中的节点」，双击未选中节点常失灵（Tab 加完节点后双击改名就失灵）→ 补 `dblclick` → `editTopic`，并挡掉合成的「已完成 (N)」伪节点。
+
+### 完成记录 + 关联人（F-10）
+
+- `Todo.completed_at`：状态翻 `done` 自动记、翻回 `open` 清空。原来「完成」散在 **8 处**各自 update，谁也没记时间 → 收口到 `src/lib/todoStatus.ts` 的 `applyTodoStatus()`，UI 与外部 API 同一口径
+- 人员目录（`src/lib/people.ts`，存 KV，**Dexie schema 仍 v10**）：**部门 → 小组 → 个人** 多层级，`internal` 标记 = **不对外**（默认名单不出现，勾「含内部」才看得到），`role: manager` 新建时默认内部；首次进入铺一份模拟人员，可随时增删改
+- 关联人选择器（`src/components/AssigneePicker.tsx`）：任务行「⋯」菜单里，按层级分组 + 上溯路径 + 搜索 + 就地新建
+- 串联：一行里同时看到「谁 · 什么时候 · 完成了什么」；脑图节点用 **ME 原生 `tags`** 渲染 `@李娜` / `完成 11/10`，样式压成最淡灰字
+- **归档**：被否掉的事（投资A 黄了）→ `status=cancelled` + `archived_at`（复用已有的 cancelled 状态，不新增枚举；把只给「图根归档」用的 `archived_at` 泛化到任意待办）。从没完成过的，归档时补一个**结束时间**（`completed_at`）——「关闭了就得有时间」。任务行「⋯」里可归档（带撤销），顶部新增**「已归档」**筛选页签看记录，脑图上直接消失
+- **顺带修掉**：`purgeIneligibleSlots()` 写好了却从没被调用 → 完成 / 归档的条目一直占着 Today 的坑；挂到 `applyTodoStatus()`（状态变化的唯一出口）上
+- 新增 `web/tests/todo-completion-people.spec.ts`（10 例）
+
+### 用了哪些开源能力
+
+ME 的 `generateMainBranch` / `generateSubBranch`（官方扩展点）、ME 的节点 `tags`、Dexie KV。ME 官方生态里没有「有机树枝」插件；换 markmap / simple-mind-map 要重写 undo / Today / Inbox / 整套 E2E 集成，成本远大于收益 —— 留在 ME 上，只用它的扩展点。
+
 ## 测试状态
 
 ```bash

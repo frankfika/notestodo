@@ -9,6 +9,7 @@ import TodoTags from './TodoTags'
 import { EditableTitle, TodoMenu, createTodo, useRowKeys } from './todoRowOps'
 import { doneLast, filterForTree, type TodoFilter } from './filter'
 import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -25,11 +26,7 @@ function DueBadge({ due }: { due?: string }): JSX.Element | null {
 }
 
 async function toggle(t: Todo): Promise<void> {
-  await db.todos.update(t.id, {
-    status: t.status === 'done' ? 'open' : 'done',
-    updated_at: now(),
-    sync_version: t.sync_version + 1,
-  })
+  await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
 }
 
 /** 防止把节点拖进自己的子孙里成环 */
@@ -226,6 +223,20 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         )}
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
         <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
+        {/* 关联人 + 完成日期：和「按时间」列表同一套口径 */}
+        {t.assignee && (
+          <span className="text-[11px] text-text-2 shrink-0" title="关联人（在「⋯」里改）">@{t.assignee}</span>
+        )}
+        {t.completed_at && (
+          <span className="text-[11px] font-mono text-text-3 shrink-0" title="完成日期">
+            完成 {t.completed_at.slice(5, 10).replace('-', '/')}
+          </span>
+        )}
+        {t.archived_at && (
+          <span className="text-[11px] font-mono text-text-3 shrink-0" title="归档日期">
+            归档 {t.archived_at.slice(5, 10).replace('-', '/')}
+          </span>
+        )}
         {/* 来源链接降噪：hover 才显示，平时不占视觉 */}
         <span className="hover-only opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
           <OriginChip t={t}
@@ -259,7 +270,14 @@ export default function TodosTree({ filter, tagByTodo, readOnly }: { filter: Tod
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])
-  const tree = useMemo(() => buildTree(filterForTree(all, filter, tagByTodo)), [all, filter, tagByTodo])
+  const tree = useMemo(() => {
+    // 「已归档」视图：被关闭掉的那批平时被 live() 滤掉了，这里单独放出来
+    if (filter.status === 'archived') {
+      const archived = all.filter((t) => t.deleted_at === null && t.status === 'cancelled')
+      return buildTree(archived)
+    }
+    return buildTree(filterForTree(all, filter, tagByTodo))
+  }, [all, filter, tagByTodo])
   const origins = useOriginTitles(all)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragId, setDragId] = useState<string | null>(null)

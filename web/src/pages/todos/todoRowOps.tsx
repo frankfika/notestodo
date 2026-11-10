@@ -6,6 +6,9 @@ import type { Todo } from '../../types'
 import TagPicker from '../../components/TagPicker'
 import DateInput from '../../components/DateInput'
 import { useToast } from '../../state/toast'
+import { applyTodoStatus } from '../../lib/todoStatus'
+import AssigneePicker from '../../components/AssigneePicker'
+import { archiveTodo, unarchiveTodo } from '../../lib/todoStatus'
 
 /* ────────────────────────────────────────────────────────────────
    任务行操作：单击即改 / 键盘流 / 快捷日期 / 可撤销删除
@@ -51,11 +54,7 @@ export async function moveToRoot(t: Todo): Promise<void> {
 }
 
 export async function toggleTodo(t: Todo): Promise<void> {
-  await db.todos.update(t.id, {
-    status: t.status === 'done' ? 'open' : 'done',
-    updated_at: now(),
-    sync_version: t.sync_version + 1,
-  })
+  await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
 }
 
 /** 自身 + 所有子孙 id（BFS，环防御靠每个 id 只入队一次） */
@@ -356,6 +355,12 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
     }
   }, [open])
 
+  const doArchive = async (): Promise<void> => {
+    await archiveTodo(t)
+    show('已归档', { label: '撤销', onClick: () => void unarchiveTodo(t) }, 6000)
+    setOpen(false)
+  }
+
   const doDelete = async (): Promise<void> => {
     const undo = await softDeleteTreeWithUndo(t, all)
     show('已删除', { label: '撤销', onClick: () => void undo() }, 6000)
@@ -392,10 +397,24 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
             className="input mx-1 mb-1 !w-auto !h-7 text-xs"
           />
 
+          <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line">关联人</label>
+          <div className="px-2 pb-1">
+            <AssigneePicker todoId={t.id} assignee={t.assignee} />
+          </div>
+
           <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line">标签</label>
           <div className="px-2 pb-1">
             <TagPicker targetType="todo" targetId={t.id} />
           </div>
+
+          {/* 归档：这件事黄了 / 被否了 —— 关掉，但留下带时间的记录 */}
+          {t.archived_at ? (
+            <button className={itemCls} onClick={() => { void unarchiveTodo(t); setOpen(false) }}>
+              取消归档
+            </button>
+          ) : (
+            <button className={itemCls} onClick={() => { void doArchive() }}>归档（这件事黄了）</button>
+          )}
 
           {t.parent_id && (
             <button className={itemCls} onClick={() => { void moveToRoot(t); setOpen(false) }}>移到根级</button>
