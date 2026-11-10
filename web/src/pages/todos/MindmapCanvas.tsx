@@ -199,6 +199,18 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     const mei = meiRef.current
     if (!mei || editingRef.current) return
     const data = todosToMindData(todos, rootId)
+    /**
+     * 渲染结果没变就别重画。
+     *
+     * refresh 会重建 ME 的整棵 DOM（清掉选中态、吞掉进行中的点击 / 双击）。
+     * 而像「Inbox 根图创建」这种**与本图无关**的 DB 变更也会触发 todos 变化，
+     * 于是画布被无谓地重画一次 —— 双击恰好落在那个窗口里就会丢。
+     * 哈希取的是真正要渲染的那棵树（含 metadata），比按 todo 字段拼更准。
+     */
+    const hash = JSON.stringify(data)
+    const prev = mei as MindElixirInstance & { __hash?: string }
+    if (prev.__hash === hash) return
+    prev.__hash = hash
     if (typeof mei.refresh === 'function') {
       // refresh 会清空选中态；把原选中的节点选回来，连按快捷键才不断
       const keepId = mei.currentNode?.nodeObj?.id
@@ -208,12 +220,6 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
         if (el) mei.selectNode?.(el)
       }
     } else {
-      const hash = todos
-        .map((t) => `${t.id}:${t.parent_id}:${t.title}:${t.status}:${t.sort_order}:${t.waiting_reason ?? ''}`)
-        .join('|')
-      const prev = mei as MindElixirInstance & { __hash?: string }
-      if (prev.__hash === hash) return
-      prev.__hash = hash
       void mei.init(data)
     }
   }, [todos, rootId, ready])

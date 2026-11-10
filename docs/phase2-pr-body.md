@@ -8,6 +8,7 @@
 
 | # | 缺陷 | 影响 | 是否本分支引入 |
 |---|---|---|---|
+| 4 | 画布对任何 `todos` 变化都 `refresh` 重建 DOM | 与本图无关的 DB 变更也会重建画布，吞掉进行中的双击（偶发红） | 是 |
 | 1 | `InboxSidebar` 把会**写库**的 `ensureInboxMap()` 放进 `useLiveQuery` → Dexie 抛 `ReadOnly: Readwrite transaction in liveQuery context` | 整个任务页崩溃。新装用户一开 `mindmap_tasks` 开关即崩 | 否 —— 来自 main 的 `8690c87` |
 | 2 | `MindmapCanvas` 的 ME `operation` 监听器闭包捕获**初始空 `todos`**（effect deps 只有 `[rootId]`）→ `byId` 恒空 | `removeNodes` / `moveNodes*` 补丁被整段跳过，**删除 / 提升 / 降低都不落库** | 是 |
 | 3 | ME 的 `findEle()` 找不到节点时是**抛异常**而非返回 null | 节点完成 / 删除后折进折叠的「已完成」组 → 画布崩溃 → 整页 ⌘Z 撤销失灵 | 是 |
@@ -19,13 +20,16 @@
 - `web/src/lib/mindmap/mapRoots.ts`：新增只读的 `findInboxMap()`
 - `web/src/lib/mindmap/inboxCapture.ts`：`listInboxCaptures()` 改为只读
 - `web/src/pages/todos/InboxSidebar.tsx`：querier 全部只读，`ensureInboxMap()` 挪到 `useEffect`
+- `web/src/lib/mindmap/mapRoots.ts`：`ensureInboxMap()` 的「找 + 建」改为**原子**（事务 + 单飞）。把创建挪进 effect 后，`StrictMode` 双挂载会并发调两次，原实现「先查再建」不原子 → **建出两个 Inbox 根图**（图库出现两个同名图根）。已加确定性回归测试
 - `web/src/pages/todos/MindmapCanvas.tsx`：新增 `todosRef`（最新快照）+ `findEleSafe()`（兜住 ME 抛异常）
+- `web/src/pages/todos/MindmapCanvas.tsx`：**渲染结果没变就别重画** —— 原实现里任何 `todos` 变化都会 `mei.refresh(data)` 重建整棵 ME DOM（清选中态、吞掉进行中的双击）；像「Inbox 根图创建」这种与本图无关的变更也会触发。改为对真正要渲染的那棵树取哈希，没变就跳过。副作用：shortcuts 全套 51.0s → 32.4s
 
-**测试（3 处，均为测试自身写错，未改产品行为去迁就）**
+**测试（4 处，均为测试自身写错，未改产品行为去迁就）**
 
 - `mindmap-shortcuts.spec.ts`：`childIds('a')` 断言长度 1 → 改为基线相对（seed 里 `'c'` 本就是 `'a'` 的孩子）
 - `mindmap-visual.spec.ts`：根节点字号断言 14px → 拆成「根 17px / 子节点 14px」（`mindmap.css:53-54` 有意给根节点 17px）
 - `recording-multi.spec.ts`：`.rec-dot ~ span.font-mono.tabular-nums` 命中的是**侧栏墙上时钟**而非计时器 → 显式 scope 到 REC 计时器。详见下方「测试状态」
+- `mindmap-inbox.spec.ts`：**新增** 1 例 —— Inbox 根图只建一个（StrictMode 双挂载不重复建）。已双向验证：原始实现稳定红（2 个），修复后稳定绿（1 个）
 
 **文档**
 
@@ -36,17 +40,17 @@
 
 ```bash
 cd web && pnpm i && pnpm exec playwright install chromium
-pnpm exec playwright test tests/mindmap-shortcuts.spec.ts --reporter=list   # 14 passed (51.0s)
-pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list  # 43 passed (1.3m)
-pnpm exec playwright test --reporter=list                                    # 156 passed / 1 skipped / 0 failed (7.2m)
+pnpm exec playwright test tests/mindmap-shortcuts.spec.ts --reporter=list   # 14 passed (32.4s)
+pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list  # 44 passed (1.2m)
+pnpm exec playwright test --reporter=list                                    # 157 passed / 1 skipped / 0 failed (7.2m)
 pnpm exec tsc -b --noEmit                                                    # exit 0
 ```
 
 | 项 | 修复前 | 修复后 |
 |---|---|---|
 | `mindmap-shortcuts.spec.ts` | ❌ **14 failed**（17.2–27.0s/例） | ✅ **14 passed**（~2.0s/例） |
-| 脑图 + local-api（43 例） | — | ✅ **43 passed** |
-| 全量套件（157 例） | — | ✅ **156 passed / 1 skipped**（skip 的是 `offline.spec.ts`，需生产构建，改动前既有行为） |
+| 脑图 + local-api（44 例） | — | ✅ **44 passed** |
+| 全量套件（158 例） | — | ✅ **157 passed / 1 skipped**（skip 的是 `offline.spec.ts`，需生产构建，改动前既有行为） |
 | `tsc -b --noEmit` | — | ✅ 绿 |
 
 **没有 skip、没有 xfail、没有注释掉的用例。** 修复前每例都跑满 15s 超时，修复后每例约 2s。

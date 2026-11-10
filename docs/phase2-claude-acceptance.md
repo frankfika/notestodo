@@ -10,9 +10,9 @@
 
 ## 0. 结论先行
 
-`mindmap-shortcuts.spec.ts` **从 14/14 全红修到 14/14 全绿**，并且**顺带修掉了 3 个真实产品 bug**（其中 2 个是 main 上就存在的既有缺陷，不在本分支引入）。
+`mindmap-shortcuts.spec.ts` **从 14/14 全红修到 14/14 全绿**，并且**顺带修掉了 4 个真实产品 bug**（其中 2 个是 main 上就存在的既有缺陷，不在本分支引入；另有 1 个是我自己引入又当场修掉的回归 —— 见 §3.1①-b）。
 
-全量 Playwright 套件最终 **156 passed / 1 skipped / 0 failed**（skip 的是 `offline.spec.ts`，需要生产构建 + preview，dev server 下自动跳过 —— `playwright.config.ts` 里本来就写明的既有行为）。
+全量 Playwright 套件最终 **157 passed / 1 skipped / 0 failed**（skip 的是 `offline.spec.ts`，需要生产构建 + preview，dev server 下自动跳过 —— `playwright.config.ts` 里本来就写明的既有行为）。
 
 但：**本分支尚未推送、尚未开 PR**（沙箱内无 GitHub 凭证），交付物是本地 commit + bundle，见文末「交付形态」。
 
@@ -78,6 +78,9 @@ Readwrite transaction in liveQuery context. Querier source:
 | F12 | `recording-multi` 的失败值 **535 / 536 / 538 = 当时的墙上时钟**（08:55 / 08:56 / 08:58），不是计时器 | 探针脚本实测：legacy 选择器命中 `["09:00"]`；`RecordingBar` 计时器在该页 `recordingBarPresent: false` |
 | F13 | 该用例是 **flaky**：同一份代码连跑 3 次有时过有时红（取决于侧栏品牌行当时有没有带 `rec-dot`） | 修复前：首轮全量红 → 单独重跑红 → 之后连跑 3 次全过；stash 掉我的改动后也过 |
 | F14 | 该用例**从未真正测到计时器** —— 侧栏品牌行的 `.rec-dot` 后面跟的是墙上时钟（`Sidebar.tsx:339,381,384`），在 DOM 里排在 `main` 之前，被 `.first()` 优先命中 | `Sidebar.tsx:381` 与 `:384` 是同一行的兄弟节点 |
+| F15 | 把 `ensureInboxMap()` 挪进 `useEffect` 会因 **React StrictMode 双挂载**而并发调用两次；原实现的「先查再建」不原子 → **建出两个 Inbox 根图** | 第一版 `visual-mindmap.png` 截图里图库列着两个「Inbox」；`main.tsx:25` 是 `<StrictMode>` |
+| F16 | 该重复可确定性复现，也可确定性修掉：原始实现下新加的回归测试**稳定红**（2 个），加事务 + 单飞后**稳定绿**（1 个） | 见 §3.4 的双向验证表 |
+| F17 | 画布的 `mei.refresh(data)` 会在**任何** `todos` 变化后重建整棵 DOM；与本图无关的 DB 变更（如 Inbox 创建）也会触发 → 双击被吞 | 末轮全量跑中 `Space：编辑节点标题时不触发完成` 偶发红（`#input-box` 10s 未出现）；同一用例 isolated 跑全绿 |
 
 ### 2.2 交接文档里的假设 —— 全部证伪
 
@@ -113,6 +116,17 @@ Dexie 的 `useLiveQuery` querier 在事务上下文中执行，里面写库会�
 
 > 这不只是测试问题：**新装用户打开 `mindmap_tasks` 实验开关时，Inbox 根图尚不存在，原代码会当场崩掉整个任务页。**
 
+**①-b `web/src/lib/mindmap/mapRoots.ts`**
+—— `ensureInboxMap()` 的 find-or-create 必须是**原子**的。
+
+这一条是**我自己在 ① 里引入的回归**，如实记录：
+
+- ① 把 `ensureInboxMap()` 挪进 `useEffect` 后，`main.tsx` 的 `<StrictMode>` 会把 effect 跑两遍 → 两次 `ensureInboxMap()` 并发；
+- 原实现的「先查再建」不是原子的：两次都读到「还没有 Inbox」→ **各建一个** → 图库里出现两个同名图根（见 `visual-mindmap.png` 的第一版截图）；
+- 修法两层：① 把「找 + 建」整体放进 `db.transaction('rw', db.todos, ...)`；② 加**单飞**（`inboxCreating` 进行中时后来的调用直接复用同一个 Promise），因为 Dexie 的表锁是 best-effort，光靠事务挡不住所有时序。
+
+配套加了一条**确定性红绿**的回归测试（见 §3.4）。
+
 **② `web/src/pages/todos/MindmapCanvas.tsx`**
 —— `operation` 监听器读到了过期数据。
 
@@ -122,6 +136,13 @@ Dexie 的 `useLiveQuery` querier 在事务上下文中执行，里面写库会�
 —— ME 的 `findEle()` 会抛异常。
 
 新增 `findEleSafe()` 兜住异常，替换 4 处 `findEle` 调用（refresh 保持选中、focusId 定位、⇧Tab、⌥Tab）。修复前：节点完成 / 删除后折进折叠的「已完成」组 → `findEle` 抛 → 画布崩溃 → **整个页面的 ⌘Z 撤销失灵**。
+
+**④ `web/src/pages/todos/MindmapCanvas.tsx`**
+—— 渲染结果没变就别重画。
+
+原实现里，只要 `todos` 有任何变化就 `mei.refresh(data)`，而 `refresh` 会**重建 ME 的整棵 DOM**（清选中态、吞掉进行中的点击 / 双击）。像「Inbox 根图创建」这种**与本图无关**的 DB 变更也会触发它 —— 双击恰好落在那个窗口里就会丢（末轮全量跑里 `Space：编辑节点标题时不触发完成` 偶发红过一次）。
+
+改为对**真正要渲染的那棵树**（`JSON.stringify(data)`，含 metadata）取哈希，没变就跳过重画。副作用是变快了：shortcuts 全套 51.0s → 32.4s。
 
 ### 3.2 测试修复（3 处，均为测试自身写错，非产品妥协）
 
@@ -163,6 +184,19 @@ const elapsedText = await page
 
 > 这条用例的**原意**（验证跨录音的计时器隔离）此前**从未真正被验证过** —— 现在才真的在测计时器。修复后连跑 3 次全绿，断言值 `00:01`。
 
+### 3.4 新增回归测试
+
+`web/tests/mindmap-inbox.spec.ts` 新增 1 例：**Inbox 根图只建一个（StrictMode 双挂载不会重复建）** —— 端到端复现真实路径（清库 → 开 flag → 进任务页挂载 InboxSidebar），断言库里只有一个 `title === 'Inbox'` 的根图。
+
+这条测试的有效性已**双向验证**：
+
+| 实现 | 结果 |
+|---|---|
+| 原始实现（先查再建，无事务/无单飞） | ❌ **红** —— `Expected length: 1, Received length: 2` |
+| 本次修复（事务 + 单飞） | ✅ **绿** |
+
+> 验证过程中还踩到一个坑：**Vite dev server 的模块缓存在改代码后不会立刻生效**，曾让「已修好」的代码跑出旧行为（连续两次误判）。此后每轮验证都先重启 dev server 再测 —— 这条经验对后续改前端的人也有用。
+
 
 ---
 
@@ -185,12 +219,12 @@ pnpm exec playwright install chromium
 |---|---|---|
 | 修复前 | `pnpm exec playwright test tests/mindmap-shortcuts.spec.ts --reporter=list` | **14 failed**（17.2–27.0s/例） |
 | 修复中 | 同上 | 5 failed / 9 passed |
-| **修复后** | 同上 | ✅ **14 passed（51.0s，每例约 2.0–2.2s）** |
-| 脑图全套 | `pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list` | ✅ **43 passed（1.3m）** |
+| **修复后** | 同上 | ✅ **14 passed（32.4s，每例约 2.0s）** |
+| 脑图全套 | `pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list` | ✅ **44 passed（1.2m）**（43 + 新增回归用例） |
 | 类型检查 | `pnpm exec tsc -b --noEmit` | ✅ 绿（exit 0） |
-| **全量套件** | `pnpm exec playwright test --reporter=list` | ✅ **156 passed / 1 skipped / 0 failed（7.2m）** |
+| **全量套件** | `pnpm exec playwright test --reporter=list` | ✅ **157 passed / 1 skipped / 0 failed（7.2m）** |
 
-Spec 分布（43 例脑图子集）：local-api 4 + archive 2 + attach 1 + convert 6 + inbox 3 + leaf 1 + perf 1 + **shortcuts 14** + today 3 + undo 3 + **visual 5**。
+Spec 分布（44 例脑图子集）：local-api 4 + archive 2 + attach 1 + convert 6 + **inbox 4** + leaf 1 + perf 1 + **shortcuts 14** + today 3 + undo 3 + **visual 5**。
 
 **唯一的 skip**：`tests/offline.spec.ts` —— 需要生产构建（`pnpm build && pnpm preview`）才能验证 service worker，dev server 下自动跳过。这是 `playwright.config.ts` 注释里写明的既有行为，**与本次改动无关**。
 
@@ -198,7 +232,7 @@ Spec 分布（43 例脑图子集）：local-api 4 + archive 2 + attach 1 + conve
 
 | | 修复前 | 修复后 |
 |---|---|---|
-| Tab：新增子节点 | 27.0s（超时红） | 2.2s ✅ |
+| Tab：新增子节点 | 27.0s（超时红） | 2.1s ✅ |
 | Space：叶子可完成，⌘Z 可撤销 | 17.1s（超时红） | 1.9s ✅ |
 
 > 修复前每例都跑满 15s 超时；修复后每例 ~2s。**耗时变化本身就是崩溃路径被切断的旁证。**
@@ -246,11 +280,12 @@ Spec 分布（43 例脑图子集）：local-api 4 + archive 2 + attach 1 + conve
 | R-2 | Inbox 根图改为**首次挂载 InboxSidebar 时**创建，而非进入脑图页前 | 低 | 其他调用方（`attachToMap` / `localApi`）各自调 `ensureInboxMap()`，不依赖侧栏先创建 |
 | R-3 | `findEleSafe()` 吞掉异常 | 低 | 兜底后行为 = 「选中态丢失」，而非「整页崩溃」。原行为是崩溃，取舍明确 |
 | R-4 | `todosRef` 存在极小的并发窗口 | 低 | 见假设 A2。真人按键间隔远大于该窗口；若后续要支持连击/宏，建议改成监听器内直接读 `db.todos` |
-| R-5 | 本分支含 `573ae14` 全产品 UX 大改（cherry-pick），改动面远大于脑图 | **中** | 全量 156 passed / 1 skipped 已绿，但 UX 计划里的细节未逐条人工走查（假设 A1）。合入前建议 Fang 手动过一遍 UX 计划 |
+| R-5 | 本分支含 `573ae14` 全产品 UX 大改（cherry-pick），改动面远大于脑图 | **中** | 全量 157 passed / 1 skipped 已绿，但 UX 计划里的细节未逐条人工走查（假设 A1）。合入前建议 Fang 手动过一遍 UX 计划 |
 | R-6 | **分支尚未推送 / 未开 PR** | **中** | 沙箱内无 GitHub 凭证（无 `gh`、无 token / PAT）。交付为本地 commit + bundle，命令见下 |
 | R-7 | `573ae14` 与 `5946d2d` 同处一个分支 | 低 | PR 含 3 个 commit（含 2 个既有 bug 修复）。若想拆成「bugfix」+「WIP 收尾」两个 PR，拆分点在 commit 边界，需你确认是否要拆 |
 | R-8 | `recording-multi.spec.ts` 的修改**在脑图范围外** | 低 | 仅为 1 行选择器修正（§3.3），无产品代码改动。放在本 PR 是因为「合入前必须测过」要求全量绿；如想单独成 PR，拆分点在 commit 边界（`39b496c` 内） |
-| R-9 | 视觉验收仍需人工 | 低 | `visual-mindmap.png` 已存档，供 HIG 复核；自动化只断言可断言的部分（字号层级 / 无盒子 / 令牌跟随） |
+| R-9 | 「渲染结果没变就别重画」的哈希若漏掉某个会影响渲染的字段，画布可能不更新 | 低 | 哈希取的是 `JSON.stringify(data)` —— **真正交给 ME 渲染的那棵树**（含 topic / style / metadata / expanded），不是 todo 字段拼接，比原来的拼接式哈希更全（原来漏了 `due_date`）。且改动后全量 157 例绿、shortcuts 连跑 3 次绿 |
+| R-10 | 视觉验收仍需人工 | 低 | `visual-mindmap.png` 已存档，供 HIG 复核；自动化只断言可断言的部分（字号层级 / 无盒子 / 令牌跟随） |
 
 ---
 
@@ -307,10 +342,10 @@ cd web && pnpm i && pnpm exec playwright test tests/mindmap tests/local-api.spec
 **脑图 F-02 / F-09 收尾完成，可进入 PR 评审。**
 
 - `mindmap-shortcuts.spec.ts`：**14/14 绿**（修复前 14/14 红）
-- 脑图 + local-api 子集：**43/43 绿**
-- 全量套件：**156 passed / 1 skipped（既有：需生产构建）/ 0 failed**
+- 脑图 + local-api 子集：**44/44 绿**
+- 全量套件：**157 passed / 1 skipped（既有：需生产构建）/ 0 failed**
 - `tsc -b --noEmit`：**绿**
-- 修掉 **3 个真实产品 bug**（1 个本分支引入的既有缺陷 + 2 个 main 既有缺陷），全部有 E2E 覆盖
+- 修掉 **4 个真实产品 bug**（2 个本分支引入的既有缺陷 + 2 个 main 既有缺陷）+ **1 个我自己引入又修掉的回归**（Inbox 重复建），全部有 E2E 覆盖
 - 另修掉 1 条**从未真正生效**的测试断言（`recording-multi` 读的是墙上时钟而非计时器）
 - `mindmap_tasks` 默认 **仍为 `false`**；Dexie **仍为 v10**；未新增任何 `zz-dbg*.spec.ts` 调试文件
 - **待你侧完成**：推分支 + 开 PR（命令见 §7）；并对 `573ae14` 的 UX 细节做一次人工走查
