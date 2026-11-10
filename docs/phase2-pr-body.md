@@ -57,7 +57,18 @@
 
 外加：**双击进编辑**。ME v6 的 map 视图没有 dblclick 处理，靠「再点一次已选中的节点」，双击未选中节点常失灵（Tab 加完节点后双击改名就失灵）→ 补 `dblclick` → `editTopic`，并挡掉合成的「已完成 (N)」伪节点。
 
-### 完成记录 + 关联人（F-10）
+### 布局：画布优先（A + C 一起做）
+
+画布之前被三条常驻面板挤到只剩 456px（1280 窗口下）。现在：
+
+- **图库** → 画布左上角浮层（`◱ 当前图名 ▾`），切图 / 归档照旧
+- **Inbox** → 画布左上角浮层（`↓ Inbox N`），捕获照旧
+- **Today** → **从脑图 Tab 挪到「今天」页**（Today 槽位跟着走），脑图右上角只留 `☼ Today 3/5` 计数入口
+- 画布宽度 456px → **1048px**，吃满整宽；「规划 / 执行分离」贯彻到底
+
+顺带修掉一个脆弱实现：**⌘] / ⌘[ 切图原来靠 DOM 猜**（找 `<aside>` 里含「图库」的按钮替用户点），面板一改结构就断（直接暴露成用例红）。现在图库把「有序图 id + 选中回调」透进画布，键盘直接切。
+
+### 完成记录 + 关联人 + 归档（F-10）
 
 - `Todo.completed_at`：状态翻 `done` 自动记、翻回 `open` 清空。原来「完成」散在 **8 处**各自 update，谁也没记时间 → 收口到 `src/lib/todoStatus.ts` 的 `applyTodoStatus()`，UI 与外部 API 同一口径
 - 人员目录（`src/lib/people.ts`，存 KV，**Dexie schema 仍 v10**）：**部门 → 小组 → 个人** 多层级，`internal` 标记 = **不对外**（默认名单不出现，勾「含内部」才看得到），`role: manager` 新建时默认内部；首次进入铺一份模拟人员，可随时增删改
@@ -65,7 +76,7 @@
 - 串联：一行里同时看到「谁 · 什么时候 · 完成了什么」；脑图节点用 **ME 原生 `tags`** 渲染 `@李娜` / `完成 11/10`，样式压成最淡灰字
 - **归档**：被否掉的事（投资A 黄了）→ `status=cancelled` + `archived_at`（复用已有的 cancelled 状态，不新增枚举；把只给「图根归档」用的 `archived_at` 泛化到任意待办）。从没完成过的，归档时补一个**结束时间**（`completed_at`）——「关闭了就得有时间」。任务行「⋯」里可归档（带撤销），顶部新增**「已归档」**筛选页签看记录，脑图上直接消失
 - **顺带修掉**：`purgeIneligibleSlots()` 写好了却从没被调用 → 完成 / 归档的条目一直占着 Today 的坑；挂到 `applyTodoStatus()`（状态变化的唯一出口）上
-- 新增 `web/tests/todo-completion-people.spec.ts`（10 例）
+- 新增 `web/tests/todo-completion-people.spec.ts`（10 例）、`web/tests/mindmap-layout.spec.ts`（4 例）
 
 ### 用了哪些开源能力
 
@@ -77,7 +88,7 @@ ME 的 `generateMainBranch` / `generateSubBranch`（官方扩展点）、ME 的�
 cd web && pnpm i && pnpm exec playwright install chromium
 pnpm exec playwright test tests/mindmap-shortcuts.spec.ts --reporter=list   # 14 passed (32.4s)
 pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list  # 44 passed (1.2m)
-pnpm exec playwright test --reporter=list                                    # 167 passed / 1 skipped / 0 failed (10.7m)
+pnpm exec playwright test --reporter=list                                    # 170 passed / 1 skipped / 0 failed (10.5m)
 pnpm exec tsc -b --noEmit                                                    # exit 0
 ```
 
@@ -85,7 +96,7 @@ pnpm exec tsc -b --noEmit                                                    # e
 |---|---|---|
 | `mindmap-shortcuts.spec.ts` | ❌ **14 failed**（17.2–27.0s/例） | ✅ **14 passed**（~2.0s/例） |
 | 脑图 + local-api（44 例） | — | ✅ **44 passed** |
-| 全量套件（168 例） | — | ✅ **167 passed / 1 skipped**（skip 的是 `offline.spec.ts`，需生产构建，改动前既有行为） |
+| 全量套件（172 例） | — | ✅ **170 passed / 1 skipped**（skip 的是 `offline.spec.ts`，需生产构建，改动前既有行为） |
 | `tsc -b --noEmit` | — | ✅ 绿 |
 
 **没有 skip、没有 xfail、没有注释掉的用例。** 修复前每例都跑满 15s 超时，修复后每例约 2s。

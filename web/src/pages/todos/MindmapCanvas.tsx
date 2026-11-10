@@ -10,7 +10,6 @@ import {
 import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
 import { pushTodoStatusUndo, setMindmapEditing } from '../../lib/mindmap/undoStack'
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
-import { listMapRoots } from '../../lib/mindmap/mapRoots'
 import type { MeOperation } from '../../lib/mindmap/types'
 import type { ID, Todo } from '../../types'
 import { mod, now } from '../../lib/id'
@@ -19,6 +18,10 @@ import { applyTodoStatus } from '../../lib/todoStatus'
 
 export type MindmapCanvasProps = {
   rootId: ID
+  /** 有序的图根 id 列表（⌘] / ⌘[ 用它算下一张 / 上一张） */
+  mapIds?: ID[]
+  /** 切图回调（由页面持有图根状态） */
+  onSelectMap?: (id: ID) => void
 }
 
 /**
@@ -211,23 +214,6 @@ function keyLabel(k: string): string {
 }
 
 /**
- * F-02 · 切图走图库面板的按钮（真相源仍在图库，键盘只是「代劳点击」）。
- * TODO(Fang): TodosPage 若能透出 onSelect，这里换成直接回调更干净。
- */
-function clickLibraryMap(title: string): boolean {
-  const lib = Array.from(document.querySelectorAll('aside')).find((a) =>
-    a.textContent?.includes('图库'),
-  )
-  if (!lib) return false
-  const btn = Array.from(lib.querySelectorAll('ul li button')).find(
-    (b) => b.textContent?.trim() === title,
-  )
-  if (!(btn instanceof HTMLElement)) return false
-  btn.click()
-  return true
-}
-
-/**
  * ME 的 findEle 找不到节点时是**抛异常**（"FindEle: Node x not found, maybe it's
  * collapsed"），不是返回 null。节点完成 / 删除后会被折进折叠的「已完成」组，
  * 此时必须兜住 —— 否则画布组件崩溃，页面被 ErrorBoundary 吞掉，
@@ -241,7 +227,7 @@ function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
   }
 }
 
-export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Element {
+export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCanvasProps): JSX.Element {
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
   const editingRef = useRef(false)
@@ -452,19 +438,26 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
   }, [fitToView])
 
   /** F-02 · 切图：⌘] / ⌘[ 在图库面板里前后翻 */
+  /**
+   * F-02 · ⌘] / ⌘[ 切图。
+   *
+   * 原来是「找到左侧图库面板里的按钮，替用户点一下」—— 靠 DOM 结构猜，
+   * 图库一改成浮层就断了。现在图库把「有序的图 id 列表 + 选中回调」透进来，
+   * 键盘直接切，DOM 长什么样都不影响。
+   */
   const switchMap = useCallback(
-    async (dir: 1 | -1): Promise<void> => {
-      const roots = await listMapRoots()
-      if (roots.length <= 1) {
-        say('只有一张图 —— 在左侧图库新建')
+    (dir: 1 | -1): void => {
+      const ids = mapIds ?? []
+      if (ids.length <= 1) {
+        say('只有一张图 —— 在左上角切图入口新建')
         return
       }
-      const idx = roots.findIndex((r) => r.id === rootId)
-      const next = roots[(idx + dir + roots.length) % roots.length]
-      if (!next) return
-      if (!clickLibraryMap(next.title || '未命名')) say('切图失败 —— 请在左侧图库选择')
+      const idx = ids.findIndex((id) => id === rootId)
+      const next = ids[(idx + dir + ids.length) % ids.length]
+      if (!next || !onSelectMap) return
+      onSelectMap(next)
     },
-    [rootId, say],
+    [mapIds, onSelectMap, rootId, say],
   )
 
   useEffect(() => {
@@ -480,7 +473,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       // 切图不依赖选中节点
       if (isMod && (e.key === ']' || e.key === '[')) {
         e.preventDefault()
-        void switchMap(e.key === ']' ? 1 : -1)
+        switchMap(e.key === ']' ? 1 : -1)
         return
       }
 
