@@ -64,7 +64,7 @@ Readwrite transaction in liveQuery context. Querier source:
 
 | # | 事实 | 证据 |
 |---|------|------|
-| F1 | 首跑 **14 例全红**，错误是 `.mindmap-canvas` 15s 不可见，**不是断言瞬间失败** | `/tmp/pw-short-1.log` 全量 reporter 输出 |
+| F1 | 首跑 **14 例全红**，错误是 `.mindmap-canvas` 15s 不可见，**不是断言瞬间失败** | 首轮 `--reporter=list` 全量 reporter 输出 |
 | F2 | 页面崩溃的根因是 Dexie 抛 `ReadOnly`：`Readwrite transaction in liveQuery context` | `error-context.md` 页面快照原文 |
 | F3 | 崩溃点 = `InboxSidebar.tsx` 把 **会写库的 `ensureInboxMap()`** 塞进了 `useLiveQuery` | `src/pages/todos/InboxSidebar.tsx:13-14`（修复前） |
 | F4 | ME 的 `operation` 监听器闭包捕获了**初始的空 `todos`**（effect deps 只有 `[rootId]`），`byId` 恒空 → `removeNodes` / `moveNodes*` 的补丁被整段 `continue` 跳过 | `MindmapCanvas.tsx` 修复前 `byId = new Map(todos.map(...))` |
@@ -246,10 +246,11 @@ Spec 分布（43 例脑图子集）：local-api 4 + archive 2 + attach 1 + conve
 | R-2 | Inbox 根图改为**首次挂载 InboxSidebar 时**创建，而非进入脑图页前 | 低 | 其他调用方（`attachToMap` / `localApi`）各自调 `ensureInboxMap()`，不依赖侧栏先创建 |
 | R-3 | `findEleSafe()` 吞掉异常 | 低 | 兜底后行为 = 「选中态丢失」，而非「整页崩溃」。原行为是崩溃，取舍明确 |
 | R-4 | `todosRef` 存在极小的并发窗口 | 低 | 见假设 A2。真人按键间隔远大于该窗口；若后续要支持连击/宏，建议改成监听器内直接读 `db.todos` |
-| R-5 | 本分支含 `573ae14` 全产品 UX 大改（cherry-pick），改动面远大于脑图 | **中** | 全量 157 例已绿，但 UX 计划里的细节未逐条人工走查（假设 A1）。合入前建议 Fang 手动过一遍 UX 计划 |
+| R-5 | 本分支含 `573ae14` 全产品 UX 大改（cherry-pick），改动面远大于脑图 | **中** | 全量 156 passed / 1 skipped 已绿，但 UX 计划里的细节未逐条人工走查（假设 A1）。合入前建议 Fang 手动过一遍 UX 计划 |
 | R-6 | **分支尚未推送 / 未开 PR** | **中** | 沙箱内无 GitHub 凭证（无 `gh`、无 token / PAT）。交付为本地 commit + bundle，命令见下 |
 | R-7 | `573ae14` 与 `5946d2d` 同处一个分支 | 低 | PR 含 3 个 commit（含 2 个既有 bug 修复）。若想拆成「bugfix」+「WIP 收尾」两个 PR，拆分点在 commit 边界，需你确认是否要拆 |
-| R-8 | 视觉验收仍需人工 | 低 | `visual-mindmap.png` 已存档，供 HIG 复核；自动化只断言可断言的部分（字号层级 / 无盒子 / 令牌跟随） |
+| R-8 | `recording-multi.spec.ts` 的修改**在脑图范围外** | 低 | 仅为 1 行选择器修正（§3.3），无产品代码改动。放在本 PR 是因为「合入前必须测过」要求全量绿；如想单独成 PR，拆分点在 commit 边界（`39b496c` 内） |
+| R-9 | 视觉验收仍需人工 | 低 | `visual-mindmap.png` 已存档，供 HIG 复核；自动化只断言可断言的部分（字号层级 / 无盒子 / 令牌跟随） |
 
 ---
 
@@ -271,7 +272,7 @@ status=401 {"message":"Requires authentication"}
 # 1) 把 bundle 放进仓库目录，然后 fast-forward 本地分支
 cd <你的 notestodo 仓库>
 git pull notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
-git log --oneline -3        # 应看到 572629a / 39b496c / 5946d2d
+git log --oneline -4        # 应看到 05ce389 / 572629a / 39b496c / 5946d2d
 
 # 2) 推分支
 git push origin worktree-mindmap-finalize
@@ -292,7 +293,7 @@ gh pr create --base main --head worktree-mindmap-finalize \
 git clone <repo> /tmp/verify-work
 cd /tmp/verify-work && git checkout -B worktree-mindmap-finalize 5946d2d
 git pull /workspace/notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
-# → 572629a，10 files changed, 457 insertions(+), 36 deletions(-)
+# → 05ce389，10 files changed, 458 insertions(+), 36 deletions(-)
 diff -r --exclude=.git --exclude=node_modules <我方>/web/src /tmp/verify-work/web/src
 # → web/src 完全一致
 cd web && pnpm i && pnpm exec playwright test tests/mindmap tests/local-api.spec.ts
