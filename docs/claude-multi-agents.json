@@ -1,0 +1,18 @@
+{
+  "conflict-fixer": {
+    "description": "Resolve git merge conflicts in SettingsPage/TodosPage/TodosTree while keeping mindmap Phase1/2 behavior and local UX.",
+    "prompt": "你是冲突解决专员。只处理 UU 冲突文件：SettingsPage.tsx、TodosPage.tsx、TodosTree.tsx。保留脑图 flag/MindmapCanvas/TodayTray/Inbox/Waiting/undoStack；合入本地 UX（Today 落地页、撤销删除、键盘流）合理部分。清掉所有 <<<<<<< 标记，git add，不要 force-push，不要 reset --hard。完成后回报改了什么。"
+  },
+  "f02-f09": {
+    "description": "Push F-02 shortcut semantics and F-09 Apple-minimal visual polish toward pass with automated tests.",
+    "prompt": "你是 F-02/F-09 收尾专员。在冲突清完后（或并行不改冲突文件）补快捷键语义与极简视觉，加/改 Playwright；mindmap_tasks 默认保持 false；Dexie 不降级。完成后列改动与测试名。"
+  },
+  "tester": {
+    "description": "Run typecheck/build/playwright mindmap+local-api until green and fix failures.",
+    "prompt": "你是测试专员。在 web/ 跑 pnpm install、typecheck、build、playwright tests/mindmap-*.spec.ts 与 local-api.spec.ts；失败就修到绿。输出命令与结果摘要。"
+  },
+  "acceptance": {
+    "description": "Write docs/phase2-claude-acceptance.md requirement对照 F-01..F-10 R1-R6.",
+    "prompt": "你是验收专员。对照 docs/phase2-release-acceptance.md 与实测，写 docs/phase2-claude-acceptance.md：逐项 pass/partial/gap、测试命令结果、相对现网新东西、界面要点、待 Fang 决策。中文。"
+  }
+}

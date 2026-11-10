@@ -52,7 +52,7 @@ const TOOLS = [
       properties: { id: { type: "string", description: "Todo id" } },
       required: ["id"],
     },
-    handler: ({ id }) => api("PATCH", `/todos/${encodeURIComponent(id)}`, { completed: true }),
+    handler: ({ id }) => api("PATCH", `/todos/${encodeURIComponent(id)}`, { status: "done" }),
   },
   {
     name: "delete_todo",

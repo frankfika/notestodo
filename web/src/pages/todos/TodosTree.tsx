@@ -75,7 +75,7 @@ function buildTree(all: Todo[]): Node[] {
 /** 落点模式：上 30% 插到前面 / 下 30% 插到后面（同级排序）；中间 40% 挂为子任务 */
 type DropMode = 'before' | 'after' | 'into'
 
-function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId }: {
+function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly }: {
   node: Node
   depth: number
   /** 同级节点（含自己），用于排序落点计算 */
@@ -92,6 +92,8 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
   /** roving tabindex：只有这一行能 Tab 进入 */
   tabbable: boolean
   setActiveId: (id: string) => void
+  /** 脑图开启时大纲只读（R3 单一编辑真相源） */
+  readOnly?: boolean
 }): JSX.Element {
   const [drop, setDrop] = useState<DropMode | null>(null)
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -110,7 +112,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
 
   /** 当前拖拽是否能落在本行（不能落到自己或自己的子孙上） */
   const canDrop = (): boolean =>
-    !!dragId && dragId !== t.id && !isDescendant(dragId, t.id, byId)
+    !readOnly && !!dragId && dragId !== t.id && !isDescendant(dragId, t.id, byId)
 
   const onDragOver = (e: React.DragEvent): void => {
     if (!canDrop()) return
@@ -191,15 +193,16 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         {/* 拖拽手柄：只有按住它才能拖，标题区恢复文本选择/点击编辑（Notion ⠿ 同款） */}
         <span
           data-drag-handle
-          draggable
+          draggable={!readOnly}
           onDragStart={(e) => {
+            if (readOnly) return
             setDragId(t.id)
             e.dataTransfer.effectAllowed = 'move'
             e.dataTransfer.setData('text/plain', t.id)
           }}
           onDragEnd={() => { clearExpandTimer(); setDragId(null) }}
           title="拖拽排序 / 拖到任务上成为子任务"
-          className="w-3 shrink-0 cursor-grab active:cursor-grabbing text-text-3 text-[10px] leading-none select-none opacity-0 group-hover:opacity-100 max-md:hidden transition-opacity"
+          className={`w-3 shrink-0 cursor-grab active:cursor-grabbing text-text-3 text-[10px] leading-none select-none opacity-0 group-hover:opacity-100 max-md:hidden transition-opacity ${readOnly ? 'invisible' : ''}`}
         >⠿</span>
         <button
           onClick={() => setCollapsed((s) => { const n = new Set(s); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n })}
@@ -208,14 +211,19 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         <input
           type="checkbox"
           checked={t.status === 'done'}
+          disabled={readOnly}
           onChange={() => void toggle(t)}
           className="shrink-0 accent-[var(--accent)]"
         />
-        <EditableTitle
-          t={t}
-          all={all}
-          className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}
-        />
+        {readOnly ? (
+          <span className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}>{t.title}</span>
+        ) : (
+          <EditableTitle
+            t={t}
+            all={all}
+            className={`flex-1 truncate text-sm ${t.status === 'done' ? 'line-through text-text-3' : 'text-text-1'}`}
+          />
+        )}
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
         <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
         {/* 来源链接降噪：hover 才显示，平时不占视觉 */}
@@ -225,24 +233,28 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
             meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
         </span>
         <DueBadge due={t.due_date} />
-        <button
-          onClick={() => void addChild()}
-          title="新建子任务"
-          className="hover-only w-6 h-6 rounded-[6px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 transition-opacity"
-        >＋</button>
-        <TodoMenu t={t} all={all} />
+        {!readOnly && (
+          <>
+            <button
+              onClick={() => void addChild()}
+              title="新建子任务"
+              className="hover-only w-6 h-6 rounded-[6px] text-text-3 opacity-0 group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 transition-opacity"
+            >＋</button>
+            <TodoMenu t={t} all={all} />
+          </>
+        )}
       </div>
       {!collapsed.has(t.id) && node.children.map((c) => (
         <Row key={c.todo.id} node={c} depth={depth + 1} siblings={node.children}
           collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
-          origins={origins} tabbable={false} setActiveId={setActiveId} />
+          origins={origins} tabbable={false} setActiveId={setActiveId} readOnly={readOnly} />
       ))}
     </>
   )
 }
 
-export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; tagByTodo: Map<string, string[]> }): JSX.Element {
+export default function TodosTree({ filter, tagByTodo, readOnly }: { filter: TodoFilter; tagByTodo: Map<string, string[]>; readOnly?: boolean }): JSX.Element {
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
@@ -255,7 +267,7 @@ export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; t
   const focusId = useUI((s) => s.todoFocusId)
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const onKeyDown = useRowKeys(containerRef, all)
+  const onKeyDown = useRowKeys(containerRef, all, readOnly)
 
   // roving tabindex：没有手动选中过就默认第一行可 Tab 进入
   const tabbableId = activeId ?? tree[0]?.todo.id ?? null
@@ -286,17 +298,19 @@ export default function TodosTree({ filter, tagByTodo }: { filter: TodoFilter; t
           collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
           origins={origins} tabbable={tabbableId === n.todo.id}
-          setActiveId={setActiveId} />
+          setActiveId={setActiveId} readOnly={readOnly} />
       ))}
       {tree.length === 0 && (
         <div className="text-sm text-text-3 py-8 text-center">
           {all.some(live) ? '没有符合条件的任务' : '还没有任务，点击下方添加'}
         </div>
       )}
-      <button
-        onClick={() => void addRoot()}
-        className="self-start mt-2 px-2 h-9 rounded-[8px] text-sm text-text-3 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-      >＋ 添加任务</button>
+      {!readOnly && (
+        <button
+          onClick={() => void addRoot()}
+          className="self-start mt-2 px-2 h-9 rounded-[8px] text-sm text-text-3 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+        >＋ 添加任务</button>
+      )}
     </div>
   )
 }

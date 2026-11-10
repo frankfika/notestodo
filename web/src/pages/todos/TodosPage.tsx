@@ -1,12 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { now, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
 import TodosTree from './TodosTree'
 import TodosList from './TodosList'
+import MindmapCanvas from './MindmapCanvas'
+import TodayTray from './TodayTray'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
+import DateInput from '../../components/DateInput'
+import { getFeatures } from '../../lib/features'
+import { listMapRoots } from '../../lib/mindmap/mapRoots'
+import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
+import MapLibraryPanel from './MapLibraryPanel'
+import InboxSidebar from './InboxSidebar'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -14,14 +22,50 @@ const STATUS_TABS = [
   ['all', '全部'],
 ] as const
 
+type ViewTab = 'mindmap' | 'tree' | 'list'
+
 /**
- * 任务页：列表（按时间分组，默认）+ 大纲（嵌套树）。看板在独立路由 board。
+ * 任务页：列表（按时间分组）+ 大纲（嵌套树）；mindmap_tasks 开启时
+ * 默认脑图 Tab（图库 + Inbox + Today 托盘）。看板在独立路由 board。
  */
 export default function TodosPage(): JSX.Element {
-  const [tab, setTab] = useState<'list' | 'tree'>('list')
+  const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
+  const [tab, setTab] = useState<ViewTab>('list')
   const goBoard = useUI((s) => s.goBoard)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
   const [newTitle, setNewTitle] = useState('')
+  const [newDue, setNewDue] = useState('')
+  const roots = useLiveQuery(listMapRoots, []) ?? []
+  const [rootId, setRootId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (mindmapEnabled && tab !== 'mindmap') setTab('mindmap')
+    if (!mindmapEnabled && tab === 'mindmap') setTab('list')
+  }, [mindmapEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!rootId && roots[0]) setRootId(roots[0].id)
+  }, [roots, rootId])
+
+  useEffect(() => {
+    if (tab !== 'mindmap' || !mindmapEnabled) return
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (
+        el &&
+        (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      ) {
+        return
+      }
+      if (isMindmapEditing()) return
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        void undoMindmap()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tab, mindmapEnabled])
 
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
@@ -32,14 +76,26 @@ export default function TodosPage(): JSX.Element {
     if (!raw) return
     const parsed = parseQuickAdd(raw)
     const ts = now()
+    const id = uid()
     await db.todos.add({
-      id: uid(), kind: 'task', parent_id: null, scope: null, title: parsed.title, status: 'open',
-      source: 'manual', sort_order: Date.now(), created_at: ts, updated_at: ts,
-      deleted_at: null, sync_version: 0,
+      id,
+      kind: 'task',
+      parent_id: null,
+      scope: null,
+      title: parsed.title,
+      status: 'open',
+      source: 'manual',
+      sort_order: Date.now(),
+      map_id: id,
+      created_at: ts,
+      updated_at: ts,
+      deleted_at: null,
+      sync_version: 0,
       ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
-      ...(parsed.due_date ? { due_date: parsed.due_date } : {}),
+      ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
     })
     setNewTitle('')
+    setNewDue('')
   }
 
   const toggleTag = (id: string): void =>
@@ -48,12 +104,16 @@ export default function TodosPage(): JSX.Element {
       tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id],
     }))
 
+  const viewTabs = mindmapEnabled
+    ? ([['mindmap', '脑图'], ['tree', '大纲'], ['list', '按时间']] as const)
+    : ([['list', '列表'], ['tree', '大纲']] as const)
+
   return (
     <div className="h-full flex flex-col">
       {/* 一行搞定：视图切换 + 搜索/筛选 */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
         <div className="flex items-center gap-1">
-          {([['list', '列表'], ['tree', '大纲']] as const).map(([k, label]) => (
+          {viewTabs.map(([k, label]) => (
             <button
               key={k}
               onClick={() => setTab(k)}
@@ -62,11 +122,16 @@ export default function TodosPage(): JSX.Element {
               }`}
             >{label}</button>
           ))}
-          <button
-            onClick={goBoard}
-            className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-          >看板</button>
+          {!mindmapEnabled && (
+            <button
+              onClick={goBoard}
+              className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+            >看板</button>
+          )}
         </div>
+        {mindmapEnabled && !rootId && roots[0] && (
+          <span className="ml-2 text-xs text-text-3">在左侧图库选择或新建图</span>
+        )}
         <div className="flex-1" />
         <input
           value={filter.q}
@@ -101,7 +166,7 @@ export default function TodosPage(): JSX.Element {
         )}
       </div>
 
-      <div className="px-4 py-2 border-b border-line shrink-0">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
         <input
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
@@ -110,12 +175,43 @@ export default function TodosPage(): JSX.Element {
             if (e.key === 'Enter') void addQuick()
           }}
           placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
-          className="input !h-8 w-full text-sm"
+          className="input !h-8 flex-1 min-w-0 text-sm"
+        />
+        <DateInput
+          value={newDue}
+          onChange={setNewDue}
+          title="截止日期（可选）"
+          className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
         />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-        {tab === 'tree' ? <TodosTree filter={filter} tagByTodo={tagByTodo} /> : <TodosList filter={filter} tagByTodo={tagByTodo} />}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {tab === 'mindmap' && mindmapEnabled ? (
+          <div className="flex h-full min-h-0">
+            <MapLibraryPanel rootId={rootId} onSelect={setRootId} />
+            <InboxSidebar onOpenInboxMap={setRootId} />
+            {rootId ? (
+              <>
+                <div className="flex-1 min-w-0 min-h-0">
+                  <MindmapCanvas rootId={rootId} />
+                </div>
+                <TodayTray />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-text-3">
+                选择一张进行中的图，或快速添加创建新图
+              </div>
+            )}
+          </div>
+        ) : tab === 'tree' ? (
+          <div className="h-full overflow-y-auto px-4 py-3">
+            <TodosTree filter={filter} tagByTodo={tagByTodo} readOnly={mindmapEnabled} />
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto px-4 py-3">
+            <TodosList filter={filter} tagByTodo={tagByTodo} />
+          </div>
+        )}
       </div>
     </div>
   )

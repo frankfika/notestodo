@@ -285,6 +285,8 @@ export function EditableTitle({ t, className, all }: { t: Todo; className?: stri
 export function useRowKeys(
   containerRef: React.RefObject<HTMLElement | null>,
   all: Todo[],
+  /** 只读模式（脑图开启时的大纲）：仅保留上下键导航，不允许编辑/完成/删除 */
+  readOnly = false,
 ): React.KeyboardEventHandler<HTMLDivElement> {
   const { show } = useToast()
   return useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -308,6 +310,7 @@ export function useRowKeys(
       next?.focus()
       return
     }
+    if (readOnly) return // 只读：除了上下键导航，其余编辑键一律不接管
     if (e.key === 'Enter') {
       e.preventDefault()
       useEditCtl.getState().setEditing(id)
@@ -332,7 +335,7 @@ export function useRowKeys(
         }, 0)
       })()
     }
-  }, [all, show, containerRef])
+  }, [all, show, containerRef, readOnly])
 }
 
 /** 行尾 ⋯ 菜单：快捷日期 / 自定义日期 / 标签 / 移到根级 / 删除（可撤销） */
