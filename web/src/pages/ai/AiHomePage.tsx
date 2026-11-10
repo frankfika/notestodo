@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import AiChat from '../../components/AiChat'
 import EmptyState from '../../components/EmptyState'

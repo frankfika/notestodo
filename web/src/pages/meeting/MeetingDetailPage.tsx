@@ -1,5 +1,5 @@
 import { resolveLLMConfig } from '../../types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'

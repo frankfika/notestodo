@@ -97,7 +97,7 @@ export async function exportData(
     })
   })
 
-  const blob = new Blob([zipped], { type: 'application/zip' })
+  const blob = new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
   const url = URL.createObjectURL(blob)
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const filename = `shibei-${stamp}.zip`
@@ -167,7 +167,7 @@ export async function importData(
       id: crypto.randomUUID(),
       meeting_id: meetingId,
       seq: Number(seqStr),
-      blob: new Blob([bytes], { type: mime }),
+      blob: new Blob([bytes as unknown as BlobPart], { type: mime }),
       size_bytes: bytes.byteLength,
       duration_ms: 0,
       created_at: new Date().toISOString(),

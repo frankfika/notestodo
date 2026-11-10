@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { type JSX, useEffect } from 'react'
 import {
   CATALOG, DIAR_IDS, builtinAvailable, cancelDownload, deleteModel, downloadModel, fmtGB,
   refreshBuiltinModels, useBuiltinModels, type CatalogModel, type ModelKind, type ModelState,

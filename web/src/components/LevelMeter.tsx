@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 /**
  * 麦克风电平条：5 根细竖条，根据 audioLevel (0..1) 用 scaleY 实时缩放，
  * 中段在 0.6 以上变红，传达"音量在安全区 / 过载"信号。

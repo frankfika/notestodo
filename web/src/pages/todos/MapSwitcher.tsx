@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { archiveMap, restoreMap } from '../../lib/mindmap/mapArchive'
 import { INBOX_TITLE, listArchivedMapRoots, listMapRoots } from '../../lib/mindmap/mapRoots'

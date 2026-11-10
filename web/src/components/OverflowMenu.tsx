@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type JSX, useState } from 'react'
 
 /** ⋯ 菜单：把危险/次要操作收起来，不占 hero 区 */
 export default function OverflowMenu({ items }: {

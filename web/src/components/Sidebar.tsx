@@ -1,7 +1,7 @@
 import { useUI, type ViewName } from '../state/ui'
 import { useRecorder } from '../state/recorder'
 import { useToast } from '../state/toast'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { type JSX, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isTauri } from '../lib/tauri'

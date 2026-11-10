@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { type JSX, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { fmtClock, fmtDateTime, mod, now, today as todayIso, uid } from '../../lib/id'

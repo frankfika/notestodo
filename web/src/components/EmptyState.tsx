@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { JSX, ReactNode } from 'react'
 
 /**
  * 通用空状态：这是什么（title）+ 第一步做什么（hint）+ 行动按钮（action）。

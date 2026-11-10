@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type JSX, useState } from 'react'
 
 /**
  * 原生 <input type="date"> + 中文占位覆盖层。

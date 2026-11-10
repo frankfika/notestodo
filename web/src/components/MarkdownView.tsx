@@ -110,7 +110,7 @@ function parseBlocks(src: string): Block[] {
  * 把单行内联语法解析成 React 节点数组。**不**拼接 HTML，**不**使用
  * dangerouslySetInnerHTML；只输出 React 元素，自然转义。
  */
-import type { ReactNode } from 'react'
+import type { JSX, ReactNode } from 'react'
 
 /** 双链（Obsidian 风格 [[标题]]）：resolve 标题 → 笔记 id；onOpen 跳转 */
 export interface WikiLinkHandler {

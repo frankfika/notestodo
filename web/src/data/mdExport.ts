@@ -78,7 +78,7 @@ export function buildMarkdownZip(notes: Note[], todos: Todo[]): Uint8Array {
 export async function exportMarkdownVault(): Promise<MarkdownZipResult> {
   const [notes, todos] = await Promise.all([db.notes.toArray(), db.todos.toArray()])
   const zipped = buildMarkdownZip(notes.filter((n) => n.deleted_at === null), todos)
-  const blob = new Blob([zipped], { type: 'application/zip' })
+  const blob = new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
   const url = URL.createObjectURL(blob)
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const filename = `shibei-vault-${stamp}.zip`

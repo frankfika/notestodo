@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import type { Tag } from '../../types'
 
 /** 任务行上的 tag 小 chips：最多 2 个，多出折叠为 +n */

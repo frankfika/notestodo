@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import { create } from 'zustand'
 import { db } from '../../db/db'
 import { now, thisFriday, uid } from '../../lib/id'

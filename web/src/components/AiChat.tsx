@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import { getSettings } from '../db/settings'
 import type { ChatMessage } from '../llm/client'
 import { askAgent, type AgentAction } from '../lib/aiAgent'

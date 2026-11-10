@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { type JSX, useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { rollupProgress } from '../../lib/okr'
 import MarkdownView from '../../components/MarkdownView'

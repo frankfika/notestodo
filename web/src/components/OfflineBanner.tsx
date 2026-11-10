@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type JSX, useEffect, useState } from 'react'
 
 /**
  * 离线提示条：只在断网时出现，一行字说清"本地照常、云端暂停"。

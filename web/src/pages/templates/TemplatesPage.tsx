@@ -1,6 +1,6 @@
 import { resolveLLMConfig } from '../../types'
 import { useUI } from '../../state/ui'
-import { useEffect, useMemo, useState } from 'react'
+import { type JSX, useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
 import { emptyCustomTemplate } from '../../db/seed'

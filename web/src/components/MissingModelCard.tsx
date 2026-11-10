@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { MODEL_MISSING } from '../llm/builtin'
 import { CATALOG, downloadModel, modelState, useBuiltinModels, type CatalogModel } from '../lib/builtinModels'
 

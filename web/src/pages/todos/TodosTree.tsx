@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { db } from '../../db/db'
 import { now, today as todayIso } from '../../lib/id'
 import { useUI } from '../../state/ui'

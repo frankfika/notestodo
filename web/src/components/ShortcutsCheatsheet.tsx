@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { type JSX, useEffect } from 'react'
 import { useUI } from '../state/ui'
 import { mod } from '../lib/id'
 

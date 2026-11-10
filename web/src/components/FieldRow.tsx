@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { JSX, ReactNode } from 'react'
 
 /**
  * label + control 一行的表单原语（DESIGN §5.2）。

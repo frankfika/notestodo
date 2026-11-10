@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { type JSX, useEffect } from 'react'
 import { useToast } from '../state/toast'
 
 /** 全局提示条宿主：左下角浮出，支持「撤销」动作，N 秒自动收起。 */

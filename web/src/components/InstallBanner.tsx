@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type JSX, useEffect, useState } from 'react'
 import OfflineBanner from './OfflineBanner'
 
 const DISMISS_KEY = 'install_banner_dismissed'

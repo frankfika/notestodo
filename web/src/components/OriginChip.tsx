@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useUI } from '../state/ui'
 import type { Todo } from '../types'
 

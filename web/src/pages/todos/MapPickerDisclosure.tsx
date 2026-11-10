@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { listMapRoots } from '../../lib/mindmap/mapRoots'
 import type { ID } from '../../types'

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor, type ChainedCommands, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskList } from '@tiptap/extension-task-list'

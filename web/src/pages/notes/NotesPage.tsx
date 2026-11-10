@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { type JSX, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'

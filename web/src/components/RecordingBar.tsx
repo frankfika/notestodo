@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import { useRecorder } from '../state/recorder'
 import { useUI } from '../state/ui'
 import { fmtClock } from '../lib/id'

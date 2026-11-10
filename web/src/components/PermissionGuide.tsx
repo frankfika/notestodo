@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type JSX, useEffect, useState } from 'react'
 import { db } from '../db/db'
 import { useUI } from '../state/ui'
 import { useRecorder } from '../state/recorder'

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type JSX, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
 import { captureToInbox, listInboxCaptures } from '../../lib/mindmap/inboxCapture'

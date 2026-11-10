@@ -1,6 +1,6 @@
 import { statusText, displayStatus } from '../../lib/meetingStatus'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useState } from 'react'
+import { type JSX, useEffect, useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
