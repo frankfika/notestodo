@@ -325,14 +325,14 @@ gh pr create --base main --head worktree-mindmap-finalize \
 ### 7.2 交付前已验证（从 bundle 全新 clone 跑通）
 
 ```bash
-git clone <repo> /tmp/verify-work
-cd /tmp/verify-work && git checkout -B worktree-mindmap-finalize 5946d2d
+git clone <repo> /tmp/vfy2
+cd /tmp/vfy2 && git checkout -B worktree-mindmap-finalize 5946d2d
 git pull /workspace/notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
 # → 分支比 5946d2d 多出若干 commit
-diff -r --exclude=.git --exclude=node_modules <我方>/web/src /tmp/verify-work/web/src
+diff -r --exclude=.git --exclude=node_modules <我方>/web/src /tmp/vfy2/web/src
 # → web/src 完全一致
 cd web && pnpm i && pnpm exec playwright test tests/mindmap tests/local-api.spec.ts
-# → 43 passed (59.6s) ✅
+# → 44 passed (1.2m) ✅
 ```
 
 ---
