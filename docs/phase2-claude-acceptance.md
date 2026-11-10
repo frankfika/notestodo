@@ -307,7 +307,7 @@ status=401 {"message":"Requires authentication"}
 # 1) 把 bundle 放进仓库目录，然后 fast-forward 本地分支
 cd <你的 notestodo 仓库>
 git pull notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
-git log --oneline -5        # 应比 5946d2d 多出 4 个 commit（1 修复 + 3 文档）
+git log --oneline           # 应比 5946d2d 多出若干 commit（2 个 fix + 若干 docs）
 
 # 2) 推分支
 git push origin worktree-mindmap-finalize
@@ -328,7 +328,7 @@ gh pr create --base main --head worktree-mindmap-finalize \
 git clone <repo> /tmp/verify-work
 cd /tmp/verify-work && git checkout -B worktree-mindmap-finalize 5946d2d
 git pull /workspace/notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
-# → 分支比 5946d2d 多出 4 个 commit，10 files changed
+# → 分支比 5946d2d 多出若干 commit
 diff -r --exclude=.git --exclude=node_modules <我方>/web/src /tmp/verify-work/web/src
 # → web/src 完全一致
 cd web && pnpm i && pnpm exec playwright test tests/mindmap tests/local-api.spec.ts
