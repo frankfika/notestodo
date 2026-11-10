@@ -2,11 +2,15 @@ import { db } from '../../db/db'
 import { now, uid } from '../id'
 import type { Todo } from '../../types'
 import { isLive } from './leaf'
-import { ensureInboxMap } from './mapRoots'
+import { ensureInboxMap, findInboxMap } from './mapRoots'
 
-/** Inbox 图下直接子节点（捕获流） */
+/**
+ * Inbox 图下直接子节点（捕获流）。
+ * 只读 —— 可安全用于 liveQuery；Inbox 图本身由 ensureInboxMap 在事务外创建。
+ */
 export async function listInboxCaptures(): Promise<Todo[]> {
-  const inbox = await ensureInboxMap()
+  const inbox = await findInboxMap()
+  if (!inbox) return []
   const all = await db.todos.toArray()
   return all
     .filter((t) => isLive(t) && t.map_id === inbox.id && t.parent_id === inbox.id)

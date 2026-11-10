@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useUI } from '../../state/ui'
 import { captureToInbox, listInboxCaptures } from '../../lib/mindmap/inboxCapture'
-import { ensureInboxMap } from '../../lib/mindmap/mapRoots'
+import { ensureInboxMap, findInboxMap } from '../../lib/mindmap/mapRoots'
 
 type InboxSidebarProps = {
   onOpenInboxMap: (inboxId: string) => void
@@ -10,9 +10,16 @@ type InboxSidebarProps = {
 
 /** F-04 · Inbox 捕获侧栏 */
 export default function InboxSidebar({ onOpenInboxMap }: InboxSidebarProps): JSX.Element {
+  // liveQuery 的 querier 必须只读：在里面写库 Dexie 会抛
+  // "Readwrite transaction in liveQuery context"，整个页面会被 ErrorBoundary 吞掉。
   const items = useLiveQuery(listInboxCaptures, []) ?? []
-  const inbox = useLiveQuery(ensureInboxMap, [])
+  const inbox = useLiveQuery(findInboxMap, [])
   const [title, setTitle] = useState('')
+
+  // Inbox 根图的创建放在响应式读路径之外（事务外），幂等。
+  useEffect(() => {
+    void ensureInboxMap().catch(() => undefined)
+  }, [])
 
   const focusLeaf = (id: string): void => {
     if (inbox) onOpenInboxMap(inbox.id)

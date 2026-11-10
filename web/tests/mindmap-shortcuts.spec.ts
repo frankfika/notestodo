@@ -108,9 +108,11 @@ test.describe('F-02 脑图快捷键语义', () => {
   })
 
   test('Tab：新增子节点（挂在选中节点下）', async ({ page }) => {
+    // seed 里 'c' 本来就是 'a' 的孩子，所以基线长度是 1，不是 0
+    const before = await childIds(page, 'a')
     await topic(page, 'a').click()
     await page.keyboard.press('Tab')
-    await expect.poll(() => childIds(page, 'a')).toHaveLength(1)
+    await expect.poll(() => childIds(page, 'a')).toHaveLength(before.length + 1)
   })
 
   test('Enter：新增兄弟节点（同一父下）', async ({ page }) => {

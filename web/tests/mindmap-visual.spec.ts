@@ -58,32 +58,34 @@ test.describe('F-09 脑图视觉走查', () => {
     await expect(page.locator('.context-menu')).toHaveCount(0)
   })
 
-  test('节点是纯文字而非圆角盒子；字号 14px；继承应用字体', async ({ page }) => {
-    const topic = page.locator('.mindmap-canvas .me-tpc[data-nodeid="meproj"]')
-    await expect(topic).toBeVisible()
+  test('节点是纯文字而非圆角盒子；根 17px / 子节点 14px；继承应用字体', async ({ page }) => {
+    const root = page.locator('.mindmap-canvas .me-tpc[data-nodeid="meproj"]')
+    await expect(root).toBeVisible()
 
-    const style = await topic.evaluate((el) => {
+    const rootStyle = await root.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return { fontSize: cs.fontSize, fontFamily: cs.fontFamily }
+    })
+    // 根节点 = 标题：比子节点稍大（mindmap.css 的 .me-root .me-tpc）
+    expect(rootStyle.fontSize).toBe('17px')
+    // 继承应用字体，不是 ME 自带的 system-ui 兜底
+    const bodyFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily)
+    expect(rootStyle.fontFamily).toBe(bodyFont)
+
+    // 子节点：14px 纯文字 —— 无底色、无边框
+    const child = page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]')
+    await expect(child).toBeVisible()
+    const childStyle = await child.evaluate((el) => {
       const cs = getComputedStyle(el)
       return {
         fontSize: cs.fontSize,
-        fontFamily: cs.fontFamily,
         background: cs.backgroundColor,
-        borderTopWidth: cs.borderTopWidth,
+        border: cs.borderTopWidth,
       }
     })
-    expect(style.fontSize).toBe('14px')
-    // 继承应用字体，不是 ME 自带的 system-ui 兜底
-    const bodyFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily)
-    expect(style.fontFamily).toBe(bodyFont)
-    // 纯文字：子节点无底色、无边框
-    const child = await page
-      .locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]')
-      .evaluate((el) => {
-        const cs = getComputedStyle(el)
-        return { background: cs.backgroundColor, border: cs.borderTopWidth }
-      })
-    expect(child.background).toBe('rgba(0, 0, 0, 0)')
-    expect(child.border).toBe('0px')
+    expect(childStyle.fontSize).toBe('14px')
+    expect(childStyle.background).toBe('rgba(0, 0, 0, 0)')
+    expect(childStyle.border).toBe('0px')
   })
 
   test('画布背景跟随应用令牌（暗色不塌成白底）', async ({ page }) => {

@@ -88,6 +88,20 @@ function clickLibraryMap(title: string): boolean {
   return true
 }
 
+/**
+ * ME 的 findEle 找不到节点时是**抛异常**（"FindEle: Node x not found, maybe it's
+ * collapsed"），不是返回 null。节点完成 / 删除后会被折进折叠的「已完成」组，
+ * 此时必须兜住 —— 否则画布组件崩溃，页面被 ErrorBoundary 吞掉，
+ * 快捷键（含 ⌘Z 撤销）随之全部失灵。
+ */
+function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
+  try {
+    return mei?.findEle?.(id)
+  } catch {
+    return undefined
+  }
+}
+
 export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Element {
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
@@ -98,6 +112,15 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
   const [ready, setReady] = useState(0)
   const todos = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const focusId = useUI((s) => s.todoFocusId)
+
+  /**
+   * 最新 todos 快照。
+   * ME 的 operation 监听器在 mount 时注册一次（effect deps 只有 rootId），
+   * 直接闭包捕获 todos 会永远拿到初始的空数组 → byId 为空 →
+   * removeNodes / moveNodes* 的补丁被整段跳过，结构操作不落库。
+   */
+  const todosRef = useRef(todos)
+  todosRef.current = todos
 
   /** R1 · 规则提示：非模态浮层，3.2s 后自动消失 */
   const say = useCallback((msg: string): void => {
@@ -156,8 +179,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
           editingRef.current = false
           setMindmapEditing(false)
         }
-        const byId = new Map(todos.map((t) => [t.id, t]))
-        const ops = mindEventToTodoPatches(ev, { all: todos, mapId: rootId, byId })
+        const byId = new Map(todosRef.current.map((t) => [t.id, t]))
+        const ops = mindEventToTodoPatches(ev, { all: todosRef.current, mapId: rootId, byId })
         void applyTodoPatches(ops)
       })
       meiRef.current = mei
@@ -181,7 +204,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       const keepId = mei.currentNode?.nodeObj?.id
       mei.refresh(data)
       if (keepId) {
-        const el = mei.findEle?.(keepId)
+        const el = findEleSafe(mei, keepId)
         if (el) mei.selectNode?.(el)
       }
     } else {
@@ -197,7 +220,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
 
   useEffect(() => {
     if (!focusId || !meiRef.current) return
-    const el = meiRef.current.findEle?.(focusId)
+    const el = findEleSafe(meiRef.current, focusId)
     if (el) meiRef.current.selectNode?.(el, true)
     useUI.setState({ todoFocusId: null })
   }, [focusId])
@@ -294,8 +317,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
             say('已经是最外层了')
             return
           }
-          const from = mei.findEle?.(t.id)
-          const to = mei.findEle?.(t.parent_id)
+          const from = findEleSafe(mei, t.id)
+          const to = findEleSafe(mei, t.parent_id)
           if (from && to) void mei.moveNodesAfter?.([from], to)
           return
         }
@@ -310,8 +333,8 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
             say('已经是第一个同级 —— 没有更上一层可挂')
             return
           }
-          const from = mei.findEle?.(t.id)
-          const to = mei.findEle?.(prevSib.id)
+          const from = findEleSafe(mei, t.id)
+          const to = findEleSafe(mei, prevSib.id)
           if (from && to) void mei.moveNodesIn?.([from], to)
           return
         }

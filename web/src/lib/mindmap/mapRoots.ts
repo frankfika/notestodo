@@ -20,6 +20,18 @@ export function resolveMapId(parent: Todo | null | undefined, selfId?: ID): ID {
   return parent.map_id ?? parent.id
 }
 
+/**
+ * 只读地找 Inbox 根图，找不到返回 undefined。
+ *
+ * liveQuery 的 querier 里不能写库（Dexie 会抛 "Readwrite transaction in
+ * liveQuery context"），所以响应式读路径一律走这里；写只发生在
+ * ensureInboxMap（调用方需在事务外调用，如 effect / 事件回调）。
+ */
+export async function findInboxMap(): Promise<Todo | undefined> {
+  const roots = await listMapRoots()
+  return roots.find((t) => t.title === INBOX_TITLE)
+}
+
 /** 幂等：确保存在 Inbox 根图 */
 export async function ensureInboxMap(): Promise<Todo> {
   const roots = await listMapRoots()
