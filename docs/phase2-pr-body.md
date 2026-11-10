@@ -77,7 +77,7 @@ ME 的 `generateMainBranch` / `generateSubBranch`（官方扩展点）、ME 的�
 cd web && pnpm i && pnpm exec playwright install chromium
 pnpm exec playwright test tests/mindmap-shortcuts.spec.ts --reporter=list   # 14 passed (32.4s)
 pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list  # 44 passed (1.2m)
-pnpm exec playwright test --reporter=list                                    # 157 passed / 1 skipped / 0 failed (7.2m)
+pnpm exec playwright test --reporter=list                                    # 167 passed / 1 skipped / 0 failed (10.7m)
 pnpm exec tsc -b --noEmit                                                    # exit 0
 ```
 
@@ -85,7 +85,7 @@ pnpm exec tsc -b --noEmit                                                    # e
 |---|---|---|
 | `mindmap-shortcuts.spec.ts` | ❌ **14 failed**（17.2–27.0s/例） | ✅ **14 passed**（~2.0s/例） |
 | 脑图 + local-api（44 例） | — | ✅ **44 passed** |
-| 全量套件（158 例） | — | ✅ **157 passed / 1 skipped**（skip 的是 `offline.spec.ts`，需生产构建，改动前既有行为） |
+| 全量套件（168 例） | — | ✅ **167 passed / 1 skipped**（skip 的是 `offline.spec.ts`，需生产构建，改动前既有行为） |
 | `tsc -b --noEmit` | — | ✅ 绿 |
 
 **没有 skip、没有 xfail、没有注释掉的用例。** 修复前每例都跑满 15s 超时，修复后每例约 2s。

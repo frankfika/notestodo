@@ -12,7 +12,7 @@
 
 `mindmap-shortcuts.spec.ts` **从 14/14 全红修到 14/14 全绿**，并且**顺带修掉了 4 个真实产品 bug**（其中 2 个是 main 上就存在的既有缺陷，不在本分支引入；另有 1 个是我自己引入又当场修掉的回归 —— 见 §3.1①-b）。
 
-全量 Playwright 套件最终 **157 passed / 1 skipped / 0 failed**（skip 的是 `offline.spec.ts`，需要生产构建 + preview，dev server 下自动跳过 —— `playwright.config.ts` 里本来就写明的既有行为）。
+全量 Playwright 套件最终 **167 passed / 1 skipped / 0 failed**（skip 的是 `offline.spec.ts`，需要生产构建 + preview，dev server 下自动跳过 —— `playwright.config.ts` 里本来就写明的既有行为）。
 
 但：**本分支尚未推送、尚未开 PR**（沙箱内无 GitHub 凭证），交付物是本地 commit + bundle，见文末「交付形态」。
 
@@ -222,7 +222,7 @@ pnpm exec playwright install chromium
 | **修复后** | 同上 | ✅ **14 passed（32.4s，每例约 2.0s）** |
 | 脑图全套 | `pnpm exec playwright test tests/mindmap tests/local-api.spec.ts --reporter=list` | ✅ **44 passed（1.2m）**（43 + 新增回归用例） |
 | 类型检查 | `pnpm exec tsc -b --noEmit` | ✅ 绿（exit 0） |
-| **全量套件** | `pnpm exec playwright test --reporter=list` | ✅ **157 passed / 1 skipped / 0 failed（7.2m）** |
+| **全量套件** | `pnpm exec playwright test --reporter=list` | ✅ **167 passed / 1 skipped / 0 failed（10.7m）** |
 
 Spec 分布（44 例脑图子集）：local-api 4 + archive 2 + attach 1 + convert 6 + **inbox 4** + leaf 1 + perf 1 + **shortcuts 14** + today 3 + undo 3 + **visual 5**。
 
@@ -280,7 +280,7 @@ Spec 分布（44 例脑图子集）：local-api 4 + archive 2 + attach 1 + conve
 | R-2 | Inbox 根图改为**首次挂载 InboxSidebar 时**创建，而非进入脑图页前 | 低 | 其他调用方（`attachToMap` / `localApi`）各自调 `ensureInboxMap()`，不依赖侧栏先创建 |
 | R-3 | `findEleSafe()` 吞掉异常 | 低 | 兜底后行为 = 「选中态丢失」，而非「整页崩溃」。原行为是崩溃，取舍明确 |
 | R-4 | `todosRef` 存在极小的并发窗口 | 低 | 见假设 A2。真人按键间隔远大于该窗口；若后续要支持连击/宏，建议改成监听器内直接读 `db.todos` |
-| R-5 | 本分支含 `573ae14` 全产品 UX 大改（cherry-pick），改动面远大于脑图 | **中** | 全量 157 passed / 1 skipped 已绿，但 UX 计划里的细节未逐条人工走查（假设 A1）。合入前建议 Fang 手动过一遍 UX 计划 |
+| R-5 | 本分支含 `573ae14` 全产品 UX 大改（cherry-pick），改动面远大于脑图 | **中** | 全量 167 passed / 1 skipped 已绿，但 UX 计划里的细节未逐条人工走查（假设 A1）。合入前建议 Fang 手动过一遍 UX 计划 |
 | R-6 | **分支尚未推送 / 未开 PR** | **中** | 沙箱内无 GitHub 凭证（无 `gh`、无 token / PAT）。交付为本地 commit + bundle，命令见下 |
 | R-7 | `573ae14` 与 `5946d2d` 同处一个分支 | 低 | PR 含 3 个 commit（含 2 个既有 bug 修复）。若想拆成「bugfix」+「WIP 收尾」两个 PR，拆分点在 commit 边界，需你确认是否要拆 |
 | R-8 | `recording-multi.spec.ts` 的修改**在脑图范围外** | 低 | 仅为 1 行选择器修正（§3.3），无产品代码改动。放在本 PR 是因为「合入前必须测过」要求全量绿；如想单独成 PR，拆分点在 commit 边界（`39b496c` 内） |
@@ -324,6 +324,11 @@ gh pr create --base main --head worktree-mindmap-finalize \
 
 ### 7.2 交付前已验证（从 bundle 全新 clone 跑通）
 
+> 本轮（`ccb22c8`）复验：从 GitHub clone → `git pull <bundle> worktree-mindmap-finalize` → `pnpm i` →
+> `pnpm exec playwright test tests/mindmap tests/local-api.spec.ts tests/todo-completion-people.spec.ts`
+> → **54 passed (2.0m)** ✅；`tsc -b --noEmit` 绿 ✅
+
+
 ```bash
 git clone <repo> /tmp/vfy2
 cd /tmp/vfy2 && git checkout -B worktree-mindmap-finalize 5946d2d
@@ -343,7 +348,7 @@ cd web && pnpm i && pnpm exec playwright test tests/mindmap tests/local-api.spec
 
 - `mindmap-shortcuts.spec.ts`：**14/14 绿**（修复前 14/14 红）
 - 脑图 + local-api 子集：**44/44 绿**
-- 全量套件：**157 passed / 1 skipped（既有：需生产构建）/ 0 failed**
+- 全量套件：**167 passed / 1 skipped（既有：需生产构建）/ 0 failed**
 - `tsc -b --noEmit`：**绿**
 - 修掉 **4 个真实产品 bug**（2 个本分支引入的既有缺陷 + 2 个 main 既有缺陷）+ **1 个我自己引入又修掉的回归**（Inbox 重复建），全部有 E2E 覆盖
 - 另修掉 1 条**从未真正生效**的测试断言（`recording-multi` 读的是墙上时钟而非计时器）
@@ -461,7 +466,18 @@ ME v6 的 map 视图**没有 dblclick 处理**，它靠「再点一次已选中�
 9. 归档掉的事不再出现在脑图上
 10. 完成 / 归档后 Today 槽位自动让出来
 
-### 10.4 用了哪些开源能力
+### 10.4 已知未做（留给下一轮，不是这轮的锅）
+
+**画布还是偏挤。** 1280 宽的窗口里：左侧栏 232 + 图库 232 + Inbox 176，右侧 Today 240 —— **永久占掉 650px**，画布只剩约 456px（本轮已修掉「树被裁掉」，但「地方小」还在）。
+
+三种改法，各有代价：
+- **A 画布优先**：左右面板改成浮层 / 可折叠，画布吃满整宽 —— 视觉最对，但 Today 托盘和 Inbox 变成「要主动打开」，跟你「一图一项目可切换、规划与执行分离」的用法有摩擦
+- **B 调比例**：图库 / Inbox / Today 三栏收窄 —— 改动小、风险低，但省下的也就百来像素
+- **C Today 移出脑图 Tab**：Today 是「执行」，脑图是「规划」，本来就该分开 —— 概念最干净，但 Today 入口要重新安置（首页？独立路由？）
+
+**我的建议是 A + C 一起做**：脑图 Tab 只留画布 + 图库（可折叠），Today 挪到独立入口，Inbox 做成画布左上角的小抽屉。这样画布能到 1000px+，而且「规划 / 执行分离」这个原则也贯彻了。等你点头我再动 —— 这属于布局重构，不是顺手能改的。
+
+### 10.5 用了哪些开源能力
 
 - **ME 的 `generateMainBranch` / `generateSubBranch`**（官方扩展点）做有机树枝
 - **ME 的节点 `tags`** 渲染关联人 / 完成日期（不自己造 DOM）
