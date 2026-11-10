@@ -11,6 +11,7 @@ import NoteEditor from '../../components/editor/NoteEditor'
 import { NoteAiPanel } from '../../components/editor/NoteAiPanel'
 import TagPicker from '../../components/TagPicker'
 import { useToast } from '../../state/toast'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 /**
  * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
@@ -423,10 +424,7 @@ export default function NoteDetailPage(): JSX.Element {
                     <input
                       type="checkbox"
                       checked={t.status === 'done'}
-                      onChange={() => void db.todos.update(t.id, {
-                        status: t.status === 'done' ? 'open' : 'done',
-                        updated_at: now(), sync_version: t.sync_version + 1,
-                      })}
+                      onChange={() => void applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')}
                       className="shrink-0 accent-[var(--accent)]"
                     />
                     <button

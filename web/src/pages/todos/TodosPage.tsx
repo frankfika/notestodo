@@ -6,19 +6,20 @@ import { useUI } from '../../state/ui'
 import TodosTree from './TodosTree'
 import TodosList from './TodosList'
 import MindmapCanvas from './MindmapCanvas'
-import TodayTray from './TodayTray'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
 import { listMapRoots } from '../../lib/mindmap/mapRoots'
 import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
-import MapLibraryPanel from './MapLibraryPanel'
-import InboxSidebar from './InboxSidebar'
+import MapSwitcher from './MapSwitcher'
+import InboxDrawer from './InboxDrawer'
+import { TodayIndicator, TodaySwapPrompt } from './TodaySlots'
 
 const STATUS_TABS = [
   ['active', '进行中'],
   ['done', '已完成'],
+  ['archived', '已归档'],
   ['all', '全部'],
 ] as const
 
@@ -26,7 +27,8 @@ type ViewTab = 'mindmap' | 'tree' | 'list'
 
 /**
  * 任务页：列表（按时间分组）+ 大纲（嵌套树）；mindmap_tasks 开启时
- * 默认脑图 Tab（图库 + Inbox + Today 托盘）。看板在独立路由 board。
+ * 默认脑图 Tab（画布优先：图库 / Inbox 收成左上角浮层，Today 挪去「今天」页）。
+ * 看板在独立路由 board。
  */
 export default function TodosPage(): JSX.Element {
   const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
@@ -37,6 +39,8 @@ export default function TodosPage(): JSX.Element {
   const [newDue, setNewDue] = useState('')
   const roots = useLiveQuery(listMapRoots, []) ?? []
   const [rootId, setRootId] = useState<string | null>(null)
+  /** 有序的图根 id（脑图 ⌘] / ⌘[ 切图用） */
+  const mapIds = useMemo(() => roots.map((r) => r.id), [roots])
 
   useEffect(() => {
     if (mindmapEnabled && tab !== 'mindmap') setTab('mindmap')
@@ -187,21 +191,31 @@ export default function TodosPage(): JSX.Element {
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === 'mindmap' && mindmapEnabled ? (
-          <div className="flex h-full min-h-0">
-            <MapLibraryPanel rootId={rootId} onSelect={setRootId} />
-            <InboxSidebar onOpenInboxMap={setRootId} />
+          /* 画布优先：图库 / Inbox / Today 都不再占常驻面板。
+           * 之前 176 + 176 + 240 = 592px 的常驻面板，在 1280 的窗口里
+           * 把画布挤到 456px —— 现在画布吃满整宽，面板按需浮起。 */
+          <div className="h-full min-h-0 relative">
             {rootId ? (
-              <>
-                <div className="flex-1 min-w-0 min-h-0">
-                  <MindmapCanvas rootId={rootId} />
-                </div>
-                <TodayTray />
-              </>
+              <div className="absolute inset-0">
+                <MindmapCanvas rootId={rootId} mapIds={mapIds} onSelectMap={setRootId} />
+              </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-sm text-text-3">
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-text-3">
                 选择一张进行中的图，或快速添加创建新图
               </div>
             )}
+
+            {/* 左上角：切图 + Inbox 捕获 */}
+            <div className="absolute top-3 left-3 z-30 flex items-start gap-2">
+              <MapSwitcher rootId={rootId} onSelect={setRootId} />
+              <InboxDrawer onOpenInboxMap={setRootId} />
+            </div>
+
+            {/* 右上角：Today（执行清单已挪到「今天」页，这里只留计数入口） */}
+            <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-2">
+              <TodayIndicator />
+              <TodaySwapPrompt />
+            </div>
           </div>
         ) : tab === 'tree' ? (
           <div className="h-full overflow-y-auto px-4 py-3">

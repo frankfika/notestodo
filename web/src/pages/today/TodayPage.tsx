@@ -11,16 +11,15 @@ import { EditableTitle, TodoMenu } from '../todos/todoRowOps'
 import TodoTags from '../todos/TodoTags'
 import EmptyState from '../../components/EmptyState'
 import type { Tag, Todo } from '../../types'
+import { applyTodoStatus } from '../../lib/todoStatus'
+import { getToday } from '../../lib/mindmap/todaySlots'
+import { TodaySlotsList, TodaySwapPrompt } from '../todos/TodaySlots'
 
 const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 /** 勾选完成 / 取消完成 */
 async function toggle(t: Todo): Promise<void> {
-  await db.todos.update(t.id, {
-    status: t.status === 'done' ? 'open' : 'done',
-    updated_at: now(),
-    sync_version: t.sync_version + 1,
-  })
+  await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
 }
 
 /** 今日焦点的一行：勾选框 + 单击即改的标题 + 标签 + 日期 + 行尾菜单 */
@@ -82,6 +81,8 @@ export default function TodayPage(): JSX.Element {
 
   const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
+  const todayState = useLiveQuery(getToday, []) ?? { capacity: 5, slots: [] }
+  const todaySlots = todayState.slots
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
   const tagByTodo = useMemo(() => buildTagByTodo(bindings), [bindings])
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
@@ -131,7 +132,7 @@ export default function TodayPage(): JSX.Element {
   const nothing = focus.open.length === 0 && focus.finished.length === 0 && recentMeetings.length === 0 && !recording
 
   return (
-    <div className="h-full flex flex-col" data-testid="today-page">
+    <div className="h-full flex flex-col relative" data-testid="today-page">
       <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line shrink-0">
         <h1 className="text-sm font-semibold text-text-1">今天</h1>
         <span className="text-[11px] text-text-3">{dateText}</span>
@@ -174,6 +175,22 @@ export default function TodayPage(): JSX.Element {
             <button onClick={() => void stop()} className="btn-danger text-xs h-7 px-3 shrink-0">■ 停止</button>
           </div>
         )}
+
+        {/* 今日清单（脑图 ⌘T 入槽的执行项）永远在最上面 ——
+            它才是「今天要做什么」，不该被空态吞掉 */}
+        <div className="space-y-5">
+          <section>
+            <div className="section-title flex items-center gap-2 mb-1.5">
+              今日清单
+              <span className="text-text-3 font-normal normal-case tracking-normal">
+                {todaySlots.length}
+              </span>
+            </div>
+            <TodaySlotsList />
+            <div className="mt-1.5">
+              <TodaySwapPrompt />
+            </div>
+          </section>
 
         {nothing ? (
           <EmptyState
@@ -246,6 +263,7 @@ export default function TodayPage(): JSX.Element {
             </section>
           </div>
         )}
+        </div>
       </div>
     </div>
   )

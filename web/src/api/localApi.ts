@@ -346,6 +346,23 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
       if (!STATUSES.includes(body.status as TodoStatus)) return { status: 400, body: { error: `status 需为 ${STATUSES.join('/')}` } }
       changes.status = body.status as TodoStatus
     }
+    // 状态变了就把完成日期一起记上（外部 API 也要跟 UI 口径一致）
+    if (changes.status && changes.status !== cur.status) {
+      changes.completed_at = changes.status === 'done' ? new Date().toISOString() : null
+      if (changes.status === 'cancelled') changes.archived_at = new Date().toISOString()
+    }
+    // 归档 / 取消归档
+    if (body.archived !== undefined) {
+      const ts = new Date().toISOString()
+      if (body.archived) {
+        changes.status = 'cancelled'
+        changes.archived_at = ts
+        changes.completed_at = cur.completed_at ?? ts
+      } else {
+        changes.status = cur.completed_at ? 'done' : 'open'
+        changes.archived_at = null
+      }
+    }
     if (body.due_date !== undefined) changes.due_date = body.due_date ? String(body.due_date) : undefined
     if (body.assignee !== undefined) changes.assignee = String(body.assignee)
     if (body.waiting_reason !== undefined) {
