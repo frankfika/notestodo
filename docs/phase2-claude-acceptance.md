@@ -255,23 +255,49 @@ Spec 分布（43 例脑图子集）：local-api 4 + archive 2 + attach 1 + conve
 
 ## 7. 交付形态（沙箱无凭证 → 需你侧执行）
 
-沙箱内 `gh` 未安装、无 GitHub token / PAT，无法直接开 PR。已完成：
+沙箱内 `gh` **未安装**，且无 GitHub token / PAT —— 实测：
 
-- 本地 commit（在 `worktree-mindmap-finalize` 分支上，**未动 `main`**）；
-- 导出 git bundle。
+```
+$ which gh                → gh 未安装
+$ curl -X POST https://api.github.com/repos/frankfika/notestodo/pulls -d '{...}'
+status=401 {"message":"Requires authentication"}
+```
+
+因此 **PR 无法由我在沙箱内创建**。已完成：本地 commit（在 `worktree-mindmap-finalize` 上，**未动 `main`**）+ 导出增量 bundle，并**从 bundle 全新 clone 复现了下面这套流程**。
+
+### 7.1 取回 bundle 后
 
 ```bash
-# 1) 取回 bundle 后合并并推送
-git pull <notestodo-worktree-mindmap-finalize.bundle> worktree-mindmap-finalize
+# 1) 把 bundle 放进仓库目录，然后 fast-forward 本地分支
+cd <你的 notestodo 仓库>
+git pull notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
+git log --oneline -3        # 应看到 572629a / 39b496c / 5946d2d
+
+# 2) 推分支
 git push origin worktree-mindmap-finalize
 
-# 2) 开 PR（正文见 docs/phase2-pr-body.md）
+# 3) 开 PR（正文已写好，直接用文件）
 gh pr create --base main --head worktree-mindmap-finalize \
   --title "feat(mindmap): F-02/F-09 快捷键与视觉收尾 + 修 3 个崩溃/不落库 bug" \
   --body-file docs/phase2-pr-body.md
 ```
 
-> 注意：用 `git pull <bundle> <branch>`（fast-forward），**不要**用 `git fetch <bundle> <branch> && git push origin <branch>` —— fetch 只更新 `FETCH_HEAD`，本地分支不会前进，push 会推 0 个 commit 且 git 仍回 “Everything up-to-date”，看起来像成功。
+> ⚠️ **必须用 `git pull <bundle> <branch>`**。不要写 `git fetch <bundle> <branch> && git push origin <branch>` —— fetch 只更新 `FETCH_HEAD`，本地分支不会前进，push 会推 0 个 commit，而 git 仍回 “Everything up-to-date”，**看起来像成功其实没推上去**。
+>
+> ⚠️ bundle 是**增量**包（1.1M），prerequisite 是 main 的 `6804697` —— 你本地已有 main，`git pull` 会直接 fast-forward。若要单独 `git clone` 这个 bundle，必须带 `-b worktree-mindmap-finalize`，且需要先有 main。
+
+### 7.2 交付前已验证（从 bundle 全新 clone 跑通）
+
+```bash
+git clone <repo> /tmp/verify-work
+cd /tmp/verify-work && git checkout -B worktree-mindmap-finalize 5946d2d
+git pull /workspace/notestodo-mindmap-finalize.bundle worktree-mindmap-finalize
+# → 572629a，10 files changed, 457 insertions(+), 36 deletions(-)
+diff -r --exclude=.git --exclude=node_modules <我方>/web/src /tmp/verify-work/web/src
+# → web/src 完全一致
+cd web && pnpm i && pnpm exec playwright test tests/mindmap tests/local-api.spec.ts
+# → 43 passed (59.6s) ✅
+```
 
 ---
 
