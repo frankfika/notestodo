@@ -1,5 +1,6 @@
 /** 移动端响应式截图 — iPhone 13 + iPad mini */
 import { test } from '@playwright/test'
+import { useClassicTasks } from './classic'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
@@ -20,6 +21,7 @@ test('iPhone 13 — 各页面', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await page.goto(BASE)
   await dismissOnboarding(page)
+  await useClassicTasks(page)
   await page.waitForTimeout(300)
   for (const [label, fname] of [
     ['会议', 'mobile-meetings'],

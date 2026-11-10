@@ -7,6 +7,7 @@
  * 3. 两台设备改同一条 → 本地保留 + 生成「（冲突副本）」，不丢数据。
  */
 import { test, expect } from '@playwright/test'
+import { useClassicTasks } from './classic'
 // @ts-expect-error 纯 JS 共享核心，无类型声明
 import { startFakeRelay } from './fake-relay.mjs'
 
@@ -65,6 +66,7 @@ test('同步：推送 / 拉取 / 冲突副本', async ({ page }) => {
 
   try {
     await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+    await useClassicTasks(page)
     await page.waitForTimeout(400)
     const close = page.locator('button[aria-label="关闭"]').first()
     if (await close.isVisible({ timeout: 1500 }).catch(() => false)) await close.click()

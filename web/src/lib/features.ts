@@ -4,7 +4,7 @@ export type FeatureFlags = {
   mindmap_tasks: boolean
 }
 
-const DEFAULT: FeatureFlags = { mindmap_tasks: false }
+const DEFAULT: FeatureFlags = { mindmap_tasks: true }
 
 /** 读 kv features；缺省返回 DEFAULT。 */
 export async function getFeatures(): Promise<FeatureFlags> {

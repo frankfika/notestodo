@@ -11,6 +11,9 @@ async function seed(page: Page): Promise<void> {
   await page.goto(BASE)
   await page.evaluate(async () => {
     const { db } = await import('/src/db/db.ts')
+    const { setFeature } = await import('/src/lib/features.ts')
+    // 本文件验证 flag 中立的 API 契约（无父任务 parent_id=null 等）；脑图默认开会影响行为
+    await setFeature('mindmap_tasks', false)
     await db.kv.put({ key: 'onboarding_done_v1', value: true })
     await db.todos.clear()
     await db.notes.clear()

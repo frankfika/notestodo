@@ -12,6 +12,7 @@
  *   SHIBEI_URL=http://127.0.0.1:5173 npx playwright test tests/smoke.spec.ts
  */
 import { test, expect } from '@playwright/test'
+import { useClassicTasks } from './classic'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
@@ -65,6 +66,7 @@ test.describe('Shibei shell smoke', () => {
 
   test('所有一级页面可加载（无运行时报错）', async ({ page }) => {
     await page.goto(BASE)
+    await useClassicTasks(page)
     await dismissOnboarding(page)
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
@@ -124,6 +126,7 @@ test.describe('Shibei shell smoke', () => {
 
   test('新建一个任务时 持久化到 IndexedDB', async ({ page }) => {
     await page.goto(BASE)
+    await useClassicTasks(page)
     await dismissOnboarding(page)
     await nav(page, '任务')
     await page.waitForTimeout(300)
@@ -194,6 +197,7 @@ test.describe('Shibei shell smoke', () => {
 
   test('首次用户动作自动关闭 onboarding（AI-native 信号：无需再手把手）', async ({ page }) => {
     await page.goto(BASE)
+    await useClassicTasks(page)
     // 不要 dismiss — 让 onboarding 第一次显示
     // 触发第一个真实动作 — 创建任务（bootstrap 监听 todos.creating 自动收引导）
     await nav(page, '任务')
@@ -242,6 +246,7 @@ test.describe('Shibei shell smoke', () => {
 
   test('待办可跳回来源会议（跟进闭环）', async ({ page }) => {
     await page.goto(BASE)
+    await useClassicTasks(page)
     await dismissOnboarding(page)
     // 注入一场会议 + 一个关联该会议的待办
     await page.evaluate(async () => {
@@ -282,6 +287,7 @@ test.describe('Shibei shell smoke', () => {
 
   test('待办可跳回来源笔记（note-todo 闭环，需求 #4）', async ({ page }) => {
     await page.goto(BASE)
+    await useClassicTasks(page)
     await dismissOnboarding(page)
     // 注入一篇笔记 + 一个来自该笔记的待办
     await page.evaluate(async () => {

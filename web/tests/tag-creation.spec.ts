@@ -10,6 +10,7 @@
  * 菜单内的 input 用 toBeAttached 断言（下拉面板浮层可能被引导卡短暂遮挡）。
  */
 import { test, expect } from '@playwright/test'
+import { useClassicTasks } from './classic'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
@@ -17,6 +18,7 @@ test('Tag 创建：任务行 ⋯ 菜单 → 标签输入 → 新 tag + 绑定', 
   test.setTimeout(30_000)
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await useClassicTasks(page)
   await page.waitForTimeout(800) // 等 bootstrap + UI store 完成
   const x = page.locator('button[aria-label="关闭"]').first()
   if (await x.isVisible({ timeout: 1500 }).catch(() => false)) await x.click()

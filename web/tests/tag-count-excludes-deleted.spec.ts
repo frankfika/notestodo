@@ -18,6 +18,7 @@
  *   4. TagManager 显示 1 处引用；DB 中 todo2 的 binding 已被硬删（0 行）
  */
 import { test, expect } from '@playwright/test'
+import { useClassicTasks } from './classic'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
@@ -33,6 +34,7 @@ test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', asy
   page.on('dialog', (dialog) => void dialog.accept()) // accept delete confirm
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await useClassicTasks(page)
   await page.waitForTimeout(500)
   const x = page.locator('button[aria-label="关闭"]').first()
   if (await x.isVisible({ timeout: 1500 }).catch(() => false)) await x.click()

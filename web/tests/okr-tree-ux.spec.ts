@@ -10,6 +10,8 @@ async function seed(page: Page): Promise<void> {
   await page.goto(BASE)
   await page.evaluate(async () => {
     const { db } = await import('/src/db/db.ts')
+    const { setFeature } = await import('/src/lib/features.ts')
+    await setFeature('mindmap_tasks', false) // 树交互是经典大纲契约；脑图画布由 mindmap-* 覆盖
     await db.kv.put({ key: 'onboarding_done_v1', value: true })
     await db.todos.clear()
     const ts = new Date().toISOString()
