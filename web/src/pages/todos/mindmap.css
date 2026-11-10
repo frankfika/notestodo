@@ -1,0 +1,285 @@
+/* 脑图画布 · F-09 Apple 极简视觉
+ *
+ * Mind Elixir 把主题 cssVar 以「内联 style」写在 .map-container 上，
+ * 内联样式优先级高于选择器，所以这里统一用 !important 覆盖，
+ * 让画布跟着应用的设计令牌走（明/暗自动切换）。
+ * 目标是「无盒子、无彩虹」：节点是纯文字，只有选中 / hover 时才有底色。
+ * 层级靠字重与灰度表达，不靠颜色 —— 颜色是留给状态（选中 / Waiting）的。
+ */
+
+.mindmap-wrap {
+  position: relative;
+}
+
+.mindmap-canvas {
+  position: relative;
+  background: var(--bg);
+}
+
+.mindmap-canvas .map-container {
+  font-family: inherit;
+  font-size: 14px;
+
+  /* 圆角收小：ME 默认 30px/20px 的大药丸太「玩具」，这里走 8pt 网格 */
+  --root-radius: 10px !important;
+  --main-radius: 8px !important;
+  --topic-padding: 3px 6px !important;
+
+  /* 间距略收，避免节点稀疏 */
+  --main-gap-x: 64px !important;
+  --main-gap-y: 40px !important;
+  --node-gap-x: 24px !important;
+  --node-gap-y: 8px !important;
+  --map-padding: 40px 56px !important;
+
+  /* 颜色全部接应用令牌：根 / 一级最深，往下逐级变淡（灰阶表层级） */
+  --bgcolor: transparent !important;
+  --color: var(--text-2) !important;
+  --main-color: var(--text-1) !important;
+  --main-bgcolor: transparent !important;
+  --main-bgcolor-transparent: transparent !important;
+  --main-border: none !important;
+  --root-color: var(--text-1) !important;
+  --root-bgcolor: transparent !important;
+  --root-border-color: transparent !important;
+  --selected: var(--accent) !important;
+  --accent-color: var(--accent) !important;
+  --panel-color: var(--text-1) !important;
+  --panel-bgcolor: var(--bg-raise) !important;
+  --panel-border-color: var(--line) !important;
+}
+
+/* 根节点 = 标题：稍大 + 半粗，不加底色（极简） */
+.mindmap-canvas .map-container .me-root .me-tpc {
+  font-size: 17px !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 2px 4px !important;
+}
+
+/* 一级分支：ME 默认给了大内边距和药丸，收成「纯文字」 */
+.mindmap-canvas .map-container .me-main > .me-wrapper > .me-parent > .me-tpc {
+  padding: 3px 6px !important;
+  font-weight: 500;
+}
+
+.mindmap-canvas .map-container .me-parent > .me-tpc {
+  border-radius: 6px;
+  transition: background-color 150ms var(--ease-out-expo, ease-out);
+}
+
+/* hover 只给极淡的底 —— 键盘优先，鼠标是补充 */
+.mindmap-canvas .map-container .me-parent:hover > .me-tpc:not(.selected) {
+  background: color-mix(in srgb, var(--text-1) 5%, transparent);
+}
+
+/* 选中态：底色高亮而不是矩形描边（描边在圆角节点上会出角） */
+.mindmap-canvas .map-container .selected {
+  outline: none !important;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 6px;
+  transition: background-color 160ms var(--ease-out-expo, ease-out);
+}
+
+/* 分支线：细发丝线，接分隔线令牌，不抢焦点 */
+.mindmap-canvas .map-container .lines path,
+.mindmap-canvas .map-container .subLines path {
+  stroke: var(--line) !important;
+  stroke-width: 1.5 !important;
+}
+
+/* 注意：画布的 transform **不要**加过渡。
+ * 画布一动，点击 / 双击的落点就在移动 —— dblclick 会被拆开、
+ * 命中不同的元素（实测：加了 220ms 过渡后「双击进入编辑」直接失效）。
+ * 丝滑靠的是「不重建 DOM」，不是让画布飘。 */
+
+/* 折叠/展开的小圆点：ME 自带图片，降到半透明当轻量 hover 控件 */
+.mindmap-canvas .map-container .me-epd {
+  opacity: 0 !important;
+  transition: opacity 150ms var(--ease-out-expo, ease-out);
+}
+.mindmap-canvas .map-container .me-parent:hover > .me-epd {
+  opacity: 0.55 !important;
+}
+
+/* 编辑中的输入框：贴应用焦点环，不要 ME 的灰色描边 */
+.mindmap-canvas .map-container #input-box {
+  outline: none !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 2px 6px !important;
+  background: var(--bg-raise) !important;
+  box-shadow: 0 0 0 2px var(--ring) !important;
+}
+
+/* 画布内不残留 ME 默认的禁用拖拽光标 */
+.mindmap-canvas .map-container {
+  user-select: none;
+}
+
+/* ── 内联教练提示（R1 · 规则可见可教）────────────────────────────
+ * 非模态浮层：不吃指针事件、不抢焦点，3.2s 后自动消失。
+ * 常驻挂载 + visibility 切显隐：消失时能淡出，不会「啪」地没了。 */
+.mindmap-coach {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 10;
+  max-width: min(420px, 92%);
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1, #1c1c1e);
+  background: var(--bg-raise, #fff);
+  border: 1px solid var(--line, #e5e5ea);
+  box-shadow: var(--shadow-2, 0 8px 24px -6px rgba(15, 15, 15, 0.14));
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -4px);
+  transition: opacity 180ms var(--ease-out-expo, ease-out),
+    transform 180ms var(--ease-out-expo, ease-out), visibility 0s linear 180ms;
+}
+
+.mindmap-coach[data-show='1'] {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 180ms var(--ease-out-expo, ease-out),
+    transform 180ms var(--ease-out-expo, ease-out), visibility 0s;
+}
+
+/* ── 快捷键提示（F-02 · 轻量，不做工具条）────────────────────────
+ * 常态只有右下角一个小标签，点开才是清单；收起时几乎不占画布。 */
+.mindmap-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.mindmap-hint-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease-out-expo, ease-out),
+    color 150ms var(--ease-out-expo, ease-out);
+}
+.mindmap-hint-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--text-2);
+}
+
+.mindmap-hint-panel {
+  width: 240px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2, 0 8px 24px -6px rgba(15, 15, 15, 0.14));
+  animation: mindmap-panel-in 160ms var(--ease-out-expo, ease-out);
+}
+
+@keyframes mindmap-panel-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mindmap-hint-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 2px 4px 6px;
+}
+
+.mindmap-hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+
+.mindmap-hint-keys {
+  display: inline-flex;
+  gap: 3px;
+  flex: none;
+}
+
+.mindmap-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--bg-overlay);
+  color: var(--text-2);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.mindmap-hint-desc {
+  font-size: 11px;
+  color: var(--text-2);
+  text-align: right;
+  line-height: 1.4;
+}
+
+.mindmap-hint-leaf {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+/* 尊重系统的「减弱动态效果」 */
+@media (prefers-reduced-motion: reduce) {
+  .mindmap-coach,
+  .mindmap-hint-panel {
+    animation: none;
+  }
+  .mindmap-canvas .map-container .me-parent > .me-tpc,
+  .mindmap-canvas .map-container .me-epd,
+  .mindmap-canvas .map-container .selected,
+  .mindmap-canvas .map-container .map-canvas,
+  .mindmap-hint-btn {
+    transition: none;
+  }
+}
+
+/* ── 节点标签（关联人 / 完成日期）─────────────────────────────────────────
+ * ME 原生支持节点 tags（渲染成 .tags > span），这里只做「压到最轻」：
+ * 跟正文同一行、去掉 ME 默认的蓝底、只用最淡的字色。
+ * 极简风下，节点依然是纯文字 + 一小段灰字，不抢焦点。 */
+.mindmap-canvas .map-container .me-tpc .tags {
+  display: inline-block;
+  vertical-align: baseline;
+  margin-left: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mindmap-canvas .map-container .me-tpc .tags span {
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 6px 0 0;
+  white-space: nowrap;
+}

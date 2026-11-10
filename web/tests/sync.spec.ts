@@ -114,29 +114,32 @@ test('同步：推送 / 拉取 / 冲突副本', async ({ page }) => {
     await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
     await expect(page.getByText('B 设备的任务')).toBeVisible()
 
-    // ── 3. 两台设备改同一条：本机改名（更新）→ 推送胜出 + 冲突副本 ──
-    // B 先改（较旧）：直接推给 relay
-    await devicePush(relay.url, 'device-B', { id: 'todo-from-b', title: 'B 改的名字', updated_at: new Date(Date.now() - 5000).toISOString() })
-    // 本机随后改名（更新）→ 同步时推送胜出，relay 记一次并发冲突
+    // ── 3. 两台设备改同一条：B 推来更新的版本 → 本机落败，本地版进「冲突副本」 ──
+    // 先在本机改名（本地版），随后 B 推一个更新的版本 —— 同步时本机推送落败 + 拉取被覆盖，
+    // 两条路径都命中也只留一份副本；赢家（B 的版本）不再像旧实现那样在推送侧生成重复副本。
     await page.getByText('B 设备的任务').dblclick()
     const renameInput = page.locator('input:focus')
     await renameInput.fill('本机改的名字')
     await renameInput.press('Enter')
     await expect(page.getByText('本机改的名字')).toBeVisible()
     await page.waitForTimeout(500)
+    // B 推更新的版本（比本机改名晚 5s）→ relay 上 B 赢
+    await devicePush(relay.url, 'device-B', { id: 'todo-from-b', title: 'B 改的名字', updated_at: new Date(Date.now() + 5000).toISOString() })
 
     await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goSettings: () => void } } }).__uiStore?.getState().goSettings())
     await page.getByRole('button', { name: '多端同步', exact: true }).click()
     await page.getByRole('button', { name: '立即同步' }).click()
     await expect(page.getByText(/冲突 1/)).toBeVisible()
     await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
+    // 拉回来的赢家版本可见；本机落败的版本以副本形式保留 —— 不丢数据
+    await expect(page.getByText('B 改的名字', { exact: true })).toBeVisible()
     await expect(page.getByText(/（冲突副本）/).first()).toBeVisible()
-    // 本地版本没被覆盖
-    await expect(page.getByText('本机改的名字', { exact: true })).toBeVisible()
 
-    // 本地库里确实有一份副本、且原任务仍在
-    expect(await readTodo(page, '本机改的名字')).not.toBeNull()
+    // 本地库里：赢家版本在、落败版本只剩副本、且没有赢家副本（旧 bug 是推送侧也存一份）
+    expect(await readTodo(page, 'B 改的名字')).not.toBeNull()
+    expect(await readTodo(page, '本机改的名字')).toBeNull()
     expect(await readTodo(page, '本机改的名字（冲突副本）')).not.toBeNull()
+    expect(await readTodo(page, 'B 改的名字（冲突副本）')).toBeNull()
   } finally {
     await relay.close()
   }

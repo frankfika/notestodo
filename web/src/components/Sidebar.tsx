@@ -1,6 +1,7 @@
 import { useUI, type ViewName } from '../state/ui'
 import { useRecorder } from '../state/recorder'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useToast } from '../state/toast'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isTauri } from '../lib/tauri'
@@ -11,6 +12,7 @@ import type { ID, Note } from '../types'
 
 // 只留 3 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
 const NAV: { view: ViewName; label: string; icon: string }[] = [
+  { view: 'today', label: '今天', icon: '☼' },
   { view: 'ai', label: 'AI', icon: '✦' },
   { view: 'meetings', label: '会议', icon: '●' },
   { view: 'todos', label: '任务', icon: '◎' },
@@ -43,6 +45,7 @@ function PageTree(): JSX.Element {
   const goNote = useUI((s) => s.goNote)
   const view = useUI((s) => s.view)
   const currentId = useUI((s) => s.noteId)
+  const { show } = useToast()
   const [collapsed, setCollapsed] = useState<ReadonlySet<ID>>(new Set())
   const [dragPageId, setDragPageId] = useState<ID | null>(null)
   const [dropTarget, setDropTarget] = useState<ID | null>(null) // 行 id 或 'nb:<id>'/'root'
@@ -50,7 +53,6 @@ function PageTree(): JSX.Element {
 
   /** 防成环：target 是不是 dragged 的子孙 */
   const isDescendant = (draggedId: ID, targetId: ID): boolean => {
-    const byId = new Map(notes.map((n) => [n.id, n]))
     let p = byId.get(targetId)?.parent_id ?? null
     const seen = new Set<ID>()
     while (p && !seen.has(p)) {
@@ -91,10 +93,26 @@ function PageTree(): JSX.Element {
     })
   }
 
+  // 树索引：按 (父页, 笔记本) 一次分组 —— 每个节点都全表 filter 是 O(N²)，
+  // 页面一多（几百条）每次重渲染都在主线程上白烧几百毫秒
+  const childIndex = useMemo(() => {
+    const m = new Map<string, Note[]>()
+    for (const n of notes) {
+      const k = `${n.parent_id ?? ''}\u0000${n.notebook_id ?? ''}`
+      const arr = m.get(k)
+      if (arr) arr.push(n)
+      else m.set(k, [n])
+    }
+    for (const arr of m.values()) {
+      arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.updated_at.localeCompare(a.updated_at))
+    }
+    return m
+  }, [notes])
+  const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes])
+  const nbIds = useMemo(() => new Set(notebooks.map((nb) => nb.id)), [notebooks])
+
   const childrenOf = (pid: ID | null, notebookId: ID | null | undefined): Note[] =>
-    notes
-      .filter((n) => (n.parent_id ?? null) === pid && (n.notebook_id ?? null) === (notebookId ?? null))
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.updated_at.localeCompare(a.updated_at))
+    childIndex.get(`${pid ?? ''}\u0000${notebookId ?? ''}`) ?? []
 
   const toggle = (id: ID): void =>
     setCollapsed((s) => {
@@ -170,9 +188,18 @@ function PageTree(): JSX.Element {
   }
 
   const deleteNotebook = async (nb: { id: ID; name: string }): Promise<void> => {
-    if (!window.confirm(`删除笔记本「${nb.name}」？里面的页面不会删，移到「未分配」。`)) return
+    // 软删 + toast 撤销：比 window.confirm 少一次打断，且撤销能把页面放回原笔记本
+    const ts = new Date().toISOString()
+    const moved = await db.notes.where('notebook_id').equals(nb.id).toArray()
     await db.notes.where('notebook_id').equals(nb.id).modify({ notebook_id: null })
-    await db.notebooks.update(nb.id, { deleted_at: new Date().toISOString() })
+    await db.notebooks.update(nb.id, { deleted_at: ts })
+    show(`已删除「${nb.name}」`, {
+      label: '撤销',
+      onClick: () => {
+        void db.notebooks.update(nb.id, { deleted_at: null })
+        void db.notes.where('id').anyOf(moved.map((n) => n.id)).modify({ notebook_id: nb.id })
+      },
+    }, 6000)
   }
 
   const sectionHeader = (label: ReactNode, onAdd: () => void, addTitle: string, dropKey: ID | null, nb?: { id: ID; name: string }): ReactNode => (
@@ -217,7 +244,7 @@ function PageTree(): JSX.Element {
 
   const hasUnassigned = notes.some((n) => {
     const nid = n.notebook_id ?? null
-    return nid === null || !notebooks.some((nb) => nb.id === nid)
+    return nid === null || !nbIds.has(nid)
   })
 
   // 无笔记本：保持原来的一棵「页面」树
@@ -285,6 +312,7 @@ function PageTree(): JSX.Element {
 export default function Sidebar() {
   const { view, goMeetings, goNotes, goSettings } = useUI()
   const goTodos = useUI((s) => s.goTodos)
+  const goToday = useUI((s) => s.goToday)
   const phase = useRecorder((s) => s.phase)
   const recMeeting = useRecorder((s) => s.meeting)
   const startRec = useRecorder((s) => s.start)
@@ -352,7 +380,7 @@ export default function Sidebar() {
       <div className="flex items-center gap-2 px-4 h-14">
         <span className={`h-2 w-2 rounded-full ${phase === 'recording' ? 'bg-danger rec-dot' : 'bg-accent'}`} />
         <span className="font-semibold tracking-tight text-text-1">openNotion</span>
-        <span className="text-[11px] text-text-3">AI 工作区</span>
+        <span className="text-[11px] text-text-3">会议速记</span>
         <span className="ml-auto font-mono text-xs text-text-3 tabular-nums">{clockText}</span>
       </div>
 
@@ -374,7 +402,7 @@ export default function Sidebar() {
             <button
               key={item.view}
               onClick={() =>
-                ({ ai: useUI.getState().goAi, meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
+                ({ today: goToday, ai: useUI.getState().goAi, meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
               }
               className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
                 active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
@@ -426,6 +454,7 @@ export function BottomTabBar() {
   const { view, goMeetings, goNotes, goSettings } = useUI()
   const goAi = useUI((s) => s.goAi)
   const goTodos = useUI((s) => s.goTodos)
+  const goToday = useUI((s) => s.goToday)
   const [treeOpen, setTreeOpen] = useState(false)
   // 导航后自动收起页面抽屉
   useEffect(() => { setTreeOpen(false) }, [view])
@@ -442,6 +471,7 @@ export function BottomTabBar() {
   )
 
   const items: { view: ViewName; label: string; icon: string; onClick: () => void; badge?: number | null }[] = [
+    { view: 'today', label: '今天', icon: '☼', onClick: () => goToday() },
     { view: 'ai', label: 'AI', icon: '✦', onClick: () => goAi() },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
     { view: 'todos', label: '任务', icon: '◎', onClick: () => goTodos(), badge: openTodos ?? 0 },

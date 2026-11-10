@@ -17,8 +17,7 @@ const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 test('模板 CRUD：内置只读 + 自定义可创建/编辑/复制/删除', async ({ page }) => {
   test.setTimeout(45_000)
   page.setDefaultTimeout(15_000)
-  // TemplatesPage 用 window.confirm 确认删除 — 测试必须接受
-  page.on('dialog', (dialog) => void dialog.accept())
+  // 删除已改成「先删 + 撤销提示条」，不再有 window.confirm；dialog handler 只作兜底
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(800) // 等 bootstrap + seedBuiltinTemplates 完成
@@ -102,10 +101,15 @@ test('模板 CRUD：内置只读 + 自定义可创建/编辑/复制/删除', asy
   // ✕ 是 span (title="删除" 让可访问名=删除)
   const xBtn = customLis.first().locator('span[title="删除"]').first()
   await xBtn.click({ force: true })
-  // confirm 对话框：page.on('dialog') 会 accept
+  // 删除不再弹 confirm —— 直接软删，左下角提示条给「撤销」
   await page.waitForTimeout(1000)
   // 自定义 -1
   expect(await customLis.count()).toBe(customCountBefore - 1)
+
+  // 8b) 点「撤销」→ 模板回来（软删只是 deleted_at，撤销置回 null）
+  await page.getByRole('button', { name: '撤销' }).first().click({ timeout: 5_000 })
+  await page.waitForTimeout(800)
+  expect(await customLis.count()).toBe(customCountBefore)
 
   // 9) 删除 builtin 模板的 ✕ 按钮不应存在
   // 选中第一个 builtin（标准会议纪要）

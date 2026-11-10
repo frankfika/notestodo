@@ -23,18 +23,25 @@ export default function CommandPalette() {
   const [q, setQ] = useState('')
   const [cursor, setCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const needle = q.trim().toLowerCase()
+  // 查询防抖：原来每个按键都触发三张表的全表 filter，连打几个字就是几十次全表扫
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(needle), 150)
+    return () => clearTimeout(t)
+  }, [needle])
 
   // 内容搜索：只有输入了关键字才查库（⌘K 空态保持纯导航）
   const hits = useLiveQuery(async () => {
-    if (!needle) return { notes: [], todos: [], meetings: [] }
+    if (!debounced) return { notes: [], todos: [], meetings: [] }
     const [notes, todos, meetings] = await Promise.all([
-      db.notes.filter((n) => n.deleted_at === null && (n.title || '').toLowerCase().includes(needle)).limit(6).toArray(),
-      db.todos.filter((t) => t.deleted_at === null && t.title.toLowerCase().includes(needle)).limit(6).toArray(),
-      db.meetings.filter((m) => m.deleted_at === null && m.title.toLowerCase().includes(needle)).limit(4).toArray(),
+      db.notes.filter((n) => n.deleted_at === null && (n.title || '').toLowerCase().includes(debounced)).limit(6).toArray(),
+      db.todos.filter((t) => t.deleted_at === null && t.title.toLowerCase().includes(debounced)).limit(6).toArray(),
+      db.meetings.filter((m) => m.deleted_at === null && m.title.toLowerCase().includes(debounced)).limit(4).toArray(),
     ])
     return { notes, todos, meetings }
-  }, [needle])
+  }, [debounced])
 
   useEffect(() => {
     if (open) {
@@ -43,6 +50,13 @@ export default function CommandPalette() {
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [open])
+
+  // 键盘移动时保证选中项可见（列表可滚动，否则选中项会跑出可视区）
+  useEffect(() => {
+    if (!open) return
+    const el = listRef.current?.querySelectorAll('button')[cursor]
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [open, cursor])
 
   const items: Item[] = useMemo(() => {
     const go = useUI.getState()
@@ -65,6 +79,8 @@ export default function CommandPalette() {
         go.goTodos(id)
       } },
       { group: '动作', label: '导出全部数据', run: () => void go.goSettings() },
+      { group: '动作', label: '快捷键速查', run: () => go.setShortcutsOpen(true) },
+      { group: '跳转', label: '今天', run: () => go.goToday() },
       { group: '跳转', label: '会议', hint: '1', run: () => go.goMeetings() },
       { group: '跳转', label: '笔记', hint: '2', run: () => go.goNotes() },
       { group: '跳转', label: '待办', hint: '3', run: () => go.goTodos() },
@@ -93,7 +109,13 @@ export default function CommandPalette() {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setOpen(false); return }
-      if (e.key === 'Enter') { filtered[cursor]?.run(); setOpen(false); return }
+      if (e.key === 'Enter') {
+        const item = filtered[cursor]
+        setOpen(false)
+        // 点击路径同款：拒绝变 unhandled rejection（stop() 等 action 失败时）
+        void Promise.resolve(item?.run()).catch((e) => console.error('命令执行失败', e))
+        return
+      }
       if (e.key === 'ArrowDown') { setCursor((c) => Math.min(c + 1, filtered.length - 1)); return }
       if (e.key === 'ArrowUp') { setCursor((c) => Math.max(0, c - 1)); return }
       if (/^[1-4]$/.test(e.key) && !q) {
@@ -140,7 +162,7 @@ export default function CommandPalette() {
             className="w-full bg-transparent text-[15px] text-text-1 placeholder:text-text-3 outline-none"
           />
         </div>
-        <div className="max-h-[60vh] overflow-y-auto py-1">
+        <div ref={listRef} className="max-h-[60vh] overflow-y-auto py-1">
           {filtered.length === 0 && (
             <div className="px-4 py-10 text-center text-text-3 text-sm">没有匹配项</div>
           )}

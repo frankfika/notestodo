@@ -94,7 +94,7 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 | workflow | 触发 | 做什么 |
 |---|---|---|
-| `ci.yml` | push / PR 到 main | 前端 `pnpm build`（含类型检查）+ 全量 e2e（Playwright 自动起 dev server）+ `cargo check` |
+| `ci.yml` | push / PR 到 main | 前端 `pnpm build`（含类型检查）+ 全量 e2e（Playwright 自动起 dev server）+ `cargo check`（macOS 真实现 / Windows 桩，两个平台都验） |
 | `release.yml` | 打 `v*` tag | matrix 打包 **macOS (Apple Silicon)** 与 **Windows (x64)**，产物上传 artifact 并创建 GitHub Release（草稿） |
 
 **发版步骤**：

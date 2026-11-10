@@ -5,11 +5,13 @@ import { throwOnNextRenderForTest } from './components/ErrorBoundary'
 import Sidebar, { BottomTabBar } from './components/Sidebar'
 import RecordingBar from './components/RecordingBar'
 import CommandPalette from './components/CommandPalette'
+import ShortcutsCheatsheet from './components/ShortcutsCheatsheet'
 import Onboarding from './components/Onboarding'
 import AiPanel from './components/AiPanel'
 import InstallBanner from './components/InstallBanner'
 import PermissionGuide from './components/PermissionGuide'
 import ErrorBoundary from './components/ErrorBoundary'
+import ToastHost from './components/ToastHost'
 import MeetingsPage from './pages/meetings/MeetingsPage'
 import MeetingDetailPage from './pages/meeting/MeetingDetailPage'
 import NotesPage from './pages/notes/NotesPage'
@@ -20,6 +22,7 @@ import ReportPage from './pages/report/ReportPage'
 import TemplatesPage from './pages/templates/TemplatesPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import AiHomePage from './pages/ai/AiHomePage'
+import TodayPage from './pages/today/TodayPage'
 import { installSyncHooks } from './sync/outbox'
 import { syncNow } from './sync/engine'
 import { getSettings } from './db/settings'
@@ -104,6 +107,7 @@ export default function App() {
         <main className="flex-1 min-w-0 flex flex-col pb-16 md:pb-0">
           <RecordingBar />
           <div key={view} className="page-enter flex-1 min-h-0 overflow-hidden">
+            {view === 'today' && <TodayPage />}
             {view === 'ai' && <AiHomePage />}
             {view === 'meetings' && <MeetingsPage />}
             {view === 'meeting-detail' && <MeetingDetailPage />}
@@ -118,10 +122,12 @@ export default function App() {
         </main>
         <BottomTabBar />
         <CommandPalette />
+        <ShortcutsCheatsheet />
         <AiPanel />
         <InstallBanner />
         <Onboarding />
         <PermissionGuide />
+        <ToastHost />
       </div>
     </ErrorBoundary>
   )

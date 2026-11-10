@@ -36,15 +36,15 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.12.0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -58,22 +58,18 @@ jobs:
         with:
           targets: aarch64-apple-darwin
 
-      # 没有 Apple 证书时用 "-" 跳过签名，产物仍可安装（需右键打开 / 系统设置放行）
+      # 没有 Apple 证书：ad-hoc 签名（identity "-"），产物仍可安装（需右键打开 / 系统设置放行）。
+      # APPLE_CERTIFICATE 必须整行不设——设成空串 bundler 也会去 keychain import 然后崩。
       - name: 打包 macOS
         if: runner.os == 'macOS'
         env:
           APPLE_SIGNING_IDENTITY: '-'
-          APPLE_CERTIFICATE: ''
-          APPLE_CERTIFICATE_PASSWORD: ''
-          APPLE_ID: ''
-          APPLE_PASSWORD: ''
-          APPLE_TEAM_ID: ''
           CARGO_TAURI_BUNDLER_TOOLS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm tauri build --target ${{ matrix.target }}
 
       - name: 上传 macOS 产物
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openNotion-macos
           path: |
@@ -90,12 +86,9 @@ jobs:
       - uses: actions/setup-node@v4
         if: runner.os == 'Windows'
         with:
-          node-version: 20
+          node-version: 22
 
-      - name: 装 WebView2
-        if: runner.os == 'Windows'
-        run: |
-          choco install webview2 --accept-package-agreements --accept-source-agreements --silent --no-progress
+      # windows-latest 镜像已自带 WebView2 运行时，choco 上的 webview2 包也已下架，不装
 
       - name: 打包 Windows
         if: runner.os == 'Windows'
@@ -103,7 +96,7 @@ jobs:
 
       - name: 上传 Windows 产物
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openNotion-windows
           path: web/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
@@ -113,9 +106,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -123,7 +116,7 @@ jobs:
         run: find artifacts -type f \( -name '*.dmg' -o -name '*.exe' \) -print
 
       - name: 创建 GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           draft: true

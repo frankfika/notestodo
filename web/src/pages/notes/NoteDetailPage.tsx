@@ -4,12 +4,14 @@ import type { Editor } from '@tiptap/react'
 import { useUI } from '../../state/ui'
 import { db } from '../../db/db'
 import { fmtDateTime, now } from '../../lib/id'
-import type { Todo } from '../../types'
+import type { Todo, ID } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import OverflowMenu from '../../components/OverflowMenu'
 import NoteEditor from '../../components/editor/NoteEditor'
 import { NoteAiPanel } from '../../components/editor/NoteAiPanel'
 import TagPicker from '../../components/TagPicker'
+import { useToast } from '../../state/toast'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 /**
  * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
@@ -22,6 +24,7 @@ export default function NoteDetailPage(): JSX.Element {
   const goNote = useUI((s) => s.goNote)
   const goMeeting = useUI((s) => s.goMeeting)
   const goTodos = useUI((s) => s.goTodos)
+  const { show } = useToast()
   const note = useLiveQuery(
     async () => {
       const n = noteId ? await db.notes.get(noteId) : undefined
@@ -46,40 +49,48 @@ export default function NoteDetailPage(): JSX.Element {
     if (hit) goNote(hit.id)
   }, [allNotes, goNote])
   // 反向链接：其它笔记正文里 [[这篇的标题]]（含 [[标题|别名]] 写法）
+  // 依赖只取标题/ id —— 原来挂整个 note 对象，自动保存每次都新对象 → 全表正文重扫一遍
+  const noteTitle = note?.title?.trim() ?? ''
+  const curNoteId = note?.id ?? ''
   const backlinks = useMemo(() => {
-    const title = note?.title?.trim()
-    if (!title || !note) return []
-    const re = new RegExp(`\\[\\[${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\]\\]|\\|)`)
-    return allNotes.filter((n) => n.id !== note.id && n.deleted_at === null && re.test(n.body_md ?? ''))
-  }, [allNotes, note])
+    if (!noteTitle || !curNoteId) return []
+    const re = new RegExp(`\\[\\[${noteTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\]\\]|\\|)`)
+    return allNotes.filter((n) => n.id !== curNoteId && n.deleted_at === null && re.test(n.body_md ?? ''))
+  }, [allNotes, noteTitle, curNoteId])
 
   const [draftBody, setDraftBody] = useState<string>('')
   const [draftTitle, setDraftTitle] = useState<string>('')
+  // 正文只有在本会话里被编辑器 onUpdate 触过才允许落盘——
+  // 防止编辑器尚未灌入内容时（异步竞态）把空串覆盖掉已有正文
+  const bodyTouchedRef = useRef(false)
   const [aiOpen, setAiOpen] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
   // 面包屑：笔记本 › 父页 › … › 当前页（打通侧栏树与详情页）
+  const allById = useMemo(() => new Map(allNotes.map((n) => [n.id, n])), [allNotes])
+  const parentId = note?.parent_id ?? null
+  const notebookId = note?.notebook_id ?? null
   const crumbs = useMemo(() => {
     if (!note) return []
-    const byId = new Map(allNotes.map((n) => [n.id, n]))
     const chain: { id?: string; label: string }[] = []
-    const nb = notebooks.find((x) => x.id === note.notebook_id)
+    const nb = notebooks.find((x) => x.id === notebookId)
     if (nb) chain.push({ label: `${nb.icon} ${nb.name}` })
-    let p = note.parent_id ?? null
+    let p = parentId
     const seen = new Set<string>()
     const parents: { id: string; label: string }[] = []
     while (p && !seen.has(p)) {
       seen.add(p)
-      const pn = byId.get(p)
+      const pn = allById.get(p)
       if (!pn) break
       parents.unshift({ id: pn.id, label: pn.title || '无标题' })
       p = pn.parent_id ?? null
     }
     return [...chain, ...parents]
-  }, [note, allNotes, notebooks])
+  }, [note?.id, parentId, notebookId, allById, notebooks])
 
   useEffect(() => {
+    bodyTouchedRef.current = false
     setDraftBody(note?.body_md ?? '')
     setDraftTitle(note?.title ?? '')
     // 只在打开笔记时灌一次草稿；保存回写引起的 body_md 变化不回灌，
@@ -104,11 +115,7 @@ export default function NoteDetailPage(): JSX.Element {
     pendingRef.current = { id: note.id, title: draftTitle, body: draftBody }
     const t = setTimeout(() => {
       pendingRef.current = null
-      void db.notes.update(note.id, {
-        title: draftTitle,
-        body_md: draftBody,
-        updated_at: now(),
-      })
+      void saveNoteFields(note.id, draftTitle, draftBody)
     }, 400)
     return () => clearTimeout(t)
   }, [draftBody, draftTitle, note?.id])
@@ -118,7 +125,7 @@ export default function NoteDetailPage(): JSX.Element {
     const p = pendingRef.current
     if (p) {
       pendingRef.current = null
-      void db.notes.update(p.id, { title: p.title, body_md: p.body, updated_at: now() })
+      void saveNoteFields(p.id, p.title, p.body)
     }
   }, [note?.id])
 
@@ -156,6 +163,15 @@ export default function NoteDetailPage(): JSX.Element {
       id: crypto.randomUUID(), note_id: note.id, quote, text, resolved: false,
       created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
     })
+  }
+
+  // 正文防误清空：只有编辑器 onUpdate 真正触过（bodyTouchedRef）才写 body_md；
+  // 否则只存标题——编辑器尚未灌入内容时的竞态不再能把正文抹成空串
+  function saveNoteFields(id: ID, title: string, body: string): void {
+    const allowBody = bodyTouchedRef.current
+    void db.notes.update(id, allowBody
+      ? { title, body_md: body, updated_at: now() }
+      : { title, updated_at: now() })
   }
 
   /** 扫描正文 `- [ ]` 行批量建任务；按标题去重保证幂等 */
@@ -210,13 +226,36 @@ export default function NoteDetailPage(): JSX.Element {
     await db.todos.add(todo)
   }
 
-  /** 软删：子页提升到被删页的父级；关联任务/评论保留，笔记可从备份恢复 */
+  /** 软删 + 可撤销：子页提升到被删页的父级；关联任务/评论保留，笔记可从备份恢复 */
   async function deleteNote(): Promise<void> {
     if (!note) return
-    if (!window.confirm('删除这条笔记？子页面会上移一层，关联任务保留。')) return
     const ts = now()
-    await db.notes.where('parent_id').equals(note.id).modify({ parent_id: note.parent_id ?? null, updated_at: ts })
-    await db.notes.update(note.id, { deleted_at: ts, updated_at: ts })
+    const parentId = note.parent_id ?? null
+    // 子页会上移一层 —— 先记下被挪走的是哪些页，撤销时原样挂回来
+    const childIds = await db.notes.where('parent_id').equals(note.id).primaryKeys()
+    await db.notes.where('parent_id').equals(note.id).modify((x) => {
+      x.parent_id = parentId
+      x.updated_at = ts
+      x.sync_version += 1
+    })
+    await db.notes.update(note.id, { deleted_at: ts, updated_at: ts, sync_version: note.sync_version + 1 })
+    show('已删除笔记', {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const ts2 = now()
+          const cur = await db.notes.get(note.id)
+          if (cur) await db.notes.update(note.id, { deleted_at: null, updated_at: ts2, sync_version: cur.sync_version + 1 })
+          if (childIds.length) {
+            await db.notes.where('id').anyOf(childIds).modify((x) => {
+              x.parent_id = note.id
+              x.updated_at = ts2
+              x.sync_version += 1
+            })
+          }
+        })()
+      },
+    }, 6000)
     goNotes()
   }
 
@@ -324,7 +363,7 @@ export default function NoteDetailPage(): JSX.Element {
         <NoteEditor
           key={note.id}
           initialMarkdown={note.body_md}
-          onChange={setDraftBody}
+          onChange={(md) => { bodyTouchedRef.current = true; setDraftBody(md) }}
           onReady={(ed) => { editorRef.current = ed }}
           onWikiOpen={openWiki}
           currentNoteId={note.id}
@@ -385,10 +424,7 @@ export default function NoteDetailPage(): JSX.Element {
                     <input
                       type="checkbox"
                       checked={t.status === 'done'}
-                      onChange={() => void db.todos.update(t.id, {
-                        status: t.status === 'done' ? 'open' : 'done',
-                        updated_at: now(), sync_version: t.sync_version + 1,
-                      })}
+                      onChange={() => void applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')}
                       className="shrink-0 accent-[var(--accent)]"
                     />
                     <button

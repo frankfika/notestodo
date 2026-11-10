@@ -2,7 +2,7 @@ import type { TagBinding, Todo } from '../../types'
 
 export interface TodoFilter {
   q: string
-  status: 'active' | 'done' | 'all'
+  status: 'active' | 'done' | 'archived' | 'all'
   tagIds: string[]
 }
 
@@ -12,7 +12,9 @@ export function buildTagByTodo(bindings: TagBinding[]): Map<string, string[]> {
   const m = new Map<string, string[]>()
   for (const b of bindings) {
     if (b.target_type !== 'todo' || b.deleted_at !== null) continue
-    m.set(b.target_id, [...(m.get(b.target_id) ?? []), b.tag_id])
+    const arr = m.get(b.target_id)
+    if (arr) arr.push(b.tag_id)
+    else m.set(b.target_id, [b.tag_id])
   }
   return m
 }
@@ -20,6 +22,10 @@ export function buildTagByTodo(bindings: TagBinding[]): Map<string, string[]> {
 export function passFilter(t: Todo, f: TodoFilter, tagByTodo: Map<string, string[]>): boolean {
   if (f.status === 'active' && t.status === 'done') return false
   if (f.status === 'done' && t.status !== 'done') return false
+  // 归档：只看被关闭掉的那批（status=cancelled 且没被软删）
+  if (f.status === 'archived') {
+    if (t.status !== 'cancelled' || t.deleted_at !== null) return false
+  }
   if (f.q && !t.title.toLowerCase().includes(f.q.trim().toLowerCase())) return false
   if (f.tagIds.length > 0) {
     const tags = tagByTodo.get(t.id) ?? []

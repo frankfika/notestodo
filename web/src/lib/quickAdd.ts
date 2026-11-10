@@ -33,8 +33,10 @@ export function parseQuickAdd(input: string, base = new Date()): QuickAdd {
     [/(?<![\d.])(\d{1,2})[-/](\d{1,2})(?![\d])(之前|前)?/, (m) => monthDay(+m[1], +m[2])],
   ]
   function monthDay(mo: number, d: number): Date | undefined {
-    if (mo < 1 || mo > 12 || d < 1 || d > 31) return undefined
+    if (mo < 1 || mo > 12 || d < 1) return undefined
     const dt = new Date(base.getFullYear(), mo - 1, d)
+    // 2月31日 / 4月31日这类非法日期会静默翻滚成下个月 —— 检测翻滚即拒绝，不猜用户意图
+    if (dt.getMonth() !== mo - 1) return undefined
     // 已过去超过 2 个月的日期视为明年（12 月录「1/5」）
     if (dt.getTime() < day(-60).getTime()) dt.setFullYear(dt.getFullYear() + 1)
     return dt

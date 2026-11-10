@@ -3,10 +3,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { fmtDate, now, thisFriday, today as todayIso, uid } from '../../lib/id'
+import DateInput from '../../components/DateInput'
 import type { Board, Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import TodoTags from '../todos/TodoTags'
 import { buildTagByTodo } from '../todos/filter'
+import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
+import { useToast } from '../../state/toast'
+import { applyTodoStatus } from '../../lib/todoStatus'
 
 const DONE_COL = '已完成'
 const DEFAULT_COLS = ['待办', '进行中', '待审']
@@ -59,6 +63,7 @@ async function ensureWeeklyReportCard(): Promise<void> {
 export default function BoardPage(): JSX.Element {
   const goTodos = useUI((s) => s.goTodos)
   const goReport = useUI((s) => s.goReport)
+  const { show } = useToast()
   const [boardId, setBoardId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<string | null>(null)
@@ -79,6 +84,7 @@ export default function BoardPage(): JSX.Element {
   const tagByTodo = useMemo(() => buildTagByTodo(bindings), [bindings])
 
   const t0 = todayIso()
+  const origins = useOriginTitles(all)
   const cards = useMemo(() => {
     if (!board) return []
     const isDefault = boards[0]?.id === board.id
@@ -110,6 +116,18 @@ export default function BoardPage(): JSX.Element {
     if (legacy && board?.columns.includes(legacy)) return legacy
     return board?.columns[0] ?? DONE_COL
   }
+
+  // 卡片按列分组一次：原来每列都 cards.filter 一遍（列数 × 卡片数）
+  const cardsByCol = useMemo(() => {
+    const m = new Map<string, Todo[]>()
+    for (const c of cols) m.set(c, [])
+    for (const t of cards) {
+      const c = colOf(t)
+      const arr = m.get(c)
+      if (arr) arr.push(t)
+    }
+    return m
+  }, [cards, cols, board])
 
   const move = async (id: string, col: string): Promise<void> => {
     const t = byId.get(id)
@@ -151,9 +169,10 @@ export default function BoardPage(): JSX.Element {
     await db.boards.update(b.id, { name, updated_at: now(), sync_version: b.sync_version + 1 })
   }
 
+  /** 删看板：软删看板，卡片回默认看板；撤销 = 恢复看板 + 把卡片挂回去 */
   const deleteBoard = async (b: Board): Promise<void> => {
-    if (!window.confirm(`删除看板「${b.name}」？板上卡片会回到默认看板，不会被删除。`)) return
     const ts = now()
+    const cardIds = await db.todos.where('board_id').equals(b.id).primaryKeys()
     await db.todos.where('board_id').equals(b.id).modify((x) => {
       x.board_id = null
       x.updated_at = ts
@@ -161,6 +180,23 @@ export default function BoardPage(): JSX.Element {
     })
     await db.boards.update(b.id, { deleted_at: ts, updated_at: ts, sync_version: b.sync_version + 1 })
     if (boardId === b.id) setBoardId(null)
+    show(`已删除看板「${b.name}」`, {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const ts2 = now()
+          const cur = await db.boards.get(b.id)
+          if (cur) await db.boards.update(b.id, { deleted_at: null, updated_at: ts2, sync_version: cur.sync_version + 1 })
+          if (cardIds.length) {
+            await db.todos.where('id').anyOf(cardIds).modify((x) => {
+              x.board_id = b.id
+              x.updated_at = ts2
+              x.sync_version += 1
+            })
+          }
+        })()
+      },
+    }, 6000)
   }
 
   const renameCol = async (col: string): Promise<void> => {
@@ -179,17 +215,41 @@ export default function BoardPage(): JSX.Element {
     })
   }
 
+  /** 删列：列消失，卡片移到第一列；撤销 = 恢复列（连同顺序）+ 卡片回到该列 */
   const deleteCol = async (col: string): Promise<void> => {
     if (!board || board.columns.length <= 1) return
-    if (!window.confirm(`删除列「${col}」？该列卡片会移到第一列。`)) return
-    const rest = board.columns.filter((c) => c !== col)
+    const origCols = [...board.columns]
+    const rest = origCols.filter((c) => c !== col)
     const ts = now()
     await db.boards.update(board.id, { columns: rest, updated_at: ts, sync_version: board.sync_version + 1 })
-    await db.todos.filter((x) => x.board_id === board.id && x.board_col === col).modify((x) => {
+    const colCards = db.todos.where('board_id').equals(board.id).and((x) => x.board_col === col)
+    const cardIds = await colCards.primaryKeys()
+    await colCards.modify((x) => {
       x.board_col = rest[0]
       x.updated_at = ts
       x.sync_version += 1
     })
+    show(`已删除列「${col}」`, {
+      label: '撤销',
+      onClick: () => {
+        void (async () => {
+          const ts2 = now()
+          const cur = await db.boards.get(board.id)
+          await db.boards.update(board.id, {
+            columns: origCols,
+            updated_at: ts2,
+            sync_version: (cur?.sync_version ?? board.sync_version) + 1,
+          })
+          if (cardIds.length) {
+            await db.todos.where('id').anyOf(cardIds).modify((x) => {
+              x.board_col = col
+              x.updated_at = ts2
+              x.sync_version += 1
+            })
+          }
+        })()
+      },
+    }, 6000)
   }
 
   const addColumn = async (): Promise<void> => {
@@ -229,7 +289,7 @@ export default function BoardPage(): JSX.Element {
 
       <div className="flex-1 min-h-0 flex gap-4 overflow-x-auto">
         {cols.map((c, ci) => {
-          const list = cards.filter((t) => colOf(t) === c)
+          const list = cardsByCol.get(c) ?? []
           const isDone = c === DONE_COL
           return (
             <section key={c} data-testid={`board-col-${c}`}
@@ -254,7 +314,7 @@ export default function BoardPage(): JSX.Element {
                   <Card key={t.id} t={t} kr={t.parent_id ? byId.get(t.parent_id) : undefined}
                     overdue={!!t.due_date && t.due_date < t0 && t.status !== 'done'}
                     dimmed={dragId === t.id}
-                    tagIds={tagByTodo.get(t.id) ?? []} tagsById={tagsById}
+                    tagIds={tagByTodo.get(t.id) ?? []} tagsById={tagsById} origins={origins}
                     cols={cols} onMoveTo={(col) => void move(t.id, col)}
                     onDragStart={(e) => { setDragId(t.id); e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move' }}
                     onOpen={() => (t.recurring === 'weekly-report' ? goReport() : goTodos(t.id))} />
@@ -288,17 +348,23 @@ export default function BoardPage(): JSX.Element {
 
 interface MenuItem { label: string; danger?: boolean; onClick: () => void }
 
-/** 看板卡片：checkbox 完成切换、双击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
-function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, cols, onMoveTo }: {
+/** 看板卡片：checkbox 完成切换、单击改标题、⋯ 菜单（截止日期/完成/删除/跳任务树） */
+function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, cols, onMoveTo, origins }: {
   t: Todo; kr: Todo | undefined; overdue: boolean; dimmed: boolean
   onDragStart: (e: React.DragEvent) => void; onOpen: () => void
   tagIds: string[]; tagsById: Map<string, Tag>
   cols: string[]; onMoveTo: (col: string) => void
+  origins: OriginTitles
 }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(t.title)
-  const touch = (patch: Partial<Todo>): Promise<number> =>
-    db.todos.update(t.id, { ...patch, updated_at: now(), sync_version: t.sync_version + 1 })
+  const touch = (patch: Partial<Todo>): Promise<number> => {
+    // 状态变化顺带把完成日期记上（看板的勾选也是一次「完成」）
+    if (patch.status && patch.status !== t.status) {
+      return applyTodoStatus(t, patch.status)
+    }
+    return db.todos.update(t.id, { ...patch, updated_at: now(), sync_version: t.sync_version + 1 })
+  }
 
   const saveTitle = (): void => {
     const v = draft.trim()
@@ -323,7 +389,7 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
             }}
             className="input flex-1 !py-0.5 text-sm" />
         ) : (
-          <div onDoubleClick={(e) => { e.stopPropagation(); setDraft(t.title); setEditing(true) }}
+          <div onClick={(e) => { e.stopPropagation(); setDraft(t.title); setEditing(true) }}
             className={`flex-1 text-sm leading-snug cursor-text ${t.status === 'done' ? 'line-through text-text-3' : ''}`}>
             {t.recurring && <span className="text-accent mr-1">↻</span>}{t.title}
           </div>
@@ -335,7 +401,9 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
         {kr && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[140px]">{kr.title}</span>}
         {t.recurring && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">草稿已生成</span>}
         <TodoTags ids={tagIds} tagsById={tagsById} />
-        <OriginChip t={t} />
+        <OriginChip t={t}
+          noteTitle={t.origin_note_id ? origins.noteTitles.get(t.origin_note_id) : undefined}
+          meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
         {t.due_date && (
           <span className={`ml-auto ${t.status !== 'done' && overdue ? 'text-danger' : t.due_date === todayIso() && t.status !== 'done' ? 'text-warning' : 'text-text-3'}`}>
             {fmtDate(t.due_date)}
@@ -353,12 +421,23 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { show } = useToast()
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent): void => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
+
+  const doDelete = async (): Promise<void> => {
+    await onTouch({ deleted_at: now() })
+    show('已删除卡片', {
+      label: '撤销',
+      onClick: () => void db.todos.update(t.id, { deleted_at: null, updated_at: now() }),
+    }, 6000)
+    setOpen(false)
+  }
+
   const item = 'px-2 py-1.5 rounded-[6px] text-[13px] text-left hover:bg-bg-overlay transition-colors text-text-1 w-full'
   return (
     <div ref={ref} className="relative shrink-0">
@@ -369,8 +448,8 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
           <button className={item} onClick={() => { onRename(); setOpen(false) }}>重命名</button>
           <label className="px-2 py-1.5 text-[11px] text-text-3 flex items-center gap-2">
             截止日期
-            <input type="date" value={t.due_date ?? ''}
-              onChange={(e) => void onTouch({ due_date: e.target.value || undefined })}
+            <DateInput value={t.due_date ?? ''}
+              onChange={(v) => void onTouch({ due_date: v || undefined })}
               className="input !h-6 !px-1.5 !py-0 text-[11px] flex-1" />
           </label>
           <button className={item} onClick={() => { void onTouch({ status: t.status === 'done' ? 'open' : 'done' }); setOpen(false) }}>
@@ -381,10 +460,7 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
             <button key={col} className={item} onClick={() => { onMoveTo(col); setOpen(false) }}>→ {col}</button>
           ))}
           <button className={item} onClick={() => { onOpen(); setOpen(false) }}>在任务树中打开</button>
-          <button className={`${item} text-danger`} onClick={() => {
-            if (window.confirm(`删除卡片「${t.title}」？`)) void onTouch({ deleted_at: now() })
-            setOpen(false)
-          }}>删除</button>
+          <button className={`${item} text-danger`} onClick={() => void doDelete()}>删除</button>
         </div>
       )}
     </div>

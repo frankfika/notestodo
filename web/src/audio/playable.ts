@@ -12,7 +12,15 @@ export function canPlayNatively(mime: string): boolean {
 
 /** 解码任意可解码音频 → 单声道 PCM16 WAV（默认 24kHz：语音足够清楚，1 小时约 170MB 内存峰值前已足够小） */
 export async function toWav(blob: Blob, sampleRate = 24_000): Promise<Blob> {
-  const decoded = await new AudioContext().decodeAudioData(await blob.arrayBuffer())
+  // AudioContext 是受限系统资源，用完必须关闭 —— 否则 WebKit 上反复回放后
+  // new AudioContext() 直接抛错，回放功能永久失效（需重启应用）
+  const ctx = new AudioContext()
+  let decoded: AudioBuffer
+  try {
+    decoded = await ctx.decodeAudioData(await blob.arrayBuffer())
+  } finally {
+    void ctx.close().catch(() => undefined)
+  }
   const frames = Math.max(1, Math.ceil(decoded.duration * sampleRate))
   const off = new OfflineAudioContext(1, frames, sampleRate)
   const src = off.createBufferSource()

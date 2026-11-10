@@ -67,9 +67,11 @@ interface ActiveEngine {
 
 let active: ActiveEngine | null = null
 
-/** 5-minute chunks — keeps memory pressure bounded and is the unit of
- *  crash safety (one lost chunk = at most 5 min). */
-const TIMESLICE_MS = 5 * 60 * 1000
+/** 1-minute chunks — keeps memory pressure bounded and is the unit of
+ *  crash safety (one lost chunk = at most 1 min).
+ *  同时是「会议是否还在被录制」的心跳：每个分片都会刷 meeting.updated_at，
+ *  多标签页恢复任务据此区分「活跃录音」和「崩溃残留」（见 pipeline/jobs.ts）。 */
+const TIMESLICE_MS = 60 * 1000
 
 /** Hidden visibility / pagehide listeners — kept module-scoped so we can
  *  unbind on engine teardown. */
@@ -111,6 +113,15 @@ registerCaptionStreamProvider(() => (active ? (active.mixDest ? active.mixDest.s
 
 export function startRecorder(opts?: { title?: string }): Promise<void> {
   if (starting) return starting
+  // stopping 阶段 active 还在收尾（尾块落库 + finalise），等它结束再启动 ——
+  // 否则会被 startRecorderInner 的 `if (active) return` 静默吞掉：UI 显示已开始、实际没录
+  if (useRecorder.getState().phase === 'stopping') {
+    starting = (async () => {
+      await stopRecorder()
+      await startRecorderInner(opts)
+    })().finally(() => { starting = null })
+    return starting
+  }
   starting = startRecorderInner(opts).finally(() => { starting = null })
   return starting
 }
@@ -128,6 +139,7 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
     chunkCount: 0,
     captureMode: 'mic-only',
     captureModeNote: null,
+    systemChunks: 0,
   })
 
   let stream: MediaStream
@@ -281,7 +293,11 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
     const rms = Math.sqrt(sum / levelBuf.length)
     // 人耳听感是非线性的：正常说话 RMS 只有 0.02~0.1，x2.5 根本看不到。
     // 提高增益 + 留噪声地板，让说话明显顶起来、安静时回到接近 0。
-    setRecorderPartial({ audioLevel: Math.min(1, Math.max(0, (rms - 0.008) * 8)) })
+    setRecorderPartial({
+      audioLevel: Math.min(1, Math.max(0, (rms - 0.008) * 8)),
+      // 系统音频 chunk 数：录完还在 0 = 一直没捕到系统声音（对方说话会丢）
+      systemChunks: active.sysMix?.received ?? 0,
+    })
   }, 100)
   active.levelTimer = levelTimer
 
@@ -300,6 +316,8 @@ async function startRecorderInner(opts?: { title?: string }): Promise<void> {
 export async function stopRecorder(): Promise<string | null> {
   if (!active && starting) await starting.catch(() => undefined)
   if (!active) return null
+  // 双击停止 / ⌘⇧R 连按守卫：收尾阶段再进一次会重复 finalise + 跑两遍转录管线
+  if (useRecorder.getState().phase === 'stopping') return active.meetingId
   const meetingId = active.meetingId
   setRecorderPartial({ phase: 'stopping' })
   stopLiveCaption()
@@ -314,9 +332,12 @@ export async function stopRecorder(): Promise<string | null> {
   const finalFlush = new Promise<void>((resolve) => {
     const prevOnData = recorder.ondataavailable
     recorder.ondataavailable = (ev) => {
-      // 仍走原 handler —— active 尚未清空，tail chunk 拿到真实 seq
-      if (prevOnData) prevOnData.call(recorder, ev)
-      resolve()
+      // 仍走原 handler —— active 尚未清空，tail chunk 拿到真实 seq。
+      // resolve 必须等它落库：原 handler 是 async，事件派发 ≠ db.audioChunks.put 完成，
+      // 不等的话转录管线可能读不到尾块，最后一段音频永久丢失。
+      void Promise.resolve(prevOnData ? prevOnData.call(recorder, ev) : undefined)
+        .catch(() => undefined)
+        .finally(resolve)
     }
     // 兜底：某些实现 stop() 后不再派发 dataavailable（如无数据可冲）
     setTimeout(resolve, 1500)

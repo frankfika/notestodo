@@ -28,12 +28,29 @@ const RECOVERABLE: MeetingStatus[] = [
   'summarizing',
 ]
 
+/** 恢复扫描的跨标签页互斥锁名 */
+const RESUME_LOCK = 'shibei-resume-pending-jobs'
+
 export async function resumePendingJobs(): Promise<void> {
+  // 多标签页守卫：两个标签同时 boot 会各自驱动同一场会议 → 双份转录/纪要/待办。
+  // Web Locks 跨标签页互斥；拿不到锁（另一个标签正在恢复）就直接跳过。
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    await navigator.locks.request(RESUME_LOCK, { ifAvailable: true }, async (lock) => {
+      if (lock) await sweep()
+    })
+  } else {
+    await sweep()
+  }
+}
+
+async function sweep(): Promise<void> {
   const threshold = Date.now() - STALE_MS
   const candidates = await db.meetings.toArray()
   const stale = candidates.filter((m) => {
     if (!RECOVERABLE.includes(m.status)) return false
-    if (m.status === 'recording') return true // 录音中断总是需要恢复
+    // recording 没有特殊豁免：活跃录音每 60s 刷一次 meeting.updated_at（分片心跳），
+    // 过期的才算崩溃残留。旧实现无条件恢复，第二个标签页 boot 会把第一个标签页
+    // 正在进行的录音直接置为 processing 并启动转录。
     const t = Date.parse(m.updated_at)
     return Number.isFinite(t) && t < threshold
   })

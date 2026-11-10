@@ -94,7 +94,13 @@ export async function reindexKnowledge(folders: string[]): Promise<{
       try {
         const entry = await readAndIndexFile(folder, file, useLocal)
         if (entry) {
-          await db.knowledgeEntries.put(entry)
+          // 复用旧条目 id：reindex 是「刷新内容」不是「新建条目」。旧实现每次新 uid
+          // 只增不覆盖，重复索引无限膨胀，pin 卡片（source_entry_id）随之失锚。
+          const existing = await db.knowledgeEntries
+            .where('folder').equals(folder)
+            .filter((e) => e.path === file.path)
+            .first()
+          await db.knowledgeEntries.put({ ...entry, id: existing?.id ?? entry.id })
           indexed++
         }
       } catch (e) {

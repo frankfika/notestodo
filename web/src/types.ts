@@ -160,6 +160,17 @@ export interface Todo extends EntityMeta {
   board_id?: ID | null
   /** 循环卡：每周自动出现，点开即周报草稿 */
   recurring?: 'weekly-report'
+  /** 所属脑图根 id；根节点上 map_id === id */
+  map_id?: ID
+  /** 非空 = Waiting，不可入 Today */
+  waiting_reason?: string
+  /**
+   * 完成时间：状态翻成 done 时自动记一笔，翻回 open 清空。
+   * null = 从没完成过。多个层级的事项都记（task / KR / O 都算）。
+   */
+  completed_at?: ISODateTime | null
+  /** 图根归档时间；仅 parent_id null 的根有意义 */
+  archived_at?: ISODateTime | null
 }
 
 // ── 评论（块级，锚定引文）─────────────────────────────────────────────────────

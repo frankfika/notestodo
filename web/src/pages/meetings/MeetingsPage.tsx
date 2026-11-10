@@ -1,14 +1,16 @@
-import { statusText } from '../../lib/meetingStatus'
+import { statusText, displayStatus } from '../../lib/meetingStatus'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
-import { fmtClock, fmtDate, fmtDateTime, mod } from '../../lib/id'
+import { useToast } from '../../state/toast'
+import { fmtClock, fmtDateTime, mod } from '../../lib/id'
 import type { Meeting, MeetingStatus } from '../../types'
 import EmptyState from '../../components/EmptyState'
 import { importTranscriptText } from '../../lib/importTranscript'
-import { deleteMeetingCascade, renameMeeting } from '../../lib/meetingActions'
+import { renameMeeting } from '../../lib/meetingActions'
+import { deleteMeetingWithUndo, statusTone } from '../meeting/MeetingDetailPage'
 
 function statusDot(s: MeetingStatus): string {
   switch (s) {
@@ -21,6 +23,15 @@ function statusDot(s: MeetingStatus): string {
   }
 }
 
+/** 还在流水线里的会议（录音 / 转录 / 整理）算「进行中」 */
+const ACTIVE_STATUS: MeetingStatus[] = ['recording', 'processing', 'transcribed', 'summarizing']
+
+/** 本地日期键：判断「今天」要用用户所在时区，toISOString 是 UTC 会差一天 */
+function dayKey(d: Date): string {
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 /**
  * 全部会议列表 + 选中预览。MVP：右栏展示简要 metadata + 跳详情按钮。
  */
@@ -31,6 +42,7 @@ export default function MeetingsPage(): JSX.Element {
   ) ?? []
   const goMeeting = useUI((s) => s.goMeeting)
   const start = useRecorder((s) => s.start)
+  const { show } = useToast()
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -44,17 +56,29 @@ export default function MeetingsPage(): JSX.Element {
     [activeId],
   )
 
-  // 按日期分组
-  const grouped = useMemo(() => {
-    const map = new Map<string, Meeting[]>()
+  // 分组：进行中 / 今天 / 更早（每组带计数）
+  const groups = useMemo(() => {
+    const todayKey = dayKey(new Date())
+    const g: { key: string; label: string; list: Meeting[] }[] = [
+      { key: 'active', label: '进行中', list: [] },
+      { key: 'today', label: '今天', list: [] },
+      { key: 'earlier', label: '更早', list: [] },
+    ]
     for (const m of meetings) {
-      const day = m.started_at.slice(0, 10)
-      const list = map.get(day) ?? []
-      list.push(m)
-      map.set(day, list)
+      if (ACTIVE_STATUS.includes(m.status)) g[0].list.push(m)
+      else if (dayKey(new Date(m.started_at)) === todayKey) g[1].list.push(m)
+      else g[2].list.push(m)
     }
-    return [...map.entries()]
+    return g.filter((x) => x.list.length > 0)
   }, [meetings])
+
+  // 每场会议的待确认待办数（徽章用）
+  const pendingTodos = useLiveQuery(() => db.todos.where('status').equals('pending_review').toArray(), []) ?? []
+  const pendingByMeeting = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const t of pendingTodos) if (t.meeting_id) m.set(t.meeting_id, (m.get(t.meeting_id) ?? 0) + 1)
+    return m
+  }, [pendingTodos])
 
   useEffect(() => {
     if (!menuFor) return
@@ -87,20 +111,22 @@ export default function MeetingsPage(): JSX.Element {
           <EmptyState
             icon="◌"
             title="还没有会议"
-            hint={`按 ${mod()}⇧R 或点右上角立刻开始。`}
+            hint={`一场会议 = 一次录音 + 自动转录 + 纪要 + 待办清单。录完散会，剩下的交给它。按 ${mod()}⇧R 或点下方开始。`}
             action={
               <button onClick={() => void start()} className="btn-primary h-8 text-xs">● 开始录音</button>
             }
           />
         ) : (
-          grouped.map(([day, list]) => (
-            <div key={day} className="py-1">
-              <div className="px-5 py-1.5 text-[11px] font-semibold tracking-widest text-text-3">
-                {fmtDate(day, true)}
+          groups.map((g) => (
+            <div key={g.key} className="py-1">
+              <div className="px-5 py-1.5 text-[11px] font-semibold tracking-widest text-text-3 flex items-center gap-1.5">
+                {g.label}
+                <span className="font-normal tabular-nums">{g.list.length}</span>
               </div>
               <ul>
-                {list.map((m) => {
+                {g.list.map((m) => {
                   const active = activeId === m.id
+                  const pending = pendingByMeeting.get(m.id) ?? 0
                   return (
                     <li key={m.id} className="group relative">
                       {renamingId === m.id ? (
@@ -128,6 +154,14 @@ export default function MeetingsPage(): JSX.Element {
                         >
                           <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusDot(m.status)}`} />
                           <span className="flex-1 min-w-0 truncate text-text-1">{m.title}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${statusTone(displayStatus(m))}`}>
+                            {statusText(m)}
+                          </span>
+                          {pending > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-warning/40 text-warning bg-warning/8 shrink-0">
+                              待确认 {pending}
+                            </span>
+                          )}
                           <span className="text-[11px] text-text-3 font-mono tabular-nums shrink-0 group-hover:hidden">
                             {fmtClock(m.audio.duration_ms)}
                           </span>
@@ -148,9 +182,10 @@ export default function MeetingsPage(): JSX.Element {
                             className="px-2 py-1.5 rounded-[6px] text-[13px] text-left text-danger hover:bg-bg-overlay transition-colors"
                             onClick={() => {
                               setMenuFor(null)
-                              if (window.confirm(`删除「${m.title}」？所有关联转录、纪要、待办都会被清理。`)) {
-                                void deleteMeetingCascade(m).then(() => { if (selectedId === m.id) setSelectedId(null) })
-                              }
+                              void deleteMeetingWithUndo(m).then((undo) => {
+                                show(`已删除「${m.title}」`, { label: '撤销', onClick: () => void undo() }, 6000)
+                                if (selectedId === m.id) setSelectedId(null)
+                              })
                             }}
                           >删除</button>
                         </div>
