@@ -42,6 +42,8 @@ type MindElixirInstance = {
   removeNodes?: (nodes: unknown[]) => Promise<void> | void
   moveNodesIn?: (from: unknown[], to: unknown) => Promise<void> | void
   moveNodesAfter?: (from: unknown[], to: unknown) => Promise<void> | void
+  /** 缩放到刚好放得下 + 按整棵树居中 */
+  scaleFit?: () => void
 }
 
 /** 由应用层统一实现的键（避免 ME 内建键位重复触发） */
@@ -136,6 +138,26 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
     [],
   )
 
+  /**
+   * F-09 · 画布自适应。
+   *
+   * ME 默认按**根节点**居中（toCenter），树会整体偏在右下角、跟画布重心脱节；
+   * 而画布比树窄时（右侧被 Today 托盘挤过），树的右半边直接被切掉看不见。
+   * scaleFit() 按**整棵树**的包围盒居中，并在内容超出画布时自动缩小。
+   */
+  const fitToView = useCallback((): void => {
+    const mei = meiRef.current
+    if (!mei?.scaleFit) return
+    // 等 ME 的布局算完再量，否则量到的是上一帧的尺寸
+    requestAnimationFrame(() => {
+      try {
+        mei.scaleFit?.()
+      } catch {
+        /* 布局未就绪：下一帧再试 */
+      }
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -154,6 +176,7 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
       }) as unknown as MindElixirInstance
       const data = todosToMindData(todos, rootId)
       await mei.init(data)
+      fitToView()
 
       // F-02 · 键位语义统一由应用层实现（见 SHORTCUT_ROWS）：
       // 把 ME 内建的 Tab/Enter/删除/编辑接管过来，避免同一动作触发两次。
@@ -219,10 +242,12 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
         const el = findEleSafe(mei, keepId)
         if (el) mei.selectNode?.(el)
       }
+      fitToView()
     } else {
       void mei.init(data)
+      fitToView()
     }
-  }, [todos, rootId, ready])
+  }, [todos, rootId, ready, fitToView])
 
   useEffect(() => {
     if (!focusId || !meiRef.current) return
@@ -235,6 +260,15 @@ export default function MindmapCanvas({ rootId }: MindmapCanvasProps): JSX.Eleme
   const focusCanvas = useCallback((): void => {
     meiRef.current?.container?.focus?.({ preventScroll: true })
   }, [])
+
+  // 画布尺寸变了（窗口缩放 / 侧栏折叠）就重新自适应
+  useEffect(() => {
+    const el = elRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => fitToView())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fitToView])
 
   /** F-02 · 切图：⌘] / ⌘[ 在图库面板里前后翻 */
   const switchMap = useCallback(
