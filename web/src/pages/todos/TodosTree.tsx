@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { db } from '../../db/db'
 import { now, today as todayIso } from '../../lib/id'
+import { useAllTodos } from '../../lib/useAllTodos'
 import { useUI } from '../../state/ui'
 import type { Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
@@ -266,7 +267,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
 }
 
 export default function TodosTree({ filter, tagByTodo, readOnly }: { filter: TodoFilter; tagByTodo: Map<string, string[]>; readOnly?: boolean }): JSX.Element {
-  const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
+  const all = useAllTodos()
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all])

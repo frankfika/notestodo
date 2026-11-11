@@ -11,12 +11,17 @@ import type { TodayState, TodoOp } from './types'
  *
  * Mind Elixir 保持 `allowUndo: false`：ME 内置撤销只回放画布 JSON，不会写回 Dexie，
  * 也不知 Today 槽位。业务级 ⌘Z 走本模块的应用撤销栈。
+ *
+ * 撤销条目带 scope（一般是图根 id；Today 槽位操作用 'today'）：
+ * 之前在全局单栈里混放，看着图 B 按 ⌘Z 撤销的可能是图 A 的操作，
+ * 画面上毫无反馈 —— 现在 undoMindmap(scope) 只回退本图 / Today 的条目。
  */
 
 const MAX_DEPTH = 50
 
 type UndoEntry = {
   label: string
+  scope: string
   run: () => Promise<void>
 }
 
@@ -28,28 +33,41 @@ export function setMindmapEditing(editing: boolean): void {
   mindmapEditing = editing
 }
 
+/** 编辑态唯一事实源（ME bus 的 beginEdit / finishEdit 维护） */
 export function isMindmapEditing(): boolean {
   return mindmapEditing
 }
 
-export function canUndoMindmap(): boolean {
-  return stack.length > 0
+export function canUndoMindmap(scope?: string): boolean {
+  return stack.some((e) => matchScope(e, scope))
 }
 
-export function peekMindmapUndoLabel(): string | null {
-  return stack.length ? stack[stack.length - 1]!.label : null
+export function peekMindmapUndoLabel(scope?: string): string | null {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (matchScope(stack[i]!, scope)) return stack[i]!.label
+  }
+  return null
 }
 
-export function pushMindmapUndo(run: () => Promise<void>, label: string): void {
-  stack.push({ label, run })
+function matchScope(e: UndoEntry, scope?: string): boolean {
+  if (!scope) return true
+  return e.scope === scope || e.scope === 'today' || e.scope === 'global'
+}
+
+export function pushMindmapUndo(run: () => Promise<void>, label: string, scope = 'global'): void {
+  stack.push({ label, scope, run })
   if (stack.length > MAX_DEPTH) stack.shift()
 }
 
-export async function undoMindmap(): Promise<boolean> {
-  const entry = stack.pop()
-  if (!entry) return false
-  await entry.run()
-  return true
+/** 只回退本 scope（或 Today）的最近一条；scope 缺省时回退全局最近一条 */
+export async function undoMindmap(scope?: string): Promise<boolean> {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (!matchScope(stack[i]!, scope)) continue
+    const [entry] = stack.splice(i, 1)
+    await entry!.run()
+    return true
+  }
+  return false
 }
 
 export function clearMindmapUndoStack(): void {
@@ -60,20 +78,31 @@ export function clearMindmapUndoStack(): void {
 export function pushTodayStateUndo(before: TodayState, label: string): void {
   pushMindmapUndo(async () => {
     await setToday(before)
-  }, label)
+  }, label, 'today')
 }
 
-/** Space 切换完成态 */
-export function pushTodoStatusUndo(todoId: ID, previousStatus: TodoStatus): void {
+/**
+ * Space 切换完成态的撤销。
+ * 完成会触发槽位清扫把任务踢出 Today —— 撤销必须把槽位快照一起还回来，
+ * 否则「撤销完成」后任务从今天的执行清单里凭空消失。
+ */
+export function pushTodoStatusUndo(
+  todoId: ID,
+  previousStatus: TodoStatus,
+  scope: string,
+  todayBefore?: TodayState,
+): void {
   pushMindmapUndo(async () => {
     const cur = await db.todos.get(todoId)
-    if (!cur) return
-    await db.todos.update(todoId, {
-      status: previousStatus,
-      updated_at: now(),
-      sync_version: cur.sync_version + 1,
-    })
-  }, '切换完成状态')
+    if (cur) {
+      await db.todos.update(todoId, {
+        status: previousStatus,
+        updated_at: now(),
+        sync_version: cur.sync_version + 1,
+      })
+    }
+    if (todayBefore) await setToday(todayBefore)
+  }, '切换完成状态', scope)
 }
 
 function labelForOps(ops: TodoOp[]): string {
@@ -122,8 +151,10 @@ export async function createUndoForPatches(ops: TodoOp[]): Promise<(() => Promis
 
   return async () => {
     await db.transaction('rw', db.todos, db.tagBindings, async () => {
+      // 撤销「添加」要删整棵子树：只删该节点会让撤销期间新增的孩子 parent_id 悬空
       for (const id of addedIds) {
-        await db.todos.delete(id)
+        const nowAll = await db.todos.toArray()
+        await db.todos.bulkDelete([...subtreeIds(id, nowAll)])
       }
       for (const t of todoBackups.values()) {
         await db.todos.put(t)
@@ -136,7 +167,7 @@ export async function createUndoForPatches(ops: TodoOp[]): Promise<(() => Promis
   }
 }
 
-export async function captureAndPushPatchUndo(ops: TodoOp[]): Promise<void> {
+export async function captureAndPushPatchUndo(ops: TodoOp[], scope = 'global'): Promise<void> {
   const undo = await createUndoForPatches(ops)
-  if (undo) pushMindmapUndo(undo, labelForOps(ops))
+  if (undo) pushMindmapUndo(undo, labelForOps(ops), scope)
 }

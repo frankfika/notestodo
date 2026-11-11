@@ -369,7 +369,11 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
       const wr = body.waiting_reason === null || body.waiting_reason === '' ? undefined : String(body.waiting_reason)
       changes.waiting_reason = wr
     }
-    if (body.map_id !== undefined) changes.map_id = String(body.map_id)
+    // map_id 不能单独改：节点的图归属由 parent 链决定（与画布移动同口径），
+    // 单独改 map_id 会让「树位置」和「图归属」分裂成两张皮
+    if (body.map_id !== undefined && body.parent_id === undefined) {
+      return { status: 400, body: { error: 'map_id 不可单独修改，请通过 parent_id 移动节点' } }
+    }
     if (body.parent_id !== undefined) {
       const parent_id = body.parent_id === null ? null : String(body.parent_id)
       if (parent_id === cur.id) {
@@ -385,9 +389,24 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
         if (!p || p.deleted_at !== null) return { status: 400, body: { error: 'parent_id 不存在' } }
       }
       changes.parent_id = parent_id
+      // 移动节点必须连带整棵子树换图（画布 moveNodes 的同口径级联）；
+      // 提到根级则自立为图（map_id = 自身）
+      changes.map_id = parent_id
+        ? ((await db.todos.get(parent_id))?.map_id ?? parent_id)
+        : cur.id
     }
     if (Object.keys(changes).length === 0) return { status: 400, body: { error: '没有可更新的字段' } }
     await db.todos.update(cur.id, { ...changes, updated_at: now(), sync_version: cur.sync_version + 1 })
+    if (changes.parent_id !== undefined) {
+      const allForSub = await db.todos.toArray()
+      for (const sid of subtreeIds(cur.id, allForSub)) {
+        if (sid === cur.id) continue
+        const sub = await db.todos.get(sid)
+        if (sub && sub.map_id !== changes.map_id) {
+          await db.todos.update(sid, { map_id: changes.map_id, updated_at: now(), sync_version: sub.sync_version + 1 })
+        }
+      }
+    }
     const updated = (await db.todos.get(cur.id)) as Todo
     if (mindmap) {
       if (changes.status === 'done' || body.completed === true) await evictIfPresent(cur.id)
@@ -406,12 +425,17 @@ export async function routeApiRequest(req: ApiRequest): Promise<ApiResult> {
   if (req.method === 'DELETE' && segments.length === 2 && segments[0] === 'todos') {
     const cur = await db.todos.get(segments[1])
     if (!cur || cur.deleted_at !== null) return { status: 404, body: { error: 'todo 不存在' } }
+    // 图根不可删（UI 里同样禁止）：一句 DELETE 抹掉整张图太顺手了，归档走 /maps/:id/archive
+    if (mindmap && cur.parent_id === null) {
+      return { status: 409, body: { error: 'map_root', message: '图根不可删除，请用 /maps/:id/archive 归档' } }
+    }
     const all = await db.todos.toArray()
     const ids = [...subtreeIds(cur.id, all)]
     const ts = now()
     await db.transaction('rw', db.todos, db.tagBindings, async () => {
       for (const id of ids) {
-        await db.todos.update(id, { deleted_at: ts, updated_at: ts, status: 'cancelled' })
+        // 只置 deleted_at，不篡改 status（与 UI 各入口同口径）
+        await db.todos.update(id, { deleted_at: ts, updated_at: ts })
       }
       const bindings = await db.tagBindings
         .where('target_type').equals('todo')

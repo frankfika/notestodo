@@ -1,12 +1,16 @@
 import { db } from '../../db/db'
-import { now, uid } from '../id'
+import { now } from '../id'
 import { subtreeIds } from '../okr'
 import type { ID, Todo } from '../../types'
 import { isDescendant } from './cycle'
 import { indexByParent, isLeafTodo, isLive } from './leaf'
+import { buildTask } from './createTask'
 import type { MeOperation, MindmapNodeMeta, TodoOp } from './types'
 import { captureAndPushPatchUndo } from './undoStack'
 import { evictIfPresent } from './todaySlots'
+
+/** Waiting 节点在画布上的显示后缀（拼接 / 剥离必须同源） */
+export const WAITING_SUFFIX = ' · Waiting'
 
 export type MENode = {
   id: string
@@ -85,7 +89,7 @@ export function todosToMindData(
     }
     const waiting = Boolean(t.waiting_reason && t.status === 'open')
     const topic = waiting
-      ? `${t.title || '未命名'} · Waiting`
+      ? `${t.title || '未命名'}${WAITING_SUFFIX}`
       : t.title || '未命名'
     return {
       id: t.id,
@@ -117,22 +121,14 @@ function bump(t: Todo, patch: Partial<Todo>): Partial<Todo> {
 }
 
 function newTask(
-  partial: Partial<Todo> & { parent_id: ID | null; map_id: ID; title: string; id?: ID },
+  partial: Partial<Todo> & { parent_id: ID; map_id: ID; title: string; id?: ID },
 ): Todo {
-  const ts = now()
-  return {
-    id: partial.id ?? uid(),
-    kind: 'task',
-    scope: null,
-    status: 'open',
-    source: 'manual',
-    sort_order: Date.now(),
-    created_at: ts,
-    updated_at: ts,
-    deleted_at: null,
-    sync_version: 0,
-    ...partial,
-  }
+  return buildTask({
+    id: partial.id,
+    title: partial.title,
+    placement: { parentId: partial.parent_id, mapId: partial.map_id },
+    sortOrder: typeof partial.sort_order === 'number' ? partial.sort_order : undefined,
+  })
 }
 
 /**
@@ -149,7 +145,15 @@ export function mindEventToTodoPatches(
     if (isSyntheticId(ev.target.id)) return []
     const cur = byId.get(ev.target.id)
     if (!cur) return []
-    return [{ op: 'update', id: cur.id, patch: bump(cur, { title: ev.target.topic }) }]
+    let title = ev.target.topic
+    // Waiting 节点的画布标题是「标题 · Waiting」拼出来的显示串 ——
+    // 回写前必须剥掉后缀，否则编辑一次就把「 · Waiting」固化进数据
+    if (cur.waiting_reason && cur.status === 'open' && title.endsWith(WAITING_SUFFIX)) {
+      title = title.slice(0, -WAITING_SUFFIX.length)
+    }
+    // 显示串归一化后与原标题相同：不进编辑态兜了一圈，不落库
+    if (title === cur.title) return []
+    return [{ op: 'update', id: cur.id, patch: bump(cur, { title }) }]
   }
 
   if (ev.name === 'addChild') {
@@ -218,9 +222,22 @@ export function mindEventToTodoPatches(
         const kids = all.filter((t) => t.parent_id === dest.id && isLive(t))
         sort_order = Math.max(0, ...kids.map((k) => k.sort_order)) + 10
       } else {
+        // 同级插入取前后邻居中点（与 TodosTree 拖拽同口径）；
+        // 之前用 anchor ± 1，多次穿插后 sort_order 撞号、顺序漂移
         parent_id = dest.parent?.id ?? mapId
         const anchor = byId.get(dest.id)
-        sort_order = (anchor?.sort_order ?? Date.now()) + (ev.name === 'moveNodesAfter' ? 1 : -1)
+        const anchorOrder = anchor?.sort_order ?? Date.now()
+        const sibs = all
+          .filter((t) => t.parent_id === parent_id && isLive(t) && t.id !== n.id)
+          .sort((a, b) => a.sort_order - b.sort_order)
+        const aidx = sibs.findIndex((s) => s.id === dest.id)
+        if (ev.name === 'moveNodesAfter') {
+          const next = aidx >= 0 ? sibs[aidx + 1] : undefined
+          sort_order = next ? (anchorOrder + next.sort_order) / 2 : anchorOrder + 10
+        } else {
+          const prevSib = aidx > 0 ? sibs[aidx - 1] : undefined
+          sort_order = prevSib ? (prevSib.sort_order + anchorOrder) / 2 : anchorOrder - 10
+        }
       }
       const newMap = parent_id ? (byId.get(parent_id)?.map_id ?? parent_id) : mapId
       ops.push({ op: 'update', id: n.id, patch: bump(cur, { parent_id, map_id: newMap, sort_order }) })
@@ -236,14 +253,14 @@ export function mindEventToTodoPatches(
   return []
 }
 
-/** 应用补丁；软删复刻 localApi DELETE；事后踢 Today 槽 */
+/** 应用补丁；软删与列表 / localApi 同口径（只置 deleted_at，不动 status）；事后踢 Today 槽 */
 export async function applyTodoPatches(
   ops: TodoOp[],
-  opts?: { recordUndo?: boolean },
+  opts?: { recordUndo?: boolean; scope?: string },
 ): Promise<void> {
   if (ops.length === 0) return
   const recordUndo = opts?.recordUndo ?? true
-  if (recordUndo) await captureAndPushPatchUndo(ops)
+  if (recordUndo) await captureAndPushPatchUndo(ops, opts?.scope)
   const evictIds: string[] = []
   await db.transaction('rw', db.todos, db.tagBindings, async () => {
     for (const op of ops) {
@@ -259,7 +276,9 @@ export async function applyTodoPatches(
         const ids = [...subtreeIds(op.rootId, all)]
         const ts = now()
         for (const id of ids) {
-          await db.todos.update(id, { deleted_at: ts, updated_at: ts, status: 'cancelled' })
+          // 只置 deleted_at：status 是任务自己的状态，删除不该篡改
+          // （否则刷新页面后无法恢复，且「已归档」视图混进被删的东西）
+          await db.todos.update(id, { deleted_at: ts, updated_at: ts })
           evictIds.push(id)
         }
         const bindings = await db.tagBindings

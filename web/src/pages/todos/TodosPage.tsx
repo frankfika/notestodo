@@ -1,17 +1,18 @@
 import { type JSX, useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
-import { now, uid } from '../../lib/id'
 import { useUI } from '../../state/ui'
 import TodosTree from './TodosTree'
 import TodosList from './TodosList'
 import MindmapCanvas from './MindmapCanvas'
 import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
+import { subtreeIds } from '../../lib/okr'
 import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
+import { createTask } from '../../lib/mindmap/createTask'
 import { ensureInboxMap, listMapRoots } from '../../lib/mindmap/mapRoots'
-import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
+import { isMindmapEditing, pushMindmapUndo, undoMindmap } from '../../lib/mindmap/undoStack'
 import MapSwitcher from './MapSwitcher'
 import InboxDrawer from './InboxDrawer'
 import { TodayIndicator, TodaySwapPrompt } from './TodaySlots'
@@ -31,7 +32,8 @@ type ViewTab = 'mindmap' | 'tree' | 'list'
  * 看板在独立路由 board。
  */
 export default function TodosPage(): JSX.Element {
-  const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? false
+  // 默认开：查询还没回来时先按脑图渲染，避免首帧闪一下经典列表
+  const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? true
   const [tab, setTab] = useState<ViewTab>('list')
   const goBoard = useUI((s) => s.goBoard)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
@@ -64,12 +66,13 @@ export default function TodosPage(): JSX.Element {
       if (isMindmapEditing()) return
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault()
-        void undoMindmap()
+        // 只回退当前图 / Today 的条目 —— 不碰其他图的操作
+        void undoMindmap(rootId ?? undefined)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [tab, mindmapEnabled])
+  }, [tab, mindmapEnabled, rootId])
 
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
@@ -79,29 +82,21 @@ export default function TodosPage(): JSX.Element {
     const raw = newTitle.trim()
     if (!raw) return
     const parsed = parseQuickAdd(raw)
-    const ts = now()
-    const id = uid()
     // 脑图模式下快速添加 = 给当前画布加一个叶子（所见即所得：输入框在画布上方，
     // 加进去的东西就必须出现在这张画布上）。还没有图时用 Inbox 做第一张画布。
     // Inbox 捕获流另有 InboxDrawer 和本机 API 入口。经典模式仍建无父根任务。
     const mapId = mindmapEnabled ? (rootId ?? (await ensureInboxMap()).id) : null
-    await db.todos.add({
-      id,
-      kind: 'task',
-      parent_id: mapId,
-      scope: null,
+    const todo = await createTask({
       title: parsed.title,
-      status: 'open',
-      source: 'manual',
-      sort_order: Date.now(),
-      map_id: mapId ?? id,
-      created_at: ts,
-      updated_at: ts,
-      deleted_at: null,
-      sync_version: 0,
-      ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
-      ...(newDue || parsed.due_date ? { due_date: newDue || parsed.due_date! } : {}),
+      placement: mapId ? { mapId } : { root: true },
+      dueDate: newDue || parsed.due_date,
+      assignee: parsed.assignee,
     })
+    // 与画布操作同口径：失败可撤（R4）
+    pushMindmapUndo(async () => {
+      const all = await db.todos.toArray()
+      await db.todos.bulkDelete([...subtreeIds(todo.id, all)])
+    }, '添加任务', mapId ?? 'global')
     setNewTitle('')
     setNewDue('')
   }

@@ -121,6 +121,14 @@ export class ShibeiDB extends Dexie {
           if (r.parent_id == null) await table.update(r.id, { map_id: r.id })
         }
       })
+    // v11: 脑图任务已是唯一默认 —— 清掉 kv 里存过的 features。
+    // 显式关过开关的老用户，kv 里躺着 { mindmap_tasks: false }，而设置 UI 已移除，
+    // 不迁移会被永久锁在旧版（脑图页面与 API 对他们全部关闭）。
+    this.version(11)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx.table('kv').delete('features')
+      })
   }
 }
 

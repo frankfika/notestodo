@@ -59,6 +59,26 @@ test.describe('mindEventToTodoPatches', () => {
     expect(noop).toHaveLength(0)
   })
 
+  test('finishEdit：Waiting 节点回写时剥掉「 · Waiting」显示后缀', () => {
+    const all = [t('root', null), t('w1', 'root', { title: '催设计稿', waiting_reason: '等设计' })]
+    const byId = new Map(all.map((x) => [x.id, x]))
+    // 用户在画布里把「催设计稿 · Waiting」改成「催设计稿和文案 · Waiting」
+    const ops = mindEventToTodoPatches(
+      { name: 'finishEdit', target: { id: 'w1', topic: '催设计稿和文案 · Waiting' }, origin: 'main' },
+      { all, mapId: 'root', byId },
+    )
+    expect(ops).toHaveLength(1)
+    // 后缀不能固化进数据，否则下次渲染变成「… · Waiting · Waiting」
+    expect(ops[0].op === 'update' && ops[0].patch.title).toBe('催设计稿和文案')
+
+    // 开了编辑但没改（ME 只在变化时触发，但双保险）：显示串归一化后同题 → 不落库
+    const noop = mindEventToTodoPatches(
+      { name: 'finishEdit', target: { id: 'w1', topic: '催设计稿 · Waiting' }, origin: 'main' },
+      { all, mapId: 'root', byId },
+    )
+    expect(noop).toHaveLength(0)
+  })
+
   test('addChild 生成 add op', () => {
     const all = [t('root', null)]
     const byId = new Map(all.map((x) => [x.id, x]))

@@ -1,6 +1,4 @@
 import { type JSX, useCallback, useEffect, useRef, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import {
   applyTodoPatches,
@@ -8,11 +6,17 @@ import {
   todosToMindData,
 } from '../../lib/mindmap/convert'
 import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
-import { pushTodoStatusUndo, setMindmapEditing } from '../../lib/mindmap/undoStack'
+import { getToday } from '../../lib/mindmap/todaySlots'
+import {
+  isMindmapEditing,
+  pushTodoStatusUndo,
+  setMindmapEditing,
+} from '../../lib/mindmap/undoStack'
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
-import type { MeOperation } from '../../lib/mindmap/types'
-import type { ID, Todo } from '../../types'
-import { mod, now } from '../../lib/id'
+import { useAllTodos } from '../../lib/useAllTodos'
+import type { MeOperation, MindmapNodeMeta } from '../../lib/mindmap/types'
+import type { ID } from '../../types'
+import { mod } from '../../lib/id'
 import './mindmap.css'
 import { applyTodoStatus } from '../../lib/todoStatus'
 
@@ -94,6 +98,8 @@ type BranchNode = {
   id?: string
   topic?: string
   children?: BranchNode[]
+  tags?: string[]
+  metadata?: MindmapNodeMeta
 }
 
 /**
@@ -165,7 +171,7 @@ function organicSubBranch(
 }
 
 /**
- * 画布上这棵树的签名（id + 标题 + 结构）。
+ * 画布上这棵树的签名（id + 标题 + 可见元信息 + 结构）。
  *
  * 用来回答一个问题：「Dexie 里的数据，画布上是不是已经画好了？」
  * 如果是，就别再 `refresh` 重画一遍 —— 重画会重建整棵 DOM，
@@ -174,11 +180,23 @@ function organicSubBranch(
  * 标题要做归一化：ME 新建节点的占位是 `New Node`（ME 的构造函数里
  * `newTopicName: ''` 是 falsy，会退回默认文案），而我们这边空标题渲染成
  * `未命名` —— 不归一化的话两者永远对不上，每次新建节点都会重画一次。
+ *
+ * 签名必须带上 tags / metadata：之前只比 id + 标题 + 结构，
+ * 改关联人（@chip）这类不动标题的变更被签名判定为「一致」，
+ * 画布永远不重画 —— 正确性优先于省一次 refresh。
  */
 function treeSignature(node: BranchNode | undefined): string {
   if (!node) return ''
   const kids = node.children ?? []
-  return `${node.id ?? ''}~${normTopic(node.topic)}(${kids.map(treeSignature).join(',')})`
+  const visible = JSON.stringify([
+    node.tags ?? [],
+    node.metadata?.assignee ?? '',
+    node.metadata?.completed_at ?? '',
+    node.metadata?.due_date ?? '',
+    node.metadata?.waiting_reason ?? '',
+    node.metadata?.status ?? '',
+  ])
+  return `${node.id ?? ''}~${normTopic(node.topic)}~${visible}(${kids.map(treeSignature).join(',')})`
 }
 
 function normTopic(topic: string | undefined): string {
@@ -230,12 +248,11 @@ function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
 export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCanvasProps): JSX.Element {
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
-  const editingRef = useRef(false)
   const coachTimer = useRef<number | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
   const [ready, setReady] = useState(0)
-  const todos = useLiveQuery(() => db.todos.toArray(), []) ?? []
+  const todos = useAllTodos()
   const focusId = useUI((s) => s.todoFocusId)
 
   /**
@@ -347,18 +364,17 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       })
 
       mei.bus.addListener('operation', (ev: MeOperation) => {
+        // 编辑态唯一事实源在 undoStack（isMindmapEditing），这里只负责同步
         if ((ev as { name?: string }).name === 'beginEdit') {
-          editingRef.current = true
           setMindmapEditing(true)
           return
         }
         if (ev.name === 'finishEdit') {
-          editingRef.current = false
           setMindmapEditing(false)
         }
         const byId = new Map(todosRef.current.map((t) => [t.id, t]))
         const ops = mindEventToTodoPatches(ev, { all: todosRef.current, mapId: rootId, byId })
-        void applyTodoPatches(ops)
+        void applyTodoPatches(ops, { scope: rootId })
       })
       meiRef.current = mei
       // ME 是异步建的：数据可能早于它到位，置 ready 让下面的重绘补一次
@@ -374,7 +390,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
 
   useEffect(() => {
     const mei = meiRef.current
-    if (!mei || editingRef.current) return
+    if (!mei || isMindmapEditing()) return
     const data = todosToMindData(todos, rootId)
     /**
      * 渲染结果没变就别重画。
@@ -466,7 +482,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       if (!mei) return
       const el = e.target as HTMLElement | null
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
-      if (editingRef.current) return
+      if (isMindmapEditing()) return
 
       const isMod = e.metaKey || e.ctrlKey
 
@@ -492,8 +508,12 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
           return
         }
         const prev = t.status
-        pushTodoStatusUndo(t.id, prev)
-        void applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
+        void (async () => {
+          // 完成会把任务踢出 Today 槽 —— 撤销时连槽位快照一起还回来
+          const todayBefore = await getToday()
+          pushTodoStatusUndo(t.id, prev, rootId, todayBefore)
+          await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
+        })()
         return
       }
 

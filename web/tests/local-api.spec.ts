@@ -229,3 +229,43 @@ test('Today API：flag 关 404；开启后入槽 / 满槽 / 完成踢槽', async
   r = await call(page, 'DELETE', '/today/slots/leafC')
   expect(r.status).toBe(200)
 })
+
+test('脑图模式：图根禁删 / map_id 不可单独改 / 移动节点级联换图', async ({ page }) => {
+  await page.goto(BASE)
+  await page.evaluate(async () => {
+    const { db } = await import('/src/db/db.ts')
+    const { setFeature } = await import('/src/lib/features.ts')
+    await setFeature('mindmap_tasks', true)
+    await db.kv.put({ key: 'onboarding_done_v1', value: true })
+    await db.todos.clear()
+    const ts = new Date().toISOString()
+    const base = { kind: 'task' as const, scope: null, status: 'open' as const, source: 'manual' as const, created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 }
+    // 两张图：proj（root → a → b）与 other
+    await db.todos.bulkPut([
+      { id: 'proj', parent_id: null, title: '项目图', sort_order: 1, map_id: 'proj' },
+      { id: 'a', parent_id: 'proj', title: '分支 a', sort_order: 2, map_id: 'proj' },
+      { id: 'b', parent_id: 'a', title: '叶子 b', sort_order: 3, map_id: 'proj' },
+      { id: 'other', parent_id: null, title: '另一张图', sort_order: 4, map_id: 'other' },
+    ].map((r) => ({ ...base, ...r })))
+  })
+
+  // 图根不可 DELETE（UI 里同样禁止）；归档有专门入口
+  let r = await call(page, 'DELETE', '/todos/proj')
+  expect(r.status).toBe(409)
+  expect((r.body as { error: string }).error).toBe('map_root')
+
+  // map_id 不可脱离 parent 单独修改（树位置与图归属会分裂）
+  r = await call(page, 'PATCH', '/todos/b', { map_id: 'other' })
+  expect(r.status).toBe(400)
+
+  // 移动节点：自身与整棵子树一起换图（画布 moveNodes 的同口径级联）
+  r = await call(page, 'PATCH', '/todos/a', { parent_id: 'other' })
+  expect(r.status).toBe(200)
+  const maps = await page.evaluate(async () => {
+    const { db } = await import('/src/db/db.ts')
+    const all = await db.todos.toArray()
+    return Object.fromEntries(all.map((t) => [t.id, t.map_id]))
+  })
+  expect(maps['a']).toBe('other')
+  expect(maps['b']).toBe('other')
+})

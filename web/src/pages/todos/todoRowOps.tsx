@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import { create } from 'zustand'
 import { db } from '../../db/db'
-import { now, thisFriday, uid } from '../../lib/id'
+import { now, thisFriday } from '../../lib/id'
 import type { Todo } from '../../types'
 import TagPicker from '../../components/TagPicker'
 import DateInput from '../../components/DateInput'
 import { useToast } from '../../state/toast'
 import { applyTodoStatus } from '../../lib/todoStatus'
+import { createTask } from '../../lib/mindmap/createTask'
+import { evictIfPresent, getToday, setToday } from '../../lib/mindmap/todaySlots'
 import AssigneePicker from '../../components/AssigneePicker'
 import { archiveTodo, unarchiveTodo } from '../../lib/todoStatus'
 
@@ -76,13 +78,14 @@ export function subtreeIds(root: Todo, all: Todo[]): string[] {
   return ids
 }
 
-/** 软删整棵子树，返回快照供 undo（含 tag 绑定）。 */
+/** 软删整棵子树，返回快照供 undo（含 tag 绑定 + Today 槽位）。 */
 export async function softDeleteTreeWithUndo(t: Todo, all: Todo[]): Promise<() => Promise<void>> {
   const ids = subtreeIds(t, all)
   const ts = now()
-  // 快照：要恢复的 todo 状态 + 要恢复的 tagBindings 行
+  // 快照：要恢复的 todo 状态 + 要恢复的 tagBindings 行 + Today 槽位
   const todosSnap = all.filter((x) => ids.includes(x.id)).map((x) => ({ ...x }))
   const bindingsSnap = await db.tagBindings.where('[target_type+target_id]').anyOf(ids.map((id): [string, string] => ['todo', id])).toArray()
+  const todayBefore = await getToday()
 
   await db.todos.where('id').anyOf(ids).modify((x) => {
     if (x.deleted_at === null) {
@@ -91,10 +94,18 @@ export async function softDeleteTreeWithUndo(t: Todo, all: Todo[]): Promise<() =
       x.sync_version += 1
     }
   })
-  await db.tagBindings.where('[target_type+target_id]').anyOf(ids.map((id): [string, string] => ['todo', id])).delete()
+  // 与脑图删除同口径：tag 绑定软删（可恢复、可同步），不再硬删
+  await db.tagBindings.where('[target_type+target_id]').anyOf(ids.map((id): [string, string] => ['todo', id])).modify((x) => {
+    if (x.deleted_at === null) {
+      x.deleted_at = ts
+      x.updated_at = ts
+    }
+  })
+  // 删掉已入槽的任务必须踢槽，否则已删任务永久占着今天的位置
+  for (const id of ids) await evictIfPresent(id)
 
   return async (): Promise<void> => {
-    // 恢复 todo（保留删除时的 updated_at 使 sync 视为同一条），再恢复绑定
+    // 恢复 todo（保留删除时的 updated_at 使 sync 视为同一条），再恢复绑定与槽位
     for (const snap of todosSnap) {
       const cur = await db.todos.get(snap.id)
       if (cur) {
@@ -103,41 +114,40 @@ export async function softDeleteTreeWithUndo(t: Todo, all: Todo[]): Promise<() =
     }
     for (const b of bindingsSnap) {
       const cur = await db.tagBindings.get(b.id)
-      if (!cur) {
+      if (cur) {
+        await db.tagBindings.update(b.id, { deleted_at: null, updated_at: now() })
+      } else {
         await db.tagBindings.add({ ...b, updated_at: now(), sync_version: b.sync_version + 1 })
       }
     }
+    await setToday(todayBefore)
   }
 }
 
 /* ── 新建 / 层级调整 ─────────────────────────────────────────────── */
 
-/** 新建一条任务并直接进入编辑态。parent=null 即根级。 */
+/** 新建一条任务并直接进入编辑态。parent=null 即根级（独立成图，map_id=自身）。 */
 export async function createTodo(parent: Todo | null): Promise<string> {
-  const ts = now()
-  const id = uid()
-  await db.todos.add({
-    id, kind: 'task', parent_id: parent?.id ?? null, scope: parent?.scope ?? null,
-    title: '', status: 'open', source: 'manual', sort_order: Date.now(),
-    created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+  const todo = await createTask({
+    title: '',
+    placement: parent ? { under: parent } : { root: true },
   })
-  markFresh(id)
-  useEditCtl.getState().setEditing(id)
-  return id
+  markFresh(todo.id)
+  useEditCtl.getState().setEditing(todo.id)
+  return todo.id
 }
 
 /** 在 t 紧后面插一条同级任务并进入编辑态（编辑框里回车连打）。 */
 export async function createSibling(t: Todo): Promise<string> {
-  const ts = now()
-  const id = uid()
-  await db.todos.add({
-    id, kind: 'task', parent_id: t.parent_id ?? null, scope: t.scope ?? null,
-    title: '', status: 'open', source: 'manual', sort_order: t.sort_order + 0.5,
-    created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+  const parent = t.parent_id ? ((await db.todos.get(t.parent_id)) ?? null) : null
+  const todo = await createTask({
+    title: '',
+    placement: parent ? { under: parent } : { root: true },
+    sortOrder: t.sort_order + 0.5,
   })
-  markFresh(id)
-  useEditCtl.getState().setEditing(id)
-  return id
+  markFresh(todo.id)
+  useEditCtl.getState().setEditing(todo.id)
+  return todo.id
 }
 
 /** Tab：成为「上一个同级」的子任务。 */

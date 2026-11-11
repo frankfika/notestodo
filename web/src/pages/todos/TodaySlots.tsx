@@ -1,7 +1,7 @@
 import { type JSX, useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
+import { useAllTodos } from '../../lib/useAllTodos'
 import { registerTodaySwapHandler } from '../../lib/mindmap/todayBridge'
 import { getToday, removeSlot, swapSlot } from '../../lib/mindmap/todaySlots'
 import { pushTodayStateUndo } from '../../lib/mindmap/undoStack'
@@ -18,7 +18,7 @@ type PendingSwap = { leafId: ID; mapId: ID } | null
  */
 
 function useSlotTitles(): (id: ID) => string {
-  const todos = useLiveQuery(() => db.todos.toArray(), []) ?? []
+  const todos = useAllTodos()
   return (id: ID): string => todos.find((t) => t.id === id)?.title ?? id.slice(0, 6)
 }
 

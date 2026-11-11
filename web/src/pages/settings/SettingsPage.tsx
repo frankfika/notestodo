@@ -529,7 +529,11 @@ function TagManager({ flash }: { flash: (msg: string) => void }): JSX.Element {
   // 引用计数一次算完：原来每个标签都全量 filter 一遍 bindings
   const countByTag = useMemo(() => {
     const m = new Map<string, number>()
-    for (const b of bindings) m.set(b.tag_id, (m.get(b.tag_id) ?? 0) + 1)
+    // 软删的绑定不算引用（todo 删除时绑定是级联软删，行还在但不应计数）
+    for (const b of bindings) {
+      if (b.deleted_at !== null) continue
+      m.set(b.tag_id, (m.get(b.tag_id) ?? 0) + 1)
+    }
     return m
   }, [bindings])
   const countOf = (tagId: string): number => countByTag.get(tagId) ?? 0

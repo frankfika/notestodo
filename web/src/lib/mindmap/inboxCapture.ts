@@ -1,6 +1,6 @@
 import { db } from '../../db/db'
-import { now, uid } from '../id'
 import type { Todo } from '../../types'
+import { createTask } from './createTask'
 import { isLive } from './leaf'
 import { ensureInboxMap, findInboxMap } from './mapRoots'
 
@@ -20,23 +20,5 @@ export async function listInboxCaptures(): Promise<Todo[]> {
 /** 一键捕获到 Inbox */
 export async function captureToInbox(title: string): Promise<Todo> {
   const inbox = await ensureInboxMap()
-  const ts = now()
-  const id = uid()
-  const todo: Todo = {
-    id,
-    kind: 'task',
-    parent_id: inbox.id,
-    map_id: inbox.id,
-    scope: null,
-    title: title.trim() || '未命名',
-    status: 'open',
-    source: 'manual',
-    sort_order: Date.now(),
-    created_at: ts,
-    updated_at: ts,
-    deleted_at: null,
-    sync_version: 0,
-  }
-  await db.todos.add(todo)
-  return todo
+  return createTask({ title: title.trim() || '未命名', placement: { under: inbox } })
 }

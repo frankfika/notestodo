@@ -1,11 +1,15 @@
 import { type JSX, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/db'
-import { fmtClock, fmtDateTime, mod, now, today as todayIso, uid } from '../../lib/id'
+import { fmtClock, fmtDateTime, mod, today as todayIso } from '../../lib/id'
 import { parseQuickAdd } from '../../lib/quickAdd'
+import { isMindmapTasksEnabled } from '../../lib/features'
+import { createTask } from '../../lib/mindmap/createTask'
+import { ensureInboxMap } from '../../lib/mindmap/mapRoots'
 import { statusText } from '../../lib/meetingStatus'
 import { useUI } from '../../state/ui'
 import { useRecorder } from '../../state/recorder'
+import { useAllTodos } from '../../lib/useAllTodos'
 import { buildTagByTodo, EMPTY_FILTER, passFilter, type TodoFilter } from '../todos/filter'
 import { EditableTitle, TodoMenu } from '../todos/todoRowOps'
 import TodoTags from '../todos/TodoTags'
@@ -79,7 +83,7 @@ export default function TodayPage(): JSX.Element {
     return `${d.getMonth() + 1}月${d.getDate()}日 ${WEEK[d.getDay()]}`
   }, [])
 
-  const all = useLiveQuery(() => db.todos.toArray(), []) ?? []
+  const all = useAllTodos()
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const todayState = useLiveQuery(getToday, []) ?? { capacity: 5, slots: [] }
   const todaySlots = todayState.slots
@@ -116,14 +120,16 @@ export default function TodayPage(): JSX.Element {
     const raw = newTitle.trim()
     if (!raw) return
     const parsed = parseQuickAdd(raw)
-    const ts = now()
-    await db.todos.add({
-      id: uid(), kind: 'task', parent_id: null, scope: null, title: parsed.title, status: 'open',
-      source: 'manual', sort_order: Date.now(), created_at: ts, updated_at: ts,
-      deleted_at: null, sync_version: 0,
-      ...(parsed.assignee ? { assignee: parsed.assignee } : {}),
+    // 脑图模式下，「今天」页的快速添加是捕获语义：进 Inbox 图，
+    // 不再建无 map_id 的孤儿图根污染图库；经典模式仍建独立根任务。
+    const mindmap = await isMindmapTasksEnabled()
+    const inbox = mindmap ? await ensureInboxMap() : null
+    await createTask({
+      title: parsed.title,
+      placement: inbox ? { under: inbox } : { root: true },
+      assignee: parsed.assignee,
       // 今天页里加的任务默认今天到期；写了日期就按写的来
-      due_date: parsed.due_date ?? today,
+      dueDate: parsed.due_date ?? today,
     })
     setNewTitle('')
   }

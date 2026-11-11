@@ -2,9 +2,9 @@
  * Tag 计数语义 e2e — 删除任务时级联清理 tagBinding → 计数减一
  *
  * 历史背景：曾因 remove() 不清理 tagBindings 导致 tagUsageCount 把已删
- * todo 的 binding 计入。现在的实现（todoRowOps.softDeleteTree）在删除任务
- * 子树时直接硬删对应 tagBindings（where('[target_type+target_id]').delete()），
- * 「删除任务后 tag 计数减一」的语义仍然成立。
+ * todo 的 binding 计入。现在的实现（todoRowOps.softDeleteTreeWithUndo）在删除
+ * 任务子树时把对应 tagBindings **级联软删**（deleted_at 标记，与脑图删除同口径，
+ * 撤销时可原样恢复），「删除任务后 tag 计数减一」的语义由计数侧排除软删行保证。
  *
  * 断言路径按当前 UI：
  *   - 计数展示在 设置 → 外观与数据 → 标签（TagManager「N 处引用」），
@@ -15,7 +15,7 @@
  *   1. Seed 1 tag + 2 todo（都绑这个 tag）→ reload（外部写库需要重启才进 liveQuery）
  *   2. TagManager 显示 #counted 2 处引用
  *   3. UI 上删第二个 todo（⋯ 菜单）
- *   4. TagManager 显示 1 处引用；DB 中 todo2 的 binding 已被硬删（0 行）
+ *   4. TagManager 显示 1 处引用；DB 中 todo2 的 binding 已被软删（deleted_at 非空）
  */
 import { test, expect } from '@playwright/test'
 import { useClassicTasks } from './classic'
@@ -103,8 +103,8 @@ test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', asy
   await expect(page.getByText('1 处引用')).toBeVisible({ timeout: 5_000 })
   await expect(page.getByText('2 处引用')).toHaveCount(0)
 
-  // 4) 验证 DB: todo2 的 binding 已被硬删（当前实现是 delete，不是软删标记）
-  const bindingCount = await page.evaluate(async (t2id) => new Promise<number>((res, rej) => {
+  // 4) 验证 DB: todo2 的 binding 已被级联软删（行还在，deleted_at 非空 —— 可撤销）
+  const bindingState = await page.evaluate(async (t2id) => new Promise<{ total: number; softDeleted: number }>((res, rej) => {
     const req = indexedDB.open('shibei')
     req.onerror = () => rej(new Error('idxb'))
     req.onsuccess = () => {
@@ -112,10 +112,13 @@ test('Tag 计数：删除 todo 时级联清理 tagBinding → 计数减一', asy
       const tx = db.transaction(['tagBindings'], 'readonly')
       const all = tx.objectStore('tagBindings').getAll()
       all.onsuccess = () => {
-        res((all.result as Array<{ target_id: string }>).filter((x) => x.target_id === t2id).length)
+        const rows = (all.result as Array<{ target_id: string; deleted_at: string | null }>)
+          .filter((x) => x.target_id === t2id)
+        res({ total: rows.length, softDeleted: rows.filter((x) => x.deleted_at !== null).length })
       }
       setTimeout(() => rej(new Error('readback-timeout')), 5_000)
     }
   }), todo2Id)
-  expect(bindingCount).toBe(0)
+  expect(bindingState.total).toBeGreaterThan(0)
+  expect(bindingState.softDeleted).toBe(bindingState.total)
 })
