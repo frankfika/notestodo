@@ -1,4 +1,4 @@
-import { type JSX, useCallback, useEffect, useRef, useState } from 'react'
+import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useUI } from '../../state/ui'
 import {
   applyTodoPatches,
@@ -15,7 +15,7 @@ import {
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
 import { useAllTodos } from '../../lib/useAllTodos'
 import type { MeOperation, MindmapNodeMeta } from '../../lib/mindmap/types'
-import type { ID } from '../../types'
+import type { ID, Todo } from '../../types'
 import { mod } from '../../lib/id'
 import './mindmap.css'
 import { applyTodoStatus } from '../../lib/todoStatus'
@@ -39,7 +39,7 @@ type MindElixirInstance = {
   init: (data: unknown) => void | Promise<void>
   refresh?: (data: unknown) => void
   destroy?: () => void
-  bus: { addListener: (ev: string, fn: (payload: MeOperation) => void) => void }
+  bus: { addListener: (ev: string, fn: (payload: unknown) => void) => void }
   findEle?: (id: string) => unknown
   selectNode?: (el: unknown, center?: boolean) => void
   currentNode?: { nodeObj?: { id: string } }
@@ -181,21 +181,18 @@ function organicSubBranch(
  * `newTopicName: ''` 是 falsy，会退回默认文案），而我们这边空标题渲染成
  * `未命名` —— 不归一化的话两者永远对不上，每次新建节点都会重画一次。
  *
- * 签名必须带上 tags / metadata：之前只比 id + 标题 + 结构，
- * 改关联人（@chip）这类不动标题的变更被签名判定为「一致」，
+ * 签名必须带上 tags：之前只比 id + 标题 + 结构，
+ * 改关联人（@chip 渲染在 tags 里）这类不动标题的变更被判定为「一致」，
  * 画布永远不重画 —— 正确性优先于省一次 refresh。
+ *
+ * 注意只能比 ME 自己也会保留的字段（id / topic / children / tags）：
+ * ME 新建节点的 metadata 是空的，把 metadata 算进签名会让
+ * 「画布刚做完操作」的比对永远不一致 → 每次操作都全量重画，手感发涩。
  */
 function treeSignature(node: BranchNode | undefined): string {
   if (!node) return ''
   const kids = node.children ?? []
-  const visible = JSON.stringify([
-    node.tags ?? [],
-    node.metadata?.assignee ?? '',
-    node.metadata?.completed_at ?? '',
-    node.metadata?.due_date ?? '',
-    node.metadata?.waiting_reason ?? '',
-    node.metadata?.status ?? '',
-  ])
+  const visible = JSON.stringify(node.tags ?? [])
   return `${node.id ?? ''}~${normTopic(node.topic)}~${visible}(${kids.map(treeSignature).join(',')})`
 }
 
@@ -252,6 +249,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
   const [coach, setCoach] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
   const [ready, setReady] = useState(0)
+  /** 当前选中的节点（驱动底部操作栏）；编辑态用于隐藏操作栏 */
+  const [selectedId, setSelectedId] = useState<ID | null>(null)
+  const [editingUi, setEditingUi] = useState(false)
   const todos = useAllTodos()
   const focusId = useUI((s) => s.todoFocusId)
 
@@ -309,6 +309,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         direction: 1,
         editable: true,
         toolBar: false,
+        // 右键菜单保持关闭：ME 自带的「插入父节点 / 连接 / 专注」
+        // 语义与我们的数据模型对不上，发现入口由底部操作栏承担
         contextMenu: false,
         allowUndo: false,
         newTopicName: '',
@@ -363,20 +365,33 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         void mei.editTopic?.(tpc)
       })
 
-      mei.bus.addListener('operation', (ev: MeOperation) => {
+      mei.bus.addListener('operation', (payload: unknown) => {
+        const ev = payload as MeOperation
         // 编辑态唯一事实源在 undoStack（isMindmapEditing），这里只负责同步
         if ((ev as { name?: string }).name === 'beginEdit') {
           setMindmapEditing(true)
+          setEditingUi(true)
           return
         }
         if (ev.name === 'finishEdit') {
           setMindmapEditing(false)
+          setEditingUi(false)
         }
         const byId = new Map(todosRef.current.map((t) => [t.id, t]))
         const ops = mindEventToTodoPatches(ev, { all: todosRef.current, mapId: rootId, byId })
         void applyTodoPatches(ops, { scope: rootId })
       })
+      // 选中态 → 底部操作栏：鼠标党不用背快捷键也能增删节点
+      mei.bus.addListener('selectNewNode', (node: unknown) => {
+        setSelectedId((node as { id?: string } | null)?.id ?? null)
+      })
+      mei.bus.addListener('selectNodes', (nodes: unknown) => {
+        const arr = nodes as Array<{ id?: string }>
+        setSelectedId(arr.length === 1 ? (arr[0]?.id ?? null) : null)
+      })
+      mei.bus.addListener('unselectNodes', () => setSelectedId(null))
       meiRef.current = mei
+      setSelectedId(mei.currentNode?.nodeObj?.id ?? null)
       // ME 是异步建的：数据可能早于它到位，置 ready 让下面的重绘补一次
       setReady((n) => n + 1)
     })()
@@ -423,7 +438,10 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       mei.refresh(data)
       if (keepId) {
         const el = findEleSafe(mei, keepId)
-        if (el) mei.selectNode?.(el)
+        if (el) {
+          mei.selectNode?.(el)
+          setSelectedId(keepId)
+        }
       }
       fitToView()
     } else {
@@ -476,6 +494,69 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
     [mapIds, onSelectMap, rootId, say],
   )
 
+  /** 选中节点 / 空图判断用的父索引（操作栏与键盘共用） */
+  const byParentAll = useMemo(() => indexByParent(todos), [todos])
+  const selectedTodo = useMemo(
+    () => (selectedId ? todos.find((x) => x.id === selectedId) : undefined),
+    [todos, selectedId],
+  )
+
+  /** 完成 / 取消完成（键盘 Space 与操作栏共用一条路径） */
+  const toggleDone = useCallback(
+    async (t: Todo): Promise<void> => {
+      if (!isLeafTodo(t, byParentAll)) {
+        say('结构节点不能直接完成 —— 按 Tab 拆成一步再完成')
+        return
+      }
+      const todayBefore = await getToday()
+      pushTodoStatusUndo(t.id, t.status, rootId, todayBefore)
+      await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
+    },
+    [byParentAll, rootId, say],
+  )
+
+  /** 入 Today（键盘 ⌘T 与操作栏共用一条路径） */
+  const addToday = useCallback(
+    async (t: Todo): Promise<void> => {
+      if (!todayEligible(t, byParentAll)) {
+        const msg = t.waiting_reason
+          ? 'Waiting 不能入 Today，先清除原因或拆步'
+          : !isLeafTodo(t, byParentAll)
+            ? '先拆成一步（按 Tab 加子节点），再 ⌘T'
+            : '当前节点不可入 Today'
+        say(msg)
+        return
+      }
+      setCoach(null)
+      await tryAddTodaySlot(t.id, rootId)
+    },
+    [byParentAll, rootId, say],
+  )
+
+  /** 删除节点（键盘 ⌫ 与操作栏共用一条路径） */
+  const removeNode = useCallback(
+    (t: Todo): void => {
+      const mei = meiRef.current
+      if (!mei) return
+      if (t.id === rootId) {
+        say('根节点不能删除')
+        return
+      }
+      const el = findEleSafe(mei, t.id)
+      if (el) void mei.removeNodes?.([el])
+    },
+    [rootId, say],
+  )
+
+  /** 空图引导：选中根节点并直接加第一个子节点 */
+  const startFirstNode = useCallback((): void => {
+    const mei = meiRef.current
+    if (!mei) return
+    const el = findEleSafe(mei, rootId)
+    if (el) mei.selectNode?.(el, true)
+    void mei.addChild?.()
+  }, [rootId])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const mei = meiRef.current
@@ -493,8 +574,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         return
       }
 
-      const topic = mei.currentNode
-      const node = topic?.nodeObj
+      const node = mei.currentNode?.nodeObj
       if (!node || node.id.startsWith('done-group:')) return
       const byParent = indexByParent(todos)
       const t = todos.find((x) => x.id === node.id)
@@ -503,34 +583,14 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       // Space：完成 / 取消完成（R1 · 仅叶子）
       if (e.code === 'Space') {
         e.preventDefault()
-        if (!isLeafTodo(t, byParent)) {
-          say('结构节点不能直接完成 —— 按 Tab 拆成一步再完成')
-          return
-        }
-        const prev = t.status
-        void (async () => {
-          // 完成会把任务踢出 Today 槽 —— 撤销时连槽位快照一起还回来
-          const todayBefore = await getToday()
-          pushTodoStatusUndo(t.id, prev, rootId, todayBefore)
-          await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
-        })()
+        void toggleDone(t)
         return
       }
 
       // ⌘T：入 Today（R1 · 仅叶子 + open + 无 Waiting）
       if (isMod && e.key.toLowerCase() === 't') {
         e.preventDefault()
-        if (!todayEligible(t, byParent)) {
-          const msg = t.waiting_reason
-            ? 'Waiting 不能入 Today，先清除原因或拆步'
-            : !isLeafTodo(t, byParent)
-              ? '先拆成一步（按 Tab 加子节点），再 ⌘T'
-              : '当前节点不可入 Today'
-          say(msg)
-          return
-        }
-        setCoach(null)
-        void tryAddTodaySlot(t.id, rootId)
+        void addToday(t)
         return
       }
 
@@ -595,16 +655,16 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       // 删除：软删子树，业务 ⌘Z 可撤销
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
-        if (t.id === rootId) {
-          say('根节点不能删除')
-          return
-        }
-        void mei.removeNodes?.([topic])
+        removeNode(t)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [todos, rootId, say, switchMap])
+  }, [todos, rootId, say, switchMap, toggleDone, addToday, removeNode])
+
+  const isDoneGroupSel = Boolean(selectedId?.startsWith('done-group:'))
+  const rootKids = byParentAll.get(rootId) ?? []
+  const showActionBar = Boolean(selectedTodo && !editingUi && !isDoneGroupSel)
 
   return (
     <div className="mindmap-wrap relative w-full h-full min-h-[420px]" onMouseDown={focusCanvas}>
@@ -614,6 +674,63 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         {coach ?? ''}
       </div>
       <div ref={elRef} className="mindmap-canvas w-full h-full min-h-[420px]" />
+
+      {/* 空图引导：不给用户一面空白画布去猜 */}
+      {rootKids.length === 0 && (
+        <div className="mindmap-empty">
+          <div className="mindmap-empty-title">这张图还是空的</div>
+          <button type="button" className="mindmap-empty-btn" onClick={startFirstNode}>
+            ＋ 添加第一条任务
+          </button>
+          <div className="mindmap-empty-hint">
+            之后选中任意节点，底部会出现操作栏（也可以按 Tab 继续拆）
+          </div>
+        </div>
+      )}
+
+      {/* 选中节点的操作栏：增删节点不用背快捷键（按钮上也标了键位，顺手教学） */}
+      {showActionBar && selectedTodo && (
+        <div className="mindmap-actionbar" role="toolbar" aria-label="节点操作">
+          <button type="button" onClick={() => void meiRef.current?.addChild?.()}>
+            ＋ 子节点 <kbd className="mindmap-kbd">Tab</kbd>
+          </button>
+          <button
+            type="button"
+            disabled={selectedTodo.id === rootId}
+            onClick={() => void meiRef.current?.insertSibling?.('after')}
+          >
+            ＋ 同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
+          </button>
+          <button
+            type="button"
+            disabled={!isLeafTodo(selectedTodo, byParentAll)}
+            title={
+              !isLeafTodo(selectedTodo, byParentAll)
+                ? '结构节点不能直接完成 —— 先拆成一步'
+                : undefined
+            }
+            onClick={() => void toggleDone(selectedTodo)}
+          >
+            {selectedTodo.status === 'done' ? '取消完成' : '✓ 完成'}{' '}
+            <kbd className="mindmap-kbd">Space</kbd>
+          </button>
+          <button
+            type="button"
+            disabled={!todayEligible(selectedTodo, byParentAll)}
+            onClick={() => void addToday(selectedTodo)}
+          >
+            ☼ 入 Today <kbd className="mindmap-kbd">{mod()}T</kbd>
+          </button>
+          <button
+            type="button"
+            className="danger"
+            disabled={selectedTodo.id === rootId}
+            onClick={() => removeNode(selectedTodo)}
+          >
+            删除 <kbd className="mindmap-kbd">⌫</kbd>
+          </button>
+        </div>
+      )}
       {/* F-02 · 轻量提示：默认只有一个角标，点开才是清单（R5 · 不堆画布噪点） */}
       <div className="mindmap-hint">
         {showKeys && (

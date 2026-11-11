@@ -283,3 +283,85 @@
   margin: 0 6px 0 0;
   white-space: nowrap;
 }
+
+/* ── 选中节点操作栏（F-13 · 增删节点不用背快捷键） ─────────────── */
+.mindmap-actionbar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-raise, #fff);
+  border: 1px solid var(--line, #e5e5ea);
+  box-shadow: var(--shadow-2, 0 8px 24px -6px rgba(15, 15, 15, 0.14));
+}
+
+.mindmap-actionbar button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text-1, #1c1c1e);
+  transition: background 120ms ease-out;
+}
+
+.mindmap-actionbar button:hover:not(:disabled) {
+  background: var(--bg-overlay, rgba(0, 0, 0, 0.05));
+}
+
+.mindmap-actionbar button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.mindmap-actionbar button.danger:hover:not(:disabled) {
+  color: var(--danger, #d64541);
+}
+
+/* ── 空图引导 ──────────────────────────────────────────────── */
+.mindmap-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none; /* 画布仍可交互，只有按钮可点 */
+}
+
+.mindmap-empty-title {
+  font-size: 14px;
+  color: var(--text-2, #6e6e73);
+}
+
+.mindmap-empty-btn {
+  pointer-events: auto;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--accent, #2f6bff);
+  box-shadow: var(--shadow-2, 0 8px 24px -6px rgba(15, 15, 15, 0.14));
+  transition: filter 120ms ease-out;
+}
+
+.mindmap-empty-btn:hover {
+  filter: brightness(1.06);
+}
+
+.mindmap-empty-hint {
+  font-size: 12px;
+  color: var(--text-3, #8e8e93);
+}
