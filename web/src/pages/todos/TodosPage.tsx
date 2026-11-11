@@ -10,7 +10,7 @@ import { buildTagByTodo, EMPTY_FILTER, type TodoFilter } from './filter'
 import { parseQuickAdd } from '../../lib/quickAdd'
 import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
-import { listMapRoots } from '../../lib/mindmap/mapRoots'
+import { ensureInboxMap, listMapRoots } from '../../lib/mindmap/mapRoots'
 import { isMindmapEditing, undoMindmap } from '../../lib/mindmap/undoStack'
 import MapSwitcher from './MapSwitcher'
 import InboxDrawer from './InboxDrawer'
@@ -81,16 +81,19 @@ export default function TodosPage(): JSX.Element {
     const parsed = parseQuickAdd(raw)
     const ts = now()
     const id = uid()
+    // 脑图模式下快速添加即 Inbox 捕获（与 InboxDrawer / 本机 API 同口径）；
+    // 经典模式下仍建无父根任务
+    const inbox = mindmapEnabled ? await ensureInboxMap() : null
     await db.todos.add({
       id,
       kind: 'task',
-      parent_id: null,
+      parent_id: inbox?.id ?? null,
       scope: null,
       title: parsed.title,
       status: 'open',
       source: 'manual',
       sort_order: Date.now(),
-      map_id: id,
+      map_id: inbox?.id ?? id,
       created_at: ts,
       updated_at: ts,
       deleted_at: null,
