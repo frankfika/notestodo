@@ -81,19 +81,20 @@ export default function TodosPage(): JSX.Element {
     const parsed = parseQuickAdd(raw)
     const ts = now()
     const id = uid()
-    // 脑图模式下快速添加即 Inbox 捕获（与 InboxDrawer / 本机 API 同口径）；
-    // 经典模式下仍建无父根任务
-    const inbox = mindmapEnabled ? await ensureInboxMap() : null
+    // 脑图模式下快速添加 = 给当前画布加一个叶子（所见即所得：输入框在画布上方，
+    // 加进去的东西就必须出现在这张画布上）。还没有图时用 Inbox 做第一张画布。
+    // Inbox 捕获流另有 InboxDrawer 和本机 API 入口。经典模式仍建无父根任务。
+    const mapId = mindmapEnabled ? (rootId ?? (await ensureInboxMap()).id) : null
     await db.todos.add({
       id,
       kind: 'task',
-      parent_id: inbox?.id ?? null,
+      parent_id: mapId,
       scope: null,
       title: parsed.title,
       status: 'open',
       source: 'manual',
       sort_order: Date.now(),
-      map_id: inbox?.id ?? id,
+      map_id: mapId ?? id,
       created_at: ts,
       updated_at: ts,
       deleted_at: null,
