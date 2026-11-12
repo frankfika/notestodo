@@ -9,6 +9,7 @@ import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
 import { getToday } from '../../lib/mindmap/todaySlots'
 import {
   isMindmapEditing,
+  peekMindmapUndoLabel,
   pushTodoStatusUndo,
   setMindmapEditing,
 } from '../../lib/mindmap/undoStack'
@@ -40,6 +41,9 @@ export type MindmapCanvasProps = {
  */
 const MINIMAL_PALETTE = ['#a3a3a0', '#b6b5b1', '#9aa3ab', '#b3a99f', '#a6a1ab']
 
+/** 自适应缩放的保底下限：再小字就看不清了，低于它只居中不继续缩 */
+const MIN_FIT_SCALE = 0.6
+
 type MindElixirInstance = {
   init: (data: unknown) => void | Promise<void>
   refresh?: (data: unknown) => void
@@ -60,6 +64,10 @@ type MindElixirInstance = {
   moveNodesAfter?: (from: unknown[], to: unknown) => Promise<void> | void
   /** 缩放到刚好放得下 + 按整棵树居中 */
   scaleFit?: () => void
+  /** 缩放比例（scaleFit 后读它判断是否缩得太小） */
+  scaleVal?: number
+  /** 以容器中心为锚点缩放 */
+  scale?: (next: number) => void
   /**
    * 画布上现在的树。
    * 注意 ME 的两个 API 形状不一样，别踩：
@@ -228,6 +236,7 @@ const SHORTCUT_ROWS: { keys: string[]; desc: string; leaf?: boolean }[] = [
   { keys: ['⌘', 'Z'], desc: '撤销上一步' },
   { keys: ['⌘', ']'], desc: '下一张图' },
   { keys: ['⌘', '['], desc: '上一张图' },
+  { keys: ['Ctrl', '滚轮'], desc: '缩放画布' },
 ]
 
 function keyLabel(k: string): string {
@@ -319,6 +328,11 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     requestAnimationFrame(() => {
       try {
         mei.scaleFit?.()
+        // scaleFit 会把大图缩到看不清（40 个节点时只剩 17px）。
+        // 低于下限时以容器中心为锚点放大回去：树仍居中，只是不再继续缩。
+        if (typeof mei.scaleVal === 'number' && mei.scaleVal < MIN_FIT_SCALE) {
+          mei.scale?.(MIN_FIT_SCALE)
+        }
       } catch {
         /* 布局未就绪：下一帧再试 */
       }
@@ -383,7 +397,10 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       container?.addEventListener('dblclick', (e: Event) => {
         // 已经在编辑了就别再开一个
         if (document.querySelector('#input-box')) return
-        const tpc = (e.target as HTMLElement | null)?.closest?.(
+        const target = e.target as HTMLElement | null
+        // 标签（负责人 / 截止 / 来源）是展示信息，双击不该进改名
+        if (target?.closest?.('.tags')) return
+        const tpc = target?.closest?.(
           '.me-tpc',
         ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
         if (!tpc?.nodeObj) return
@@ -438,12 +455,29 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       )
       container?.addEventListener('click', (e: Event) => {
         if (document.querySelector('#input-box')) return
-        const tpc = (e.target as HTMLElement | null)?.closest?.(
+        const target = e.target as HTMLElement | null
+        const tpc = target?.closest?.(
           '.me-tpc',
         ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
         if (!tpc?.nodeObj) return
         const id = String(tpc.nodeObj.id ?? '')
         if (id.startsWith('done-group:')) return
+        /**
+         * 节点标签是展示信息，不是标题：点它绝不能进编辑态（之前点「✎ 来源」
+         * 就落进 editTopic，像误触）。来源 chip（✎ / ●）顺手做成可点跳转，
+         * 其余 chip（@负责人 / 截止）点了一律吞掉。
+         */
+        if (target?.closest?.('.tags')) {
+          const chip = target.closest('.tags span')
+          const text = chip?.textContent ?? ''
+          const t = todosRef.current.find((x) => x.id === id)
+          if (chip && t && (text.startsWith('✎') || text.startsWith('●'))) {
+            e.preventDefault()
+            if (t.origin_note_id) goNote(t.origin_note_id)
+            else if (t.meeting_id) goMeeting(t.meeting_id)
+          }
+          return
+        }
         if (id && id === selAtDown) {
           e.preventDefault()
           void mei.editTopic?.(tpc)
@@ -609,6 +643,10 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   /** 完成 / 取消完成（键盘 Space 与操作栏共用一条路径） */
   const toggleDone = useCallback(
     async (t: Todo): Promise<void> => {
+      if (t.id === rootId) {
+        say('这是图根，不能直接完成')
+        return
+      }
       if (!isLeafTodo(t, byParentAll)) {
         say('结构节点不能直接完成 —— 按 Tab 拆成一步再完成')
         return
@@ -616,6 +654,45 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       const todayBefore = await getToday()
       pushTodoStatusUndo(t.id, t.status, rootId, todayBefore)
       await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
+      // 完成后节点会立刻折进「已完成 (N)」，不给反馈就像被误删了
+      const verb = t.status === 'done' ? '已取消完成' : '已完成'
+      const undoable = peekMindmapUndoLabel(rootId) ? ` · ${mod()}Z 可撤销` : ''
+      say(`${verb}「${t.title || '未命名'}」${undoable}`)
+    },
+    [byParentAll, rootId, say],
+  )
+
+  /** 同级上移 / 下移（⌥↑/⌥↓ 与操作栏按钮共用一条路径，不换父级） */
+  const moveSibling = useCallback(
+    (t: Todo, dir: -1 | 1): void => {
+      const mei = meiRef.current
+      if (!mei) return
+      if (t.id === rootId) {
+        say('根节点不能移动')
+        return
+      }
+      const parent = t.parent_id
+        ? todosRef.current.find((x) => x.id === t.parent_id)
+        : undefined
+      if (parent?.status === 'done') {
+        say('已完成分组里不支持排序')
+        return
+      }
+      const sibs = (byParentAll.get(t.parent_id) ?? [])
+        .filter((s) => s.status !== 'done')
+        .sort((a, b) => a.sort_order - b.sort_order)
+      const idx = sibs.findIndex((s) => s.id === t.id)
+      const neighbor = sibs[idx + dir]
+      if (!neighbor) {
+        say(dir === -1 ? '已经是第一个了' : '已经是最后一个了')
+        return
+      }
+      const from = findEleSafe(mei, t.id)
+      const to = findEleSafe(mei, neighbor.id)
+      if (from && to) {
+        if (dir === -1) void mei.moveNodesBefore?.([from], to)
+        else void mei.moveNodesAfter?.([from], to)
+      }
     },
     [byParentAll, rootId, say],
   )
@@ -705,31 +782,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       // 拖拽的上下边缘落点太细，键盘给一条确定的路径）
       if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
-        if (t.id === rootId) {
-          say('根节点不能移动')
-          return
-        }
-        const parent = t.parent_id ? todos.find((x) => x.id === t.parent_id) : undefined
-        if (parent?.status === 'done') {
-          say('已完成分组里不支持排序')
-          return
-        }
-        const sibs = (byParent.get(t.parent_id) ?? [])
-          .filter((s) => s.status !== 'done')
-          .sort((a, b) => a.sort_order - b.sort_order)
-        const idx = sibs.findIndex((s) => s.id === t.id)
-        const dir = e.key === 'ArrowUp' ? -1 : 1
-        const neighbor = sibs[idx + dir]
-        if (!neighbor) {
-          say(dir === -1 ? '已经是第一个了' : '已经是最后一个了')
-          return
-        }
-        const from = findEleSafe(mei, t.id)
-        const to = findEleSafe(mei, neighbor.id)
-        if (from && to) {
-          if (dir === -1) void mei.moveNodesBefore?.([from], to)
-          else void mei.moveNodesAfter?.([from], to)
-        }
+        moveSibling(t, e.key === 'ArrowUp' ? -1 : 1)
         return
       }
 
@@ -799,7 +852,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [todos, rootId, say, switchMap, toggleDone, addToday, removeNode])
+  }, [todos, rootId, say, switchMap, toggleDone, addToday, removeNode, moveSibling])
 
   const isDoneGroupSel = Boolean(selectedId?.startsWith('done-group:'))
   const rootKids = byParentAll.get(rootId) ?? []
@@ -858,16 +911,32 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           >
             ＋ 同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
           </button>
+          <button
+            type="button"
+            disabled={selectedTodo.id === rootId}
+            onClick={() => moveSibling(selectedTodo, -1)}
+          >
+            ↑ 上移 <kbd className="mindmap-kbd">{keyLabel('⌥')}↑</kbd>
+          </button>
+          <button
+            type="button"
+            disabled={selectedTodo.id === rootId}
+            onClick={() => moveSibling(selectedTodo, 1)}
+          >
+            ↓ 下移 <kbd className="mindmap-kbd">{keyLabel('⌥')}↓</kbd>
+          </button>
           <button type="button" onClick={() => void meiRef.current?.beginEdit?.()}>
             ✎ 改名 <kbd className="mindmap-kbd">F2</kbd>
           </button>
           <button
             type="button"
-            disabled={!isLeafTodo(selectedTodo, byParentAll)}
+            disabled={selectedTodo.id === rootId || !isLeafTodo(selectedTodo, byParentAll)}
             title={
-              !isLeafTodo(selectedTodo, byParentAll)
-                ? '结构节点不能直接完成 —— 先拆成一步'
-                : undefined
+              selectedTodo.id === rootId
+                ? '这是图根，不能直接完成'
+                : !isLeafTodo(selectedTodo, byParentAll)
+                  ? '结构节点不能直接完成 —— 先拆成一步'
+                  : undefined
             }
             onClick={() => void toggleDone(selectedTodo)}
           >
@@ -917,6 +986,12 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             <div className="mindmap-hint-row">
               <span className="mindmap-hint-desc">节点里写「@张三 明天」：自动识别负责人和截止</span>
             </div>
+            <div className="mindmap-hint-row">
+              <span className="mindmap-hint-desc">右上角 ⛶：全屏沉浸；Esc 退出</span>
+            </div>
+            <div className="mindmap-hint-row">
+              <span className="mindmap-hint-desc">点「适应画布」：大图一键回到看得清的缩放</span>
+            </div>
             <div className="mindmap-hint-title">快捷键</div>
             {SHORTCUT_ROWS.map((row) => (
               <div className="mindmap-hint-row" key={row.desc}>
@@ -935,14 +1010,19 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             ))}
           </div>
         )}
-        <button
-          type="button"
-          className="mindmap-hint-btn"
-          aria-expanded={showKeys}
-          onClick={() => setShowKeys((v) => !v)}
-        >
-          快捷键
-        </button>
+        <div className="mindmap-hint-actions">
+          <button type="button" className="mindmap-hint-btn" onClick={fitToView}>
+            适应画布
+          </button>
+          <button
+            type="button"
+            className="mindmap-hint-btn"
+            aria-expanded={showKeys}
+            onClick={() => setShowKeys((v) => !v)}
+          >
+            快捷键
+          </button>
+        </div>
       </div>
     </div>
   )

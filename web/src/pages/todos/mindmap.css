@@ -61,8 +61,10 @@
 
 /* 节点 = 轻卡片（F-15）：纯文字在空旷画布上像草稿，卡片化才有
  * 「物件」感 —— 可点、可拖的东西得先看起来像个东西。
- * 克制版：白底 + 1px 细边 + 几乎不可见的投影，不彩虹、不玩具。 */
-.mindmap-canvas .map-container .me-root .me-tpc {
+ * 克制版：白底 + 1px 细边 + 几乎不可见的投影，不彩虹、不玩具。
+ * 选择器带上 .me-nodes 提高特异性：根节点的 1.5px 描边不能被下面
+ * 同优先级的 1px 子节点规则盖掉（#47）。 */
+.mindmap-canvas .map-container .me-nodes .me-root > .me-tpc {
   font-size: 18px !important;
   font-weight: 650;
   letter-spacing: -0.01em;
@@ -251,6 +253,12 @@
   color: var(--text-2);
 }
 
+/* 右下角两个角标（适应画布 / 快捷键）并排 */
+.mindmap-hint-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .mindmap-hint-panel {
   width: 240px;
   padding: 8px;
@@ -361,6 +369,13 @@
   color: var(--accent, #2383e2);
 }
 
+/* 标签是可点的展示信息（来源 chip 可跳回笔记 / 会议）：
+ * 覆盖 ME 对 .me-tpc > * 的 pointer-events:none，别继承节点的 grab 手型。 */
+.mindmap-canvas .map-container .me-tpc .tags {
+  pointer-events: auto;
+  cursor: default;
+}
+
 /* ── 选中节点操作栏（F-13 · 增删节点不用背快捷键） ─────────────── */
 .mindmap-actionbar {
   position: absolute;
@@ -369,8 +384,12 @@
   transform: translateX(-50%);
   z-index: 25;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 2px;
+  /* 窄屏兜底：按钮变多后换行，并限制宽度防止 translateX(-50%) 把两端切出屏 */
+  max-width: calc(100vw - 24px);
   padding: 4px;
   border-radius: 12px;
   background: var(--bg-raise, #fff);
@@ -402,6 +421,13 @@
 
 .mindmap-actionbar button.danger:hover:not(:disabled) {
   color: var(--danger, #d64541);
+}
+
+/* 窄屏换行后的操作栏会盖住右下角的「适应画布 / 快捷键」，抬高一档 */
+@media (max-width: 480px) {
+  .mindmap-actionbar {
+    bottom: 52px;
+  }
 }
 
 /* ── 空图引导 ──────────────────────────────────────────────── */

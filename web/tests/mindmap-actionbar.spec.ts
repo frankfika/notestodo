@@ -62,7 +62,10 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(bar.getByRole('button', { name: /子节点/ })).toBeEnabled()
     await expect(bar.getByRole('button', { name: /同级/ })).toBeEnabled()
     await expect(bar.getByRole('button', { name: /完成/ })).toBeEnabled()
+    await expect(bar.getByRole('button', { name: /上移/ })).toBeVisible()
+    await expect(bar.getByRole('button', { name: /下移/ })).toBeVisible()
     await expect(bar.getByRole('button', { name: /删除/ })).toBeEnabled()
+    await expect(page.getByRole('button', { name: '适应画布' })).toBeVisible()
 
     // ① 点「＋ 子节点」→ 进入新节点编辑态（操作栏让位）
     await bar.getByRole('button', { name: /子节点/ }).click()
@@ -79,9 +82,11 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(bar).toBeVisible()
     await expect(bar.getByRole('button', { name: /✓ 完成/ })).toBeDisabled()
 
-    // ③ 选中新叶子「第一步」→ 点「✓ 完成」→ 折进已完成组
+    // ③ 选中新叶子「第一步」→ 点「✓ 完成」→ 折进已完成组（给撤销反馈，不是误删）
     await page.locator('.me-tpc', { hasText: '第一步' }).click()
     await bar.getByRole('button', { name: /✓ 完成/ }).click()
+    await expect(page.locator('.mindmap-coach')).toContainText('已完成「第一步」')
+    await expect(page.locator('.mindmap-coach')).toContainText('可撤销')
     await expect(page.locator('.me-tpc', { hasText: '已完成' }).first()).toBeVisible()
 
     // ④ 选中根节点 → 同级 / 删除禁用，子节点可用（趁 a 还在时测：
@@ -274,6 +279,25 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     const bar = page.locator('.mindmap-actionbar')
     await bar.getByRole('button', { name: /周会纪要/ }).click()
     await expect(page.locator('input[placeholder="无标题"]')).toHaveValue('周会纪要')
+  })
+
+  test('390px 窄屏：操作栏不溢出视口，按钮仍可点', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+    // 进页面后再切窄屏：移动端侧栏会隐藏，走导航反而绕
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await topic(page, 'a').click()
+    const bar = page.locator('.mindmap-actionbar')
+    await expect(bar).toBeVisible()
+
+    // 之前宽度 594px、左边界 -102px：两端被切出屏，「＋子节点」「删除」点不到
+    const box = (await bar.boundingBox())!
+    expect(box.width).toBeLessThanOrEqual(390)
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(390)
+
+    await expect(bar.getByRole('button', { name: /删除/ })).toBeInViewport()
   })
 
   test('空图：中央引导按钮一键加第一条任务', async ({ page }) => {
