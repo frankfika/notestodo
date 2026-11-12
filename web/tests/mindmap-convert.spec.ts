@@ -39,6 +39,19 @@ test.describe('todosToMindData', () => {
     expect(node.metadata?.todoId).toBe('root')
     expect((node as { data?: unknown }).data).toBeUndefined()
   })
+
+  test('节点 tags：@负责人 + 截止 / 逾期日期', () => {
+    const all = [
+      t('root', null),
+      t('a', 'root', { assignee: '张三', due_date: '2099-01-02' }),
+      t('b', 'root', { due_date: '2020-01-02' }), // 已逾期
+      t('c', 'root'), // 无负责人无日期 → 无 tags
+    ]
+    const kids = todosToMindData(all, 'root').nodeData.children ?? []
+    expect(kids.find((c) => c.id === 'a')?.tags).toEqual(['@张三', '截止 01/02'])
+    expect(kids.find((c) => c.id === 'b')?.tags).toEqual(['逾期 01/02'])
+    expect(kids.find((c) => c.id === 'c')?.tags).toBeUndefined()
+  })
 })
 
 test.describe('mindEventToTodoPatches', () => {

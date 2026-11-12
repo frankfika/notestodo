@@ -51,6 +51,7 @@ type MindElixirInstance = {
   editTopic?: (el: unknown) => void
   removeNodes?: (nodes: unknown[]) => Promise<void> | void
   moveNodesIn?: (from: unknown[], to: unknown) => Promise<void> | void
+  moveNodesBefore?: (from: unknown[], to: unknown) => Promise<void> | void
   moveNodesAfter?: (from: unknown[], to: unknown) => Promise<void> | void
   /** 缩放到刚好放得下 + 按整棵树居中 */
   scaleFit?: () => void
@@ -212,6 +213,8 @@ const SHORTCUT_ROWS: { keys: string[]; desc: string; leaf?: boolean }[] = [
   { keys: ['Enter'], desc: '新增兄弟节点' },
   { keys: ['⇧', 'Tab'], desc: '提升一级' },
   { keys: ['⌥', 'Tab'], desc: '降低一级（挂到上一个同级下）' },
+  { keys: ['⌥', '↑'], desc: '同级上移一位' },
+  { keys: ['⌥', '↓'], desc: '同级下移一位' },
   { keys: ['F2'], desc: '编辑标题（也可双击）' },
   { keys: ['⌫'], desc: '删除节点（可撤销）' },
   { keys: ['Space'], desc: '完成 / 取消完成', leaf: true },
@@ -339,7 +342,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       const orig = container?.onkeydown
       if (container && orig) {
         container.onkeydown = (e: KeyboardEvent) => {
-          if (APP_KEYS.has(e.key)) {
+          // ⌥↑/⌥↓ 是应用层的「同级排序」，ME 会把 ArrowUp/Down 当选中导航
+          if (APP_KEYS.has(e.key) || (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) {
             e.preventDefault()
             return
           }
@@ -671,6 +675,38 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       if (isMod && e.key.toLowerCase() === 't') {
         e.preventDefault()
         void addToday(t)
+        return
+      }
+
+      // ⌥↑ / ⌥↓：同级上移 / 下移一位（排序，不换父级。
+      // 拖拽的上下边缘落点太细，键盘给一条确定的路径）
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault()
+        if (t.id === rootId) {
+          say('根节点不能移动')
+          return
+        }
+        const parent = t.parent_id ? todos.find((x) => x.id === t.parent_id) : undefined
+        if (parent?.status === 'done') {
+          say('已完成分组里不支持排序')
+          return
+        }
+        const sibs = (byParent.get(t.parent_id) ?? [])
+          .filter((s) => s.status !== 'done')
+          .sort((a, b) => a.sort_order - b.sort_order)
+        const idx = sibs.findIndex((s) => s.id === t.id)
+        const dir = e.key === 'ArrowUp' ? -1 : 1
+        const neighbor = sibs[idx + dir]
+        if (!neighbor) {
+          say(dir === -1 ? '已经是第一个了' : '已经是最后一个了')
+          return
+        }
+        const from = findEleSafe(mei, t.id)
+        const to = findEleSafe(mei, neighbor.id)
+        if (from && to) {
+          if (dir === -1) void mei.moveNodesBefore?.([from], to)
+          else void mei.moveNodesAfter?.([from], to)
+        }
         return
       }
 

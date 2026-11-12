@@ -198,6 +198,37 @@ test.describe('F-02 脑图快捷键语义', () => {
     expect(await slotIds(page)).not.toContain('wait')
   })
 
+  test('⌥↑ / ⌥↓：同级上移 / 下移一位（不换父级）', async ({ page }) => {
+    // b 初始在 a 之后（sort_order 2 > 1）
+    await topic(page, 'b').click()
+    await page.keyboard.press('Alt+ArrowUp')
+    await expect.poll(async () => {
+      const sibs = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return (await db.todos.toArray())
+          .filter((t) => t.parent_id === 'proj' && !t.deleted_at)
+          .sort((x, y) => x.sort_order - y.sort_order)
+          .map((t) => t.id)
+      })
+      return sibs.indexOf('b') < sibs.indexOf('a')
+    }).toBe(true)
+    // 父级不变
+    expect((await todoOf(page, 'b'))?.parent_id).toBe('proj')
+
+    // 再按 ⌥↓ 移回去
+    await page.keyboard.press('Alt+ArrowDown')
+    await expect.poll(async () => {
+      const sibs = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return (await db.todos.toArray())
+          .filter((t) => t.parent_id === 'proj' && !t.deleted_at)
+          .sort((x, y) => x.sort_order - y.sort_order)
+          .map((t) => t.id)
+      })
+      return sibs.indexOf('b') > sibs.indexOf('a')
+    }).toBe(true)
+  })
+
   test('⌘]：切到下一张图', async ({ page }) => {
     await topic(page, 'a').click()
     await page.keyboard.press(`${MOD}+]`)

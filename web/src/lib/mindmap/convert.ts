@@ -13,6 +13,15 @@ import { evictIfPresent } from './todaySlots'
 /** Waiting 节点在画布上的显示后缀（拼接 / 剥离必须同源） */
 export const WAITING_SUFFIX = ' · Waiting'
 
+/** 截止日期的小标签：「截止 11/13」，逾期的开放任务标「逾期 11/10」 */
+function dueTag(due: string, status: Todo['status']): string {
+  const mmdd = due.slice(5, 10).replace('-', '/')
+  const d = new Date()
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  if (status === 'open' && due < today) return `逾期 ${mmdd}`
+  return `截止 ${mmdd}`
+}
+
 export type MENode = {
   id: string
   topic: string
@@ -92,11 +101,16 @@ export function todosToMindData(
     const topic = waiting
       ? `${t.title || '未命名'}${WAITING_SUFFIX}`
       : t.title || '未命名'
+    // 节点上的事项信息：@负责人 + 截止日期（逾期标出来），
+    // 与完成项的「@谁 · 完成 xx/xx」同一排灰字
+    const tags: string[] = []
+    if (t.assignee) tags.push(`@${t.assignee}`)
+    if (t.due_date) tags.push(dueTag(t.due_date, t.status))
     return {
       id: t.id,
       topic,
       expanded: true,
-      tags: t.assignee ? [`@${t.assignee}`] : undefined,
+      tags: tags.length ? tags : undefined,
       children: children.length ? children : undefined,
       style: waiting
         ? { opacity: '0.82', fontStyle: 'italic', color: 'var(--warning, #c77c2a)' }
