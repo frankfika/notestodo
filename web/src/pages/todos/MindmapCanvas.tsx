@@ -302,6 +302,18 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   const todosRef = useRef(todos)
   todosRef.current = todos
 
+  /**
+   * #46：新建节点（＋子节点 / ＋同级）在进入改名**之前**就已落库，
+   * 而 ME 的 Esc 只把输入框文字回滚、不删节点 —— 用户按 Esc 会留下
+   * 一条名为「新节点」的真实任务。记住这次新建的 id 与编辑中的 id，
+   * 编辑结束时标题仍是占位就补删（走 ME 软删，⌘Z 可撤销）——
+   * 与列表 / 大纲「未命名新任务不落库」同口径。
+   */
+  const pendingNewNodeRef = useRef<string | null>(null)
+  const editingNodeIdRef = useRef<string | null>(null)
+  /** 编辑结束时发现是「未命名的占位新节点」→ 标记取消，等创建补丁写回后软删 */
+  const cancelNewNodeRef = useRef<string | null>(null)
+
   /** R1 · 规则提示：非模态浮层，3.2s 后自动消失 */
   const say = useCallback((msg: string): void => {
     setCoach(msg)
@@ -489,12 +501,19 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       mei.bus.addListener('operation', (payload: unknown) => {
         const ev = payload as MeOperation
         // 编辑态唯一事实源在 undoStack（isMindmapEditing），这里只负责同步
+        if ((ev as { name?: string }).name === 'addChild' || (ev as { name?: string }).name === 'insertSibling') {
+          pendingNewNodeRef.current = (ev as { target?: { id?: string } }).target?.id ?? null
+        }
         if ((ev as { name?: string }).name === 'beginEdit') {
           setMindmapEditing(true)
           setEditingUi(true)
+          editingNodeIdRef.current = (ev as { target?: { id?: string } }).target?.id ?? null
           return
         }
         if (ev.name === 'finishEdit') {
+          // 正常提交（标题有改动）：节点保留，清掉新建跟踪
+          pendingNewNodeRef.current = null
+          editingNodeIdRef.current = null
           setMindmapEditing(false)
           setEditingUi(false)
         }
@@ -514,6 +533,26 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           setMindmapEditing(false)
           setEditingUi(false)
         }
+        /**
+         * #46：新建节点的编辑结束（Esc / 点走 / 重绘吞掉输入框）时，
+         * 标题仍是占位就删掉这条任务 —— 与列表「Esc 丢弃未命名新任务」同口径。
+         * finishEdit 提交了真标题的情况在上面的监听里已把跟踪清掉。
+         * 创建补丁的写回与本次 observer 谁先谁后不确定：
+         * 行已在快照就直接删；还没写回才标记给下面的 effect 兜底。
+         */
+        const createdId = pendingNewNodeRef.current
+        if (createdId && createdId === editingNodeIdRef.current) {
+          const t = todosRef.current.find((x) => x.id === createdId)
+          const isPlaceholder = Boolean(t && !t.deleted_at && (!t.title || t.title === '新节点' || t.title === 'New Node'))
+          if (t && isPlaceholder) {
+            const created = findEleSafe(mei, createdId)
+            if (created) void mei.removeNodes?.([created])
+          } else if (!t) {
+            cancelNewNodeRef.current = createdId
+          }
+        }
+        pendingNewNodeRef.current = null
+        editingNodeIdRef.current = null
       })
       editObserver.observe(mei.container ?? elRef.current!, {
         childList: true,
@@ -590,6 +629,20 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       fitToView()
     }
   }, [todos, rootId, ready, origins, fitToView])
+
+  /** #46 收尾：占位新节点被取消后，等创建补丁真正写回 todos 快照再软删（写入是异步的） */
+  useEffect(() => {
+    const id = cancelNewNodeRef.current
+    if (!id) return
+    const t = todos.find((x) => x.id === id)
+    if (!t) return
+    cancelNewNodeRef.current = null
+    if (!t.deleted_at && (!t.title || t.title === '新节点' || t.title === 'New Node')) {
+      const mei = meiRef.current
+      const el = mei ? findEleSafe(mei, id) : null
+      if (el) void mei?.removeNodes?.([el])
+    }
+  }, [todos])
 
   useEffect(() => {
     if (!focusId || !meiRef.current) return
@@ -989,7 +1042,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
               <span className="mindmap-hint-desc">节点里写「@张三 明天」：自动识别负责人和截止</span>
             </div>
             <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">右上角 ⛶：全屏沉浸；Esc 退出</span>
+              <span className="mindmap-hint-desc">右上角「沉浸」：全屏画布；Esc 退出</span>
             </div>
             <div className="mindmap-hint-row">
               <span className="mindmap-hint-desc">点「适应画布」：大图一键回到看得清的缩放</span>

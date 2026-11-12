@@ -115,6 +115,24 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     expect(deleted.status).toBe('open') // 删除不篡改 status
   })
 
+  test('#46 新建节点后按 Esc 取消：不留下「新节点」真实任务', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+    const liveCount = async (): Promise<number> => page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts')
+      return db.todos.filter((t) => !t.deleted_at).count()
+    })
+    const countBefore = await liveCount()
+
+    await topic(page, 'a').click()
+    await page.locator('.mindmap-actionbar').getByRole('button', { name: /子节点/ }).click()
+    // ME 新建即落库并立刻进入改名；Esc 只回滚标题 —— 应用层要补删这条占位任务
+    await expect(page.locator('#input-box')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('#input-box')).toHaveCount(0)
+    await expect.poll(liveCount).toBe(countBefore)
+  })
+
   test('单击即改：第一击选中，再点一下就进编辑；操作栏有改名按钮', async ({ page }) => {
     await seed(page)
     await openMindmap(page)
@@ -275,7 +293,8 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(page.locator('.mindmap-canvas .tags', { hasText: '✎ 周会纪要' })).toBeVisible()
 
     // 选中节点 → 操作栏出现「来源」按钮 → 点击跳到笔记详情
-    await topic(page, 'a').click()
+    // 点标题区域（左上）而不是节点中心：中心会落在来源 chip 上直接跳走（#40 的新行为）
+    await topic(page, 'a').click({ position: { x: 12, y: 10 } })
     const bar = page.locator('.mindmap-actionbar')
     await bar.getByRole('button', { name: /周会纪要/ }).click()
     await expect(page.locator('input[placeholder="无标题"]')).toHaveValue('周会纪要')

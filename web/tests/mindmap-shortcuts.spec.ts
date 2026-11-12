@@ -236,8 +236,9 @@ test.describe('F-02 脑图快捷键语义', () => {
   })
 
   test('快捷键可发现：角标点开即清单，且没有巨型工具条', async ({ page }) => {
-    await expect(page.locator('.mindmap-hint-btn')).toBeVisible()
-    await page.locator('.mindmap-hint-btn').click()
+    const hintBtn = page.getByRole('button', { name: '快捷键' })
+    await expect(hintBtn).toBeVisible()
+    await hintBtn.click()
     const panel = page.locator('.mindmap-hint-panel')
     await expect(panel).toBeVisible()
     await expect(panel).toContainText('新增子节点')
