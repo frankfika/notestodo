@@ -828,6 +828,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
             <div className="mindmap-hint-row">
               <span className="mindmap-hint-desc">拖拽节点：换父级 / 调整顺序</span>
             </div>
+            <div className="mindmap-hint-row">
+              <span className="mindmap-hint-desc">节点里写「@张三 明天」：自动识别负责人和截止</span>
+            </div>
             <div className="mindmap-hint-title">快捷键</div>
             {SHORTCUT_ROWS.map((row) => (
               <div className="mindmap-hint-row" key={row.desc}>

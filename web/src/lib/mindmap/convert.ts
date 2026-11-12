@@ -1,5 +1,6 @@
 import { db } from '../../db/db'
 import { now } from '../id'
+import { parseQuickAdd } from '../quickAdd'
 import { subtreeIds } from '../okr'
 import type { ID, Todo } from '../../types'
 import { isDescendant } from './cycle'
@@ -151,9 +152,17 @@ export function mindEventToTodoPatches(
     if (cur.waiting_reason && cur.status === 'open' && title.endsWith(WAITING_SUFFIX)) {
       title = title.slice(0, -WAITING_SUFFIX.length)
     }
-    // 显示串归一化后与原标题相同：不进编辑态兜了一圈，不落库
-    if (title === cur.title) return []
-    return [{ op: 'update', id: cur.id, patch: bump(cur, { title }) }]
+    // 与快速录入同口径（parseQuickAdd）：节点里直接写
+    // 「写方案 @张三 明天」→ 自动识别负责人和截止日期，标题只留事。
+    // 不写则不碰：只在解析出结果时覆盖对应字段，不清空已有值。
+    const parsed = parseQuickAdd(title)
+    const patch: Partial<Todo> = {}
+    if (parsed.title !== cur.title) patch.title = parsed.title
+    if (parsed.assignee && parsed.assignee !== cur.assignee) patch.assignee = parsed.assignee
+    if (parsed.due_date && parsed.due_date !== cur.due_date) patch.due_date = parsed.due_date
+    // 什么都没变：不进编辑态兜了一圈，不落库
+    if (Object.keys(patch).length === 0) return []
+    return [{ op: 'update', id: cur.id, patch: bump(cur, patch) }]
   }
 
   if (ev.name === 'addChild') {

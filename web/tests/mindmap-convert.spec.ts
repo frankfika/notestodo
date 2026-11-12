@@ -79,6 +79,36 @@ test.describe('mindEventToTodoPatches', () => {
     expect(noop).toHaveLength(0)
   })
 
+  test('finishEdit：与快速录入同口径解析「@负责人 / 明天」', () => {
+    const all = [t('root', null), t('a', 'root', { title: '写方案' })]
+    const byId = new Map(all.map((x) => [x.id, x]))
+    const ops = mindEventToTodoPatches(
+      { name: 'finishEdit', target: { id: 'a', topic: '写方案 v2 @张三 明天' }, origin: 'main' },
+      { all, mapId: 'root', byId },
+    )
+    expect(ops).toHaveLength(1)
+    if (ops[0].op !== 'update') throw new Error('unreachable')
+    expect(ops[0].patch.title).toBe('写方案 v2')
+    expect(ops[0].patch.assignee).toBe('张三')
+    expect(ops[0].patch.due_date).toBeTruthy()
+
+    // 没写 @ / 日期：已有的负责人和截止日期不被清空
+    const all2 = [
+      t('root', null),
+      t('a', 'root', { title: '写方案 v2', assignee: '张三', due_date: '2026-11-13' }),
+    ]
+    const byId2 = new Map(all2.map((x) => [x.id, x]))
+    const ops2 = mindEventToTodoPatches(
+      { name: 'finishEdit', target: { id: 'a', topic: '写方案 v3' }, origin: 'main' },
+      { all: all2, mapId: 'root', byId: byId2 },
+    )
+    expect(ops2).toHaveLength(1)
+    if (ops2[0].op !== 'update') throw new Error('unreachable')
+    expect(ops2[0].patch.title).toBe('写方案 v3')
+    expect(ops2[0].patch.assignee).toBeUndefined()
+    expect(ops2[0].patch.due_date).toBeUndefined()
+  })
+
   test('addChild 生成 add op', () => {
     const all = [t('root', null)]
     const byId = new Map(all.map((x) => [x.id, x]))

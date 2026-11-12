@@ -133,6 +133,27 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await page.keyboard.press('Escape')
   })
 
+  test('节点里写「@李四 明天」→ 自动识别负责人和截止并渲染 @chip', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    await topic(page, 'a').click()
+    await page.locator('.mindmap-actionbar').getByRole('button', { name: /改名/ }).click()
+    await page.waitForSelector('#input-box', { timeout: 5000 })
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a')
+    await page.keyboard.type('定稿需求 @李四 明天')
+    await page.keyboard.press('Enter')
+
+    // 落库：负责人 + 截止日期被解析出来，标题只留事
+    await page.waitForFunction(async () => {
+      const { db } = await import('/src/db/db.ts')
+      const t = await db.todos.get('a')
+      return t?.assignee === '李四' && !!t?.due_date && t?.title === '定稿需求'
+    })
+    // 画布上渲染出 @chip
+    await expect(page.locator('.mindmap-canvas .tags', { hasText: '@李四' })).toBeVisible()
+  })
+
   test('空图：中央引导按钮一键加第一条任务', async ({ page }) => {
     await seed(page, { empty: true })
     await openMindmap(page)
