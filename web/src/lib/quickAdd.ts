@@ -10,6 +10,11 @@ const WD: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六
 const iso = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+/** 裸 M/D 日期；紧跟在版本语境后的除外（见 VERSION_CTX） */
+const SLASH_DATE = /(?<![\d.])(\d{1,2})[-/](\d{1,2})(?![\d])(之前|前)?/
+/** 「版本 1/5 上线」「发版 2/28 上线」里的 M/D 是版本号，不是日期 */
+const VERSION_CTX = /(?:版本|发版|版本号|v)\s*$/i
+
 export function parseQuickAdd(input: string, base = new Date()): QuickAdd {
   let text = ` ${input} `
   let due: Date | undefined
@@ -30,7 +35,7 @@ export function parseQuickAdd(input: string, base = new Date()): QuickAdd {
       return day(want - cur + (m[1] ? 7 : 0))
     }],
     [/(\d{1,2})月(\d{1,2})[日号]?(之前|前)?/, (m) => monthDay(+m[1], +m[2])],
-    [/(?<![\d.])(\d{1,2})[-/](\d{1,2})(?![\d])(之前|前)?/, (m) => monthDay(+m[1], +m[2])],
+    [SLASH_DATE, (m) => monthDay(+m[1], +m[2])],
   ]
   function monthDay(mo: number, d: number): Date | undefined {
     if (mo < 1 || mo > 12 || d < 1) return undefined
@@ -44,6 +49,8 @@ export function parseQuickAdd(input: string, base = new Date()): QuickAdd {
   for (const [re, fn] of rules) {
     const m = text.match(re)
     if (!m) continue
+    // 版本语境里的 M/D 不是日期：「版本 1/5 上线」别再被吃成 1 月 5 日
+    if (re === SLASH_DATE && VERSION_CTX.test(text.slice(0, m.index ?? 0))) continue
     const d = fn(m)
     if (!d) continue
     due = d

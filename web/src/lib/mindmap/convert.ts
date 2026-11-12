@@ -14,12 +14,17 @@ import { evictIfPresent } from './todaySlots'
 /** Waiting 节点在画布上的显示后缀（拼接 / 剥离必须同源） */
 export const WAITING_SUFFIX = ' · Waiting'
 
-/** 截止日期的小标签：「截止 11/13」，逾期的开放任务标「逾期 11/10」 */
-function dueTag(due: string, status: Todo['status']): string {
+/** ME 原生 tag：支持 { text, className }，逾期 / 今天到期用独立 class 上色 */
+type MenuTag = { text: string; className?: string }
+
+/** 截止日期的小标签：「截止 11/13」，逾期标「逾期 11/10」，今天到期单独上色。
+ *  颜色口径与列表一致：逾期红 / 今天 accent / 其余灰（灰由 CSS 默认规则给）。 */
+function dueTag(due: string): string | MenuTag {
   const mmdd = due.slice(5, 10).replace('-', '/')
   const d = new Date()
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  if (status === 'open' && due < today) return `逾期 ${mmdd}`
+  if (due < today) return { text: `逾期 ${mmdd}`, className: 'tag-due-overdue' }
+  if (due === today) return { text: `截止 ${mmdd}`, className: 'tag-due-today' }
   return `截止 ${mmdd}`
 }
 
@@ -43,7 +48,7 @@ export type MENode = {
   expanded?: boolean
   style?: Record<string, string>
   /** ME 原生节点标签（渲染成小 chip）：关联人 / 完成日期 */
-  tags?: string[]
+  tags?: (string | MenuTag)[]
   metadata?: MindmapNodeMeta
 }
 
@@ -120,9 +125,9 @@ export function todosToMindData(
       : t.title || '未命名'
     // 节点上的事项信息：@负责人 + 截止日期（逾期标出来），
     // 与完成项的「@谁 · 完成 xx/xx」同一排灰字
-    const tags: string[] = []
+    const tags: (string | MenuTag)[] = []
     if (t.assignee) tags.push(`@${t.assignee}`)
-    if (t.due_date) tags.push(dueTag(t.due_date, t.status))
+    if (t.due_date) tags.push(dueTag(t.due_date))
     const origin = originTag(t, origins)
     if (origin) tags.push(origin)
     return {
