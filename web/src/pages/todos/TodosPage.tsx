@@ -206,7 +206,7 @@ export default function TodosPage(): JSX.Element {
             if (e.key === 'Enter') void addQuick()
           }}
           placeholder={
-            tab === 'mindmap' && mindmapEnabled
+            mindmapEnabled
               ? selTitle
                 ? `＋ 添加到「${selTitle}」下，回车创建（@人 / 明天 可识别）`
                 : '＋ 添加为图的一级分支，回车创建（先选中节点则加在它下面）'
@@ -258,7 +258,13 @@ export default function TodosPage(): JSX.Element {
           </div>
         ) : tab === 'tree' ? (
           <div className="h-full overflow-y-auto px-4 py-3">
-            <TodosTree filter={filter} tagByTodo={tagByTodo} readOnly={mindmapEnabled} />
+            <TodosTree
+              filter={filter}
+              tagByTodo={tagByTodo}
+              readOnly={mindmapEnabled}
+              selectedId={mindmapEnabled ? selectedNodeId : undefined}
+              onSelectRow={mindmapEnabled ? setSelectedNodeId : undefined}
+            />
           </div>
         ) : (
           <div className="h-full overflow-y-auto px-4 py-3">

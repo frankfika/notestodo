@@ -191,6 +191,28 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     }).toBe(true)
   })
 
+  test('大纲视图：点选一行后快速添加，挂到该行下面', async ({ page }) => {
+    await seed(page)
+    await page.locator('aside').getByRole('button', { name: '任务' }).click()
+    await page.locator('.mindmap-canvas').waitFor({ state: 'visible', timeout: 15000 })
+
+    // 切到大纲，点选「定稿需求」一行
+    await page.getByRole('button', { name: '大纲', exact: true }).click()
+    await page.locator('[data-todo="a"]').click()
+
+    const input = page.getByPlaceholder(/回车创建/)
+    await expect(input).toHaveAttribute('placeholder', /添加到「定稿需求」下/)
+    await input.fill('大纲添加的子任务')
+    await input.press('Enter')
+    await expect.poll(async () => {
+      const rows = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return (await db.todos.toArray()).map((t) => ({ title: t.title, parent: t.parent_id }))
+      })
+      return rows.some((r) => r.title === '大纲添加的子任务' && r.parent === 'a')
+    }).toBe(true)
+  })
+
   test('空图：中央引导按钮一键加第一条任务', async ({ page }) => {
     await seed(page, { empty: true })
     await openMindmap(page)

@@ -73,7 +73,7 @@ function buildTree(all: Todo[]): Node[] {
 /** 落点模式：上 30% 插到前面 / 下 30% 插到后面（同级排序）；中间 40% 挂为子任务 */
 type DropMode = 'before' | 'after' | 'into'
 
-function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly }: {
+function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly, selected, onSelect }: {
   node: Node
   depth: number
   /** 同级节点（含自己），用于排序落点计算 */
@@ -92,6 +92,9 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
   setActiveId: (id: string) => void
   /** 脑图开启时大纲只读（R3 单一编辑真相源） */
   readOnly?: boolean
+  /** 行选中（脑图模式下点击行选中，快速添加据此落点） */
+  selected?: boolean
+  onSelect?: (id: string) => void
 }): JSX.Element {
   const [drop, setDrop] = useState<DropMode | null>(null)
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -176,7 +179,8 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         data-todo={t.id}
         tabIndex={tabbable ? 0 : -1}
         onFocus={() => setActiveId(t.id)}
-        className={`group relative flex items-center gap-1.5 h-9 pr-2 rounded-[8px] transition-colors outline-none focus-visible:bg-bg-overlay ${drop === 'into' ? 'bg-accent/10' : 'hover:bg-bg-overlay'} ${dragId === t.id ? 'opacity-40' : ''} ${focused ? 'bg-accent/10' : ''}`}
+        onClick={() => onSelect?.(t.id)}
+        className={`group relative flex items-center gap-1.5 h-9 pr-2 rounded-[8px] transition-colors outline-none focus-visible:bg-bg-overlay ${selected || drop === 'into' ? 'bg-accent/10' : 'hover:bg-bg-overlay'} ${dragId === t.id ? 'opacity-40' : ''} ${focused ? 'bg-accent/10' : ''}`}
         style={{
           paddingLeft: 4 + depth * 24,
           // 插入位置指示线（复用笔记编辑器的视觉语言：accent 内嵌线）
@@ -260,13 +264,14 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         <Row key={c.todo.id} node={c} depth={depth + 1} siblings={node.children}
           collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
-          origins={origins} tabbable={false} setActiveId={setActiveId} readOnly={readOnly} />
+          origins={origins} tabbable={false} setActiveId={setActiveId} readOnly={readOnly}
+          selected={selected} onSelect={onSelect} />
       ))}
     </>
   )
 }
 
-export default function TodosTree({ filter, tagByTodo, readOnly }: { filter: TodoFilter; tagByTodo: Map<string, string[]>; readOnly?: boolean }): JSX.Element {
+export default function TodosTree({ filter, tagByTodo, readOnly, selectedId, onSelectRow }: { filter: TodoFilter; tagByTodo: Map<string, string[]>; readOnly?: boolean; selectedId?: string | null; onSelectRow?: (id: string) => void }): JSX.Element {
   const all = useAllTodos()
   const tags = useLiveQuery(() => db.tags.toArray(), []) ?? []
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags])
@@ -317,7 +322,8 @@ export default function TodosTree({ filter, tagByTodo, readOnly }: { filter: Tod
           collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
           origins={origins} tabbable={tabbableId === n.todo.id}
-          setActiveId={setActiveId} readOnly={readOnly} />
+          setActiveId={setActiveId} readOnly={readOnly}
+          selected={selectedId === n.todo.id} onSelect={onSelectRow} />
       ))}
       {tree.length === 0 && (
         <div className="text-sm text-text-3 py-8 text-center">

@@ -794,7 +794,10 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
 
   const isDoneGroupSel = Boolean(selectedId?.startsWith('done-group:'))
   const rootKids = byParentAll.get(rootId) ?? []
-  const showActionBar = Boolean(selectedTodo && !editingUi && !isDoneGroupSel)
+  // 选中态可能是页面从大纲视图带进来的其他图节点 —— 本图画布上没它，不出操作栏
+  const showActionBar = Boolean(
+    selectedTodo && selectedTodo.map_id === rootId && !editingUi && !isDoneGroupSel,
+  )
 
   return (
     <div className="mindmap-wrap relative w-full h-full min-h-[420px]" onMouseDown={focusCanvas}>
