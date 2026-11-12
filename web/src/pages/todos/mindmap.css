@@ -1,10 +1,11 @@
-/* 脑图画布 · F-09 Apple 极简视觉
+/* 脑图画布 · 视觉
  *
  * Mind Elixir 把主题 cssVar 以「内联 style」写在 .map-container 上，
  * 内联样式优先级高于选择器，所以这里统一用 !important 覆盖，
  * 让画布跟着应用的设计令牌走（明/暗自动切换）。
- * 目标是「无盒子、无彩虹」：节点是纯文字，只有选中 / hover 时才有底色。
- * 层级靠字重与灰度表达，不靠颜色 —— 颜色是留给状态（选中 / Waiting）的。
+ * 设计语言（F-15）：克制的轻卡片 —— 白底细边小阴影，层级靠字重与
+ * 灰度表达；颜色只给状态（选中 = accent，Waiting 走 tags）。
+ * （F-09 时期是「纯文字无盒子」，实测在空旷画布上太像草稿，用户反馈一般。）
  */
 
 .mindmap-wrap {
@@ -14,6 +15,15 @@
 .mindmap-canvas {
   position: relative;
   background: var(--bg);
+  /* 点阵底纹：给空旷画布一个「坐标系」，纯大白板会显得没完工。
+   * 点色从文字色取 9%，明/暗模式自动适配，近看有质感、远看不可见。 */
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--text-1) 9%, transparent) 1px,
+    transparent 1.5px
+  );
+  background-size: 24px 24px;
+  background-position: center;
 }
 
 .mindmap-canvas .map-container {
@@ -49,28 +59,41 @@
   --panel-border-color: var(--line) !important;
 }
 
-/* 根节点 = 标题：稍大 + 半粗，不加底色（极简） */
+/* 节点 = 轻卡片（F-15）：纯文字在空旷画布上像草稿，卡片化才有
+ * 「物件」感 —— 可点、可拖的东西得先看起来像个东西。
+ * 克制版：白底 + 1px 细边 + 几乎不可见的投影，不彩虹、不玩具。 */
 .mindmap-canvas .map-container .me-root .me-tpc {
-  font-size: 17px !important;
-  font-weight: 600;
+  font-size: 18px !important;
+  font-weight: 650;
   letter-spacing: -0.01em;
-  padding: 2px 4px !important;
+  padding: 7px 16px !important;
+  background: var(--bg-raise) !important;
+  border: 1.5px solid color-mix(in srgb, var(--text-1) 28%, var(--line)) !important;
+  border-radius: 10px;
+  box-shadow: var(--shadow-1, 0 1px 2px rgba(15, 15, 15, 0.05));
 }
 
-/* 一级分支：ME 默认给了大内边距和药丸，收成「纯文字」 */
+/* 一级分支：稍大内边距 + 中字重，和更深层级拉开 */
 .mindmap-canvas .map-container .me-main > .me-wrapper > .me-parent > .me-tpc {
-  padding: 3px 6px !important;
-  font-weight: 500;
+  padding: 5px 12px !important;
+  font-weight: 550;
 }
 
 .mindmap-canvas .map-container .me-parent > .me-tpc {
-  border-radius: 6px;
-  transition: background-color 150ms var(--ease-out-expo, ease-out);
+  background: var(--bg-raise) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px;
+  padding: 4px 10px !important;
+  box-shadow: var(--shadow-1, 0 1px 2px rgba(15, 15, 15, 0.05));
+  transition: border-color 150ms var(--ease-out-expo, ease-out),
+    box-shadow 150ms var(--ease-out-expo, ease-out),
+    background-color 150ms var(--ease-out-expo, ease-out);
 }
 
-/* hover 只给极淡的底 —— 键盘优先，鼠标是补充 */
+/* hover：边框加深 + 微微浮起 */
 .mindmap-canvas .map-container .me-parent:hover > .me-tpc:not(.selected) {
-  background: color-mix(in srgb, var(--text-1) 5%, transparent);
+  border-color: color-mix(in srgb, var(--text-1) 24%, var(--line)) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--text-1) 9%, transparent);
 }
 
 /* ── 拖拽手感（F-14）────────────────────────────────────
@@ -100,18 +123,31 @@
   border-radius: 6px;
 }
 
-/* 选中态：底色高亮而不是矩形描边（描边在圆角节点上会出角） */
+/* 选中态：accent 描边 + 极淡 accent 底（在卡片上叠，不靠矩形 outline） */
 .mindmap-canvas .map-container .selected {
   outline: none !important;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-radius: 6px;
-  transition: background-color 160ms var(--ease-out-expo, ease-out);
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-raise)) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line)) !important;
+  border-radius: 8px;
+  transition: background-color 160ms var(--ease-out-expo, ease-out),
+    border-color 160ms var(--ease-out-expo, ease-out);
 }
 
-/* 分支线：细发丝线，接分隔线令牌，不抢焦点 */
-.mindmap-canvas .map-container .lines path,
+/* 「已完成 (N)」合成节点：不是真待办，虚线幽灵样式 */
+.mindmap-canvas .map-container .me-tpc[data-nodeid^='medone-group'] {
+  background: transparent !important;
+  border: 1px dashed var(--line) !important;
+  box-shadow: none;
+  color: var(--text-3);
+}
+
+/* 分支线：比发丝线略实，仍不抢焦点 */
+.mindmap-canvas .map-container .lines path {
+  stroke: color-mix(in srgb, var(--text-1) 22%, transparent) !important;
+  stroke-width: 2 !important;
+}
 .mindmap-canvas .map-container .subLines path {
-  stroke: var(--line) !important;
+  stroke: color-mix(in srgb, var(--text-1) 14%, transparent) !important;
   stroke-width: 1.5 !important;
 }
 
