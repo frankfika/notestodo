@@ -141,6 +141,13 @@
   color: var(--text-3);
 }
 
+/* 合成节点的展开三角常显：默认的 hover 才显形（opacity 0）会让
+ * 「已完成 (N)」既看不见入口、点标题也没反应，永远展不开。
+ * 只限定合成节点，普通节点的 hover 显隐不变。 */
+.mindmap-canvas .map-container .me-tpc[data-nodeid^='medone-group'] + .me-epd {
+  opacity: 0.55 !important;
+}
+
 /* 分支线：比发丝线略实，仍不抢焦点 */
 .mindmap-canvas .map-container .lines path {
   stroke: color-mix(in srgb, var(--text-1) 22%, transparent) !important;
@@ -345,6 +352,13 @@
   padding: 0;
   margin: 0 6px 0 0;
   white-space: nowrap;
+}
+/* 截止日期与列表同口径：逾期红 / 今天到期 accent / 其余灰（默认规则） */
+.mindmap-canvas .map-container .me-tpc .tags span.tag-due-overdue {
+  color: var(--danger, #eb5757);
+}
+.mindmap-canvas .map-container .me-tpc .tags span.tag-due-today {
+  color: var(--accent, #2383e2);
 }
 
 /* ── 选中节点操作栏（F-13 · 增删节点不用背快捷键） ─────────────── */

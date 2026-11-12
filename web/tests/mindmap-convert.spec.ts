@@ -49,7 +49,8 @@ test.describe('todosToMindData', () => {
     ]
     const kids = todosToMindData(all, 'root').nodeData.children ?? []
     expect(kids.find((c) => c.id === 'a')?.tags).toEqual(['@张三', '截止 01/02'])
-    expect(kids.find((c) => c.id === 'b')?.tags).toEqual(['逾期 01/02'])
+    // 逾期 tag 带独立 class（逾期红），与列表口径一致
+    expect(kids.find((c) => c.id === 'b')?.tags).toEqual([{ text: '逾期 01/02', className: 'tag-due-overdue' }])
     expect(kids.find((c) => c.id === 'c')?.tags).toBeUndefined()
   })
 
@@ -141,6 +142,31 @@ test.describe('mindEventToTodoPatches', () => {
     expect(ops2[0].patch.title).toBe('写方案 v3')
     expect(ops2[0].patch.assignee).toBeUndefined()
     expect(ops2[0].patch.due_date).toBeUndefined()
+  })
+
+  test('finishEdit：版本号 M/D 不再被当成截止日期吃掉', () => {
+    // 标题已是目标串：解析不应产生任何 patch（既不删版本号，也不塞截止日期）
+    for (const title of ['版本 1/5 上线', '发版 2/28 上线', '对比 3.5 版本', '跟进 A/B 实验']) {
+      const all = [t('root', null), t('a', 'root', { title })]
+      const byId = new Map(all.map((x) => [x.id, x]))
+      const ops = mindEventToTodoPatches(
+        { name: 'finishEdit', target: { id: 'a', topic: title }, origin: 'main' },
+        { all, mapId: 'root', byId },
+      )
+      expect(ops).toHaveLength(0)
+    }
+
+    // 真日期照旧解析：12/25 仍识别（年份随当前日期浮动，只断言月日）
+    const all = [t('root', null), t('a', 'root', { title: '对接' })]
+    const byId = new Map(all.map((x) => [x.id, x]))
+    const ops = mindEventToTodoPatches(
+      { name: 'finishEdit', target: { id: 'a', topic: '对接 12/25 渠道' }, origin: 'main' },
+      { all, mapId: 'root', byId },
+    )
+    expect(ops).toHaveLength(1)
+    if (ops[0].op !== 'update') throw new Error('unreachable')
+    expect(ops[0].patch.title).toBe('对接 渠道')
+    expect(ops[0].patch.due_date?.endsWith('-12-25')).toBe(true)
   })
 
   test('addChild 生成 add op', () => {
