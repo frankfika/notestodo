@@ -12,7 +12,15 @@ import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
 import { createTask } from '../../lib/mindmap/createTask'
 import { ensureInboxMap, listMapRoots } from '../../lib/mindmap/mapRoots'
-import { isMindmapEditing, pushMindmapUndo, undoMindmap } from '../../lib/mindmap/undoStack'
+import {
+  canUndoMindmap,
+  isMindmapEditing,
+  peekMindmapUndoLabel,
+  pushMindmapUndo,
+  undoMindmap,
+} from '../../lib/mindmap/undoStack'
+import { useAllTodos } from '../../lib/useAllTodos'
+import { useToast } from '../../state/toast'
 import MapSwitcher from './MapSwitcher'
 import InboxDrawer from './InboxDrawer'
 import { TodayIndicator, TodaySwapPrompt } from './TodaySlots'
@@ -43,14 +51,24 @@ export default function TodosPage(): JSX.Element {
   const [rootId, setRootId] = useState<string | null>(null)
   /** 画布选中节点：快速添加的落点由它决定（选中 → 挂到它下面；未选中 → 图根一级分支） */
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  /** 脑图沉浸全屏：⛶ 进入 / Esc 或 ✕ 退出。画布吃满整屏，不被侧栏挤压 */
+  /** 脑图沉浸模式：进入后画布吃满整屏；Esc 或 ✕ 退出 */
   const [fullscreen, setFullscreen] = useState(false)
-  const selectedTodo = useLiveQuery(
-    async () => (selectedNodeId ? ((await db.todos.get(selectedNodeId)) ?? null) : null),
-    [selectedNodeId],
+  /** 选中节点与画布共用同一份 todos 订阅（同步派生）。
+   *  之前按 selectedNodeId 单查一次库，选中后要等 liveQuery 回来，
+   *  快速添加的占位文案会短暂还写着上一个节点。 */
+  const allTodos = useAllTodos()
+  const selectedTodo = useMemo(
+    () => allTodos.find((t) => t.id === selectedNodeId),
+    [allTodos, selectedNodeId],
   )
+  const show = useToast((s) => s.show)
   /** 有序的图根 id（脑图 ⌘] / ⌘[ 切图用） */
   const mapIds = useMemo(() => roots.map((r) => r.id), [roots])
+  /** 图根 id → 图名（跨图选中时报落点用） */
+  const mapTitleById = useMemo(
+    () => new Map(roots.map((r) => [r.id, r.title] as const)),
+    [roots],
+  )
 
   useEffect(() => {
     if (mindmapEnabled && tab !== 'mindmap') setTab('mindmap')
@@ -70,26 +88,39 @@ export default function TodosPage(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [fullscreen])
 
+  // 沉浸态下切走视图 → 退出按钮不再渲染，页面却还被 fixed 遮着。
+  // 跟着 tab 收起，避免「进得去出不来」。
   useEffect(() => {
-    if (tab !== 'mindmap' || !mindmapEnabled) return
+    if (tab !== 'mindmap') setFullscreen(false)
+  }, [tab])
+
+  // 应用撤销：输入框聚焦时也生效（快速添加后焦点就在输入框）。
+  // 只在栈里有本 scope 的条目时拦截原生文本撤销 —— 空栈时把 ⌘Z 还给浏览器。
+  const undoScope = selectedTodo?.map_id ?? rootId ?? undefined
+  useEffect(() => {
+    if (!mindmapEnabled) return
     const onKey = (e: KeyboardEvent) => {
+      if (!((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey)) return
+      // 节点编辑中的 ⌘Z 交给 ME 自己处理
+      if (isMindmapEditing()) return
       const el = e.target as HTMLElement | null
-      if (
-        el &&
-        (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
-      ) {
+      const inField = Boolean(
+        el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable),
+      )
+      if (canUndoMindmap(undoScope)) {
+        e.preventDefault()
+        const label = peekMindmapUndoLabel(undoScope)
+        void undoMindmap(undoScope)
+        show(label ? `已撤销「${label}」` : '已撤销')
         return
       }
-      if (isMindmapEditing()) return
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        // 只回退当前图 / Today 的条目 —— 不碰其他图的操作
-        void undoMindmap(rootId ?? undefined)
-      }
+      if (inField) return // 空栈：普通文本撤销照常工作
+      e.preventDefault()
+      show('没有可撤销的操作')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [tab, mindmapEnabled, rootId])
+  }, [mindmapEnabled, undoScope, show])
 
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
@@ -104,23 +135,31 @@ export default function TodosPage(): JSX.Element {
     //   还没有图时用 Inbox 做第一张画布。
     // Inbox 捕获流另有 InboxDrawer 和本机 API 入口。经典模式仍建无父根任务。
     const mapId = mindmapEnabled ? (rootId ?? (await ensureInboxMap()).id) : null
+    // 落点跟「选中」走（所见即所得）：选中 → 挂到它下面；没选中 → 图根一级分支。
+    // 大纲是跨图视图：选中行属于别的图时，落点跟到那张图上（不再猜当前图）。
     const sel =
-      selectedTodo && !selectedNodeId?.startsWith('done-group:') && selectedTodo.map_id === mapId
+      mindmapEnabled && selectedTodo && !selectedNodeId?.startsWith('done-group:')
         ? selectedTodo
         : undefined
+    const targetMapId = sel ? (sel.map_id ?? sel.id) : mapId
     const todo = await createTask({
       title: parsed.title,
-      placement: sel && mapId ? { parentId: sel.id, mapId } : mapId ? { mapId } : { root: true },
+      placement:
+        sel && targetMapId
+          ? { parentId: sel.id, mapId: targetMapId }
+          : mapId
+            ? { mapId }
+            : { root: true },
       dueDate: newDue || parsed.due_date,
       assignee: parsed.assignee,
     })
     // 新任务上画布选中 —— 用户立刻看到「刚才那条加到哪了」
-    if (mapId) useUI.setState({ todoFocusId: todo.id })
+    if (targetMapId) useUI.setState({ todoFocusId: todo.id })
     // 与画布操作同口径：失败可撤（R4）
     pushMindmapUndo(async () => {
       const all = await db.todos.toArray()
       await db.todos.bulkDelete([...subtreeIds(todo.id, all)])
-    }, '添加任务', mapId ?? 'global')
+    }, '添加任务', targetMapId ?? 'global')
     setNewTitle('')
     setNewDue('')
   }
@@ -131,13 +170,18 @@ export default function TodosPage(): JSX.Element {
       tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id],
     }))
 
-  // 输入框占位文案要报落点：选中且属于当前图的节点 → 报节点名
+  // 输入框占位文案要报落点：选中节点 → 报节点名；选中行在别的图 → 带上图名，
+  // 让「这条会落到哪张图」在跨图的大纲视图里一眼可见。
   const selTitle =
-    selectedTodo &&
-    selectedTodo.title &&
-    !selectedNodeId?.startsWith('done-group:') &&
-    (!mindmapEnabled || selectedTodo.map_id === rootId)
+    selectedTodo && selectedTodo.title && !selectedNodeId?.startsWith('done-group:')
       ? selectedTodo.title.slice(0, 14)
+      : ''
+  const selMapTitle =
+    mindmapEnabled &&
+    selectedTodo &&
+    selectedTodo.map_id &&
+    selectedTodo.map_id !== rootId
+      ? (mapTitleById.get(selectedTodo.map_id) ?? '')
       : ''
 
   const viewTabs = mindmapEnabled
@@ -174,9 +218,30 @@ export default function TodosPage(): JSX.Element {
         {tab === 'mindmap' && (
           <button
             onClick={() => setFullscreen((f) => !f)}
-            title={fullscreen ? '退出全屏（Esc）' : '全屏沉浸模式（Esc 退出）'}
-            className="px-2.5 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-          >{fullscreen ? '✕ 退出全屏' : '⛶ 全屏'}</button>
+            title={fullscreen ? '退出沉浸（Esc）' : '沉浸模式（Esc 退出）'}
+            className="flex items-center gap-1 px-2.5 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+          >
+            {fullscreen ? (
+              '✕ 退出沉浸'
+            ) : (
+              <>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+                沉浸
+              </>
+            )}
+          </button>
         )}
         <div className="flex-1" />
         {/* 搜索 / 状态 / 标签筛选只作用于大纲与列表 —— 脑图画布有自己的
@@ -229,7 +294,7 @@ export default function TodosPage(): JSX.Element {
           placeholder={
             mindmapEnabled
               ? selTitle
-                ? `＋ 添加到「${selTitle}」下，回车创建（@人 / 明天 可识别）`
+                ? `＋ 添加到「${selMapTitle ? `${selMapTitle} › ` : ''}${selTitle}」下，回车创建（@人 / 明天 可识别）`
                 : '＋ 添加为图的一级分支，回车创建（先选中节点则加在它下面）'
               : '＋ 添加任务，回车创建（支持「明天 交方案 @张三」）'
           }
