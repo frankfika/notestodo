@@ -43,6 +43,8 @@ export default function TodosPage(): JSX.Element {
   const [rootId, setRootId] = useState<string | null>(null)
   /** 画布选中节点：快速添加的落点由它决定（选中 → 挂到它下面；未选中 → 图根一级分支） */
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  /** 脑图沉浸全屏：⛶ 进入 / Esc 或 ✕ 退出。画布吃满整屏，不被侧栏挤压 */
+  const [fullscreen, setFullscreen] = useState(false)
   const selectedTodo = useLiveQuery(
     async () => (selectedNodeId ? ((await db.todos.get(selectedNodeId)) ?? null) : null),
     [selectedNodeId],
@@ -58,6 +60,15 @@ export default function TodosPage(): JSX.Element {
   useEffect(() => {
     if (!rootId && roots[0]) setRootId(roots[0].id)
   }, [roots, rootId])
+
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
 
   useEffect(() => {
     if (tab !== 'mindmap' || !mindmapEnabled) return
@@ -134,7 +145,10 @@ export default function TodosPage(): JSX.Element {
     : ([['list', '列表'], ['tree', '大纲']] as const)
 
   return (
-    <div className="h-full flex flex-col">
+    <div
+      className={`h-full flex flex-col${fullscreen ? ' fixed inset-0 z-50 bg-bg' : ''}`}
+      data-testid={fullscreen ? 'todos-fullscreen' : undefined}
+    >
       {/* 一行搞定：视图切换 + 搜索/筛选 */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
         <div className="flex items-center gap-1">
@@ -156,6 +170,13 @@ export default function TodosPage(): JSX.Element {
         </div>
         {mindmapEnabled && !rootId && roots[0] && (
           <span className="ml-2 text-xs text-text-3">在左上角 ◱ 入口选择或新建图</span>
+        )}
+        {tab === 'mindmap' && (
+          <button
+            onClick={() => setFullscreen((f) => !f)}
+            title={fullscreen ? '退出全屏（Esc）' : '全屏沉浸模式（Esc 退出）'}
+            className="px-2.5 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
+          >{fullscreen ? '✕ 退出全屏' : '⛶ 全屏'}</button>
         )}
         <div className="flex-1" />
         {/* 搜索 / 状态 / 标签筛选只作用于大纲与列表 —— 脑图画布有自己的

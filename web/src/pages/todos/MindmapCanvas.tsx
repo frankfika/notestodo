@@ -14,6 +14,7 @@ import {
 } from '../../lib/mindmap/undoStack'
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
 import { useAllTodos } from '../../lib/useAllTodos'
+import { useOriginTitles } from '../../lib/originTitles'
 import type { MeOperation, MindmapNodeMeta } from '../../lib/mindmap/types'
 import type { ID, Todo } from '../../types'
 import { mod } from '../../lib/id'
@@ -274,6 +275,12 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   selectedRef.current = selectedId
   const todos = useAllTodos()
   const focusId = useUI((s) => s.todoFocusId)
+  const goNote = useUI((s) => s.goNote)
+  const goMeeting = useUI((s) => s.goMeeting)
+  /** 任务来源（笔记 / 会议）标题：节点 tags 的「✎ / ●」来源标 + 操作栏跳转 */
+  const origins = useOriginTitles(todos)
+  const originsRef = useRef(origins)
+  originsRef.current = origins
 
   /**
    * 最新 todos 快照。
@@ -346,7 +353,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           generateSubBranch: organicSubBranch,
         },
       }) as unknown as MindElixirInstance
-      const data = todosToMindData(todos, rootId)
+      const data = todosToMindData(todos, rootId, undefined, originsRef.current)
       await mei.init(data)
       fitToView()
 
@@ -504,7 +511,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   useEffect(() => {
     const mei = meiRef.current
     if (!mei || isMindmapEditing()) return
-    const data = todosToMindData(todos, rootId)
+    const data = todosToMindData(todos, rootId, undefined, origins)
     /**
      * 渲染结果没变就别重画。
      *
@@ -546,7 +553,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       void mei.init(data)
       fitToView()
     }
-  }, [todos, rootId, ready, fitToView])
+  }, [todos, rootId, ready, origins, fitToView])
 
   useEffect(() => {
     if (!focusId || !meiRef.current) return
@@ -798,6 +805,21 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   const showActionBar = Boolean(
     selectedTodo && selectedTodo.map_id === rootId && !editingUi && !isDoneGroupSel,
   )
+  // 选中任务的来源跳转：从笔记创建的 → 跳笔记详情；会议产出的 → 跳会议详情。
+  // 「task 从哪来」在脑图上必须可发现，不能只在列表 hover 才看得见。
+  const originJump = selectedTodo
+    ? selectedTodo.origin_note_id
+      ? {
+          label: `✎ ${origins.noteTitles.get(selectedTodo.origin_note_id) ?? '查看笔记'}`,
+          run: () => goNote(selectedTodo.origin_note_id!),
+        }
+      : selectedTodo.meeting_id
+        ? {
+            label: `● ${origins.meetingTitles.get(selectedTodo.meeting_id) ?? '查看会议'}`,
+            run: () => goMeeting(selectedTodo.meeting_id!),
+          }
+        : null
+    : null
 
   return (
     <div className="mindmap-wrap relative w-full h-full min-h-[420px]" onMouseDown={focusCanvas}>
@@ -857,6 +879,15 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           >
             ☼ 入 Today <kbd className="mindmap-kbd">{mod()}T</kbd>
           </button>
+          {originJump && (
+            <button
+              type="button"
+              title="跳到这条任务的来源（笔记 / 会议）"
+              onClick={originJump.run}
+            >
+              ↗ 来源：{originJump.label}
+            </button>
+          )}
           <button
             type="button"
             className="danger"

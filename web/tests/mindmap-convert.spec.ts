@@ -52,6 +52,27 @@ test.describe('todosToMindData', () => {
     expect(kids.find((c) => c.id === 'b')?.tags).toEqual(['逾期 01/02'])
     expect(kids.find((c) => c.id === 'c')?.tags).toBeUndefined()
   })
+
+  test('节点 tags：任务来源「✎ 笔记 / ● 会议」，排在负责人和截止之后', () => {
+    const all = [
+      t('root', null),
+      t('a', 'root', { origin_note_id: 'n1' }),
+      t('b', 'root', { meeting_id: 'm1' }),
+      t('c', 'root', { assignee: '张三', due_date: '2099-01-02', origin_note_id: 'n1' }),
+    ]
+    const origins = {
+      noteTitles: new Map([['n1', '周会纪要']]),
+      meetingTitles: new Map([['m1', '对齐会']]),
+    }
+    const kids = todosToMindData(all, 'root', undefined, origins).nodeData.children ?? []
+    expect(kids.find((c) => c.id === 'a')?.tags).toEqual(['✎ 周会纪要'])
+    expect(kids.find((c) => c.id === 'b')?.tags).toEqual(['● 对齐会'])
+    expect(kids.find((c) => c.id === 'c')?.tags).toEqual(['@张三', '截止 01/02', '✎ 周会纪要'])
+    // 不传 origins（标题还没查回来）也给兜底标，不会出现「有来源却毫无显示」的空窗
+    const kids2 = todosToMindData(all, 'root').nodeData.children ?? []
+    expect(kids2.find((c) => c.id === 'a')?.tags).toEqual(['✎ 笔记'])
+    expect(kids2.find((c) => c.id === 'b')?.tags).toEqual(['● 会议'])
+  })
 })
 
 test.describe('mindEventToTodoPatches', () => {

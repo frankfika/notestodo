@@ -213,6 +213,41 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     }).toBe(true)
   })
 
+  test('脑图全屏：⛶ 进入沉浸模式，Esc 退出', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    await page.getByRole('button', { name: /全屏/ }).click()
+    const fs = page.locator('[data-testid="todos-fullscreen"]')
+    await expect(fs).toBeVisible()
+    await expect(fs).toHaveClass(/fixed/)
+    await expect(fs).toHaveClass(/inset-0/)
+
+    await page.keyboard.press('Escape')
+    await expect(fs).toHaveCount(0)
+  })
+
+  test('任务来源在脑图可发现：节点来源标 + 操作栏跳转笔记', async ({ page }) => {
+    await seed(page)
+    // a 是从「周会纪要」笔记创建的任务
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts')
+      const ts = new Date().toISOString()
+      await db.notes.put({ id: 'n1', title: '周会纪要', body_md: '# 本周\n- 定了三件事', todo_ids: [], pinned: false, created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 })
+      await db.todos.update('a', { origin_note_id: 'n1' })
+    })
+    await openMindmap(page)
+
+    // 节点上直接挂来源标（与 @负责人 / 截止同一排灰字）
+    await expect(page.locator('.mindmap-canvas .tags', { hasText: '✎ 周会纪要' })).toBeVisible()
+
+    // 选中节点 → 操作栏出现「来源」按钮 → 点击跳到笔记详情
+    await topic(page, 'a').click()
+    const bar = page.locator('.mindmap-actionbar')
+    await bar.getByRole('button', { name: /周会纪要/ }).click()
+    await expect(page.locator('input[placeholder="无标题"]')).toHaveValue('周会纪要')
+  })
+
   test('空图：中央引导按钮一键加第一条任务', async ({ page }) => {
     await seed(page, { empty: true })
     await openMindmap(page)

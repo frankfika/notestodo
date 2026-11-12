@@ -6,6 +6,7 @@ import type { ID, Todo } from '../../types'
 import { isDescendant } from './cycle'
 import { indexByParent, isLeafTodo, isLive } from './leaf'
 import { buildTask } from './createTask'
+import type { OriginTitles } from '../originTitles'
 import type { MeOperation, MindmapNodeMeta, TodoOp } from './types'
 import { captureAndPushPatchUndo } from './undoStack'
 import { evictIfPresent } from './todaySlots'
@@ -20,6 +21,19 @@ function dueTag(due: string, status: Todo['status']): string {
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   if (status === 'open' && due < today) return `逾期 ${mmdd}`
   return `截止 ${mmdd}`
+}
+
+/** 任务来源小标签：「✎ 笔记名」（从笔记创建）/「● 会议名」（会议产出）。纯展示，截断防超长。 */
+function originTag(t: Todo, origins?: OriginTitles): string | undefined {
+  if (t.origin_note_id) {
+    const title = origins?.noteTitles.get(t.origin_note_id) ?? '笔记'
+    return `✎ ${title.slice(0, 12)}`
+  }
+  if (t.meeting_id) {
+    const title = origins?.meetingTitles.get(t.meeting_id) ?? '会议'
+    return `● ${title.slice(0, 12)}`
+  }
+  return undefined
 }
 
 export type MENode = {
@@ -46,6 +60,7 @@ export function todosToMindData(
   all: Todo[],
   rootId: ID,
   _opts?: { hideDone?: boolean },
+  origins?: OriginTitles,
 ): MEData {
   const byParent = indexByParent(all)
   const root = all.find((t) => t.id === rootId && isLive(t))
@@ -81,9 +96,11 @@ export function todosToMindData(
           topic: d.title || '未命名',
           style: { textDecoration: 'line-through', color: 'var(--text-3, #8e8e93)' },
           // 完成项：关联人 + 完成日期 —— 「谁 · 什么时候 · 完成了什么」
-          tags: [d.assignee ? `@${d.assignee}` : undefined, d.completed_at ? `完成 ${d.completed_at.slice(5, 10).replace('-', '/')}` : undefined].filter(
-            (x): x is string => Boolean(x),
-          ),
+          tags: [
+            d.assignee ? `@${d.assignee}` : undefined,
+            d.completed_at ? `完成 ${d.completed_at.slice(5, 10).replace('-', '/')}` : undefined,
+            originTag(d, origins),
+          ].filter((x): x is string => Boolean(x)),
           metadata: {
             todoId: d.id,
             status: d.status,
@@ -106,6 +123,8 @@ export function todosToMindData(
     const tags: string[] = []
     if (t.assignee) tags.push(`@${t.assignee}`)
     if (t.due_date) tags.push(dueTag(t.due_date, t.status))
+    const origin = originTag(t, origins)
+    if (origin) tags.push(origin)
     return {
       id: t.id,
       topic,
