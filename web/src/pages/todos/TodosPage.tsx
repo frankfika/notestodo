@@ -133,39 +133,45 @@ export default function TodosPage(): JSX.Element {
           )}
         </div>
         {mindmapEnabled && !rootId && roots[0] && (
-          <span className="ml-2 text-xs text-text-3">在左侧图库选择或新建图</span>
+          <span className="ml-2 text-xs text-text-3">在左上角 ◱ 入口选择或新建图</span>
         )}
         <div className="flex-1" />
-        <input
-          value={filter.q}
-          onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
-          placeholder="搜索…"
-          className="input !h-7 w-32 text-xs"
-        />
-        <div className="flex items-center rounded-[8px] bg-bg-overlay p-0.5">
-          {STATUS_TABS.map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setFilter((f) => ({ ...f, status: k }))}
-              className={`px-2.5 h-6 rounded-[6px] text-xs transition-colors ${
-                filter.status === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:text-text-1'
-              }`}
-            >{label}</button>
-          ))}
-        </div>
-        {tags.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            {tags.map((t) => {
-              const on = filter.tagIds.includes(t.id)
-              return (
+        {/* 搜索 / 状态 / 标签筛选只作用于大纲与列表 —— 脑图画布有自己的
+            结构语义（done 折进折叠组、归档不出图），摆一排无效的控件只会吵 */}
+        {tab !== 'mindmap' && (
+          <>
+            <input
+              value={filter.q}
+              onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
+              placeholder="搜索…"
+              className="input !h-7 w-32 text-xs"
+            />
+            <div className="flex items-center rounded-[8px] bg-bg-overlay p-0.5">
+              {STATUS_TABS.map(([k, label]) => (
                 <button
-                  key={t.id}
-                  onClick={() => toggleTag(t.id)}
-                  className={`chip transition-colors ${on ? '!text-accent border-current' : 'opacity-60 hover:opacity-100'}`}
-                >#{t.name}</button>
-              )
-            })}
-          </div>
+                  key={k}
+                  onClick={() => setFilter((f) => ({ ...f, status: k }))}
+                  className={`px-2.5 h-6 rounded-[6px] text-xs transition-colors ${
+                    filter.status === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:text-text-1'
+                  }`}
+                >{label}</button>
+              ))}
+            </div>
+            {tags.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {tags.map((t) => {
+                  const on = filter.tagIds.includes(t.id)
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleTag(t.id)}
+                      className={`chip transition-colors ${on ? '!text-accent border-current' : 'opacity-60 hover:opacity-100'}`}
+                    >#{t.name}</button>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 

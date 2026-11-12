@@ -82,10 +82,23 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await bar.getByRole('button', { name: /✓ 完成/ }).click()
     await expect(page.locator('.me-tpc', { hasText: '已完成' }).first()).toBeVisible()
 
-    // ④ 选中 a → 点「删除」→ 整棵子树从画布消失（DB 软删）
+    // ④ 选中根节点 → 同级 / 删除禁用，子节点可用（趁 a 还在时测：
+    //    删掉唯一的子节点后图会变空、触发空图引导，根节点选中态会被重绘冲掉）
+    await topic(page, 'proj').click()
+    await expect(bar.getByRole('button', { name: /同级/ })).toBeDisabled()
+    await expect(bar.getByRole('button', { name: /删除/ })).toBeDisabled()
+    await expect(bar.getByRole('button', { name: /子节点/ })).toBeEnabled()
+
+    // ⑤ 选中 a → 点「删除」→ 整棵子树从画布消失（DB 软删）
     await topic(page, 'a').click()
     await bar.getByRole('button', { name: /删除/ }).click()
     await expect(topic(page, 'a')).toHaveCount(0)
+    // 落库走 ME operation → applyTodoPatches 的异步链，等它真正写完
+    await page.waitForFunction(async () => {
+      const { db } = await import('/src/db/db.ts')
+      const t = await db.todos.get('a')
+      return t?.deleted_at !== null && t?.deleted_at !== undefined
+    })
     const deleted = await page.evaluate(async () => {
       const { db } = await import('/src/db/db.ts')
       const t = (await db.todos.get('a'))!
@@ -93,12 +106,31 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     })
     expect(deleted.deleted).toBe(true)
     expect(deleted.status).toBe('open') // 删除不篡改 status
+  })
 
-    // ⑤ 选中根节点 → 同级 / 删除禁用，子节点可用
+  test('单击即改：第一击选中，再点一下就进编辑；操作栏有改名按钮', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    // 第一击：只选中（出现操作栏），不进编辑
+    await topic(page, 'a').click()
+    await expect(page.locator('.mindmap-actionbar')).toBeVisible()
+    await expect(page.locator('#input-box')).toHaveCount(0)
+
+    // 第二击（点已选中的节点）：进编辑 —— 与列表「单击即改」同口径
+    await topic(page, 'a').click()
+    await page.waitForSelector('#input-box', { timeout: 5000 })
+    await page.keyboard.press('Escape')
+
+    // Escape 后 a 仍是选中态（再点会又进编辑），先点根节点换掉选中
     await topic(page, 'proj').click()
-    await expect(bar.getByRole('button', { name: /同级/ })).toBeDisabled()
-    await expect(bar.getByRole('button', { name: /删除/ })).toBeDisabled()
-    await expect(bar.getByRole('button', { name: /子节点/ })).toBeEnabled()
+    await expect(page.locator('.mindmap-actionbar')).toBeVisible()
+
+    // 操作栏「✎ 改名」按钮同样进编辑
+    await topic(page, 'a').click()
+    await page.locator('.mindmap-actionbar').getByRole('button', { name: /改名/ }).click()
+    await page.waitForSelector('#input-box', { timeout: 5000 })
+    await page.keyboard.press('Escape')
   })
 
   test('空图：中央引导按钮一键加第一条任务', async ({ page }) => {

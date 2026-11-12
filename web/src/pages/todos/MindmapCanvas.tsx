@@ -252,6 +252,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
   /** 当前选中的节点（驱动底部操作栏）；编辑态用于隐藏操作栏 */
   const [selectedId, setSelectedId] = useState<ID | null>(null)
   const [editingUi, setEditingUi] = useState(false)
+  /** 选中态的 ref 镜像：ME 的 click 监听器 mount 时注册一次，闭包拿不到最新 state */
+  const selectedRef = useRef<ID | null>(null)
+  selectedRef.current = selectedId
   const todos = useAllTodos()
   const focusId = useUI((s) => s.todoFocusId)
 
@@ -300,6 +303,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
 
   useEffect(() => {
     let cancelled = false
+    let editObserver: MutationObserver | null = null
     ;(async () => {
       const MindElixir = (await import('mind-elixir')).default
       await import('mind-elixir/style.css')
@@ -365,6 +369,35 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         void mei.editTopic?.(tpc)
       })
 
+      /**
+       * 单击即改（与列表 / 今天页的行内编辑同口径）：
+       * 第一击选中节点（操作栏出现），再点一下已选中的节点 = 进编辑。
+       * 关键坑：ME 的选中是在同一次 click 里先发生的 —— 直接在 click 里
+       * 比选中态会把「第一击」也当成「再点一下」。所以用 pointerdown 的
+       * 捕获阶段快照「按下之前选的是谁」，click 时和快照比。
+       */
+      let selAtDown: string | null = null
+      container?.addEventListener(
+        'pointerdown',
+        () => {
+          selAtDown = selectedRef.current
+        },
+        { capture: true },
+      )
+      container?.addEventListener('click', (e: Event) => {
+        if (document.querySelector('#input-box')) return
+        const tpc = (e.target as HTMLElement | null)?.closest?.(
+          '.me-tpc',
+        ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
+        if (!tpc?.nodeObj) return
+        const id = String(tpc.nodeObj.id ?? '')
+        if (id.startsWith('done-group:')) return
+        if (id && id === selAtDown) {
+          e.preventDefault()
+          void mei.editTopic?.(tpc)
+        }
+      })
+
       mei.bus.addListener('operation', (payload: unknown) => {
         const ev = payload as MeOperation
         // 编辑态唯一事实源在 undoStack（isMindmapEditing），这里只负责同步
@@ -381,6 +414,24 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         const ops = mindEventToTodoPatches(ev, { all: todosRef.current, mapId: rootId, byId })
         void applyTodoPatches(ops, { scope: rootId })
       })
+      /**
+       * Escape 退出编辑时 ME v6 不会发 finishEdit —— 编辑框直接被移除，
+       * editingUi 会永远卡住（操作栏再也不出现）。统一以「#input-box 从
+       * DOM 消失」作为编辑结束的兜底信号；finishEdit 先到时这里只是
+       * 幂等地再清一次。
+       */
+      editObserver = new MutationObserver(() => {
+        if (document.querySelector('#input-box')) return
+        if (isMindmapEditing()) {
+          setMindmapEditing(false)
+          setEditingUi(false)
+        }
+      })
+      editObserver.observe(mei.container ?? elRef.current!, {
+        childList: true,
+        subtree: true,
+      })
+
       // 选中态 → 底部操作栏：鼠标党不用背快捷键也能增删节点
       mei.bus.addListener('selectNewNode', (node: unknown) => {
         setSelectedId((node as { id?: string } | null)?.id ?? null)
@@ -397,6 +448,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
     })()
     return () => {
       cancelled = true
+      editObserver?.disconnect()
+      editObserver = null
       meiRef.current?.destroy?.()
       meiRef.current = null
     }
@@ -701,6 +754,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
           >
             ＋ 同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
           </button>
+          <button type="button" onClick={() => void meiRef.current?.beginEdit?.()}>
+            ✎ 改名 <kbd className="mindmap-kbd">F2</kbd>
+          </button>
           <button
             type="button"
             disabled={!isLeafTodo(selectedTodo, byParentAll)}
@@ -735,6 +791,16 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
       <div className="mindmap-hint">
         {showKeys && (
           <div className="mindmap-hint-panel" role="menu" aria-label="脑图快捷键">
+            <div className="mindmap-hint-title">鼠标</div>
+            <div className="mindmap-hint-row">
+              <span className="mindmap-hint-desc">单击节点：选中，底部出操作栏</span>
+            </div>
+            <div className="mindmap-hint-row">
+              <span className="mindmap-hint-desc">再点一下（或双击）：改名</span>
+            </div>
+            <div className="mindmap-hint-row">
+              <span className="mindmap-hint-desc">拖拽节点：换父级 / 调整顺序</span>
+            </div>
             <div className="mindmap-hint-title">快捷键</div>
             {SHORTCUT_ROWS.map((row) => (
               <div className="mindmap-hint-row" key={row.desc}>
