@@ -108,11 +108,13 @@ type BranchArgs = {
   isFirst?: boolean
 }
 
+type BranchTag = string | { text: string; className?: string }
+
 type BranchNode = {
   id?: string
   topic?: string
   children?: BranchNode[]
-  tags?: string[]
+  tags?: BranchTag[]
   metadata?: MindmapNodeMeta
 }
 

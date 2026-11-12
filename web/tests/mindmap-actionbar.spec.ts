@@ -246,11 +246,11 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     }).toBe(countBefore)
   })
 
-  test('脑图全屏：⛶ 进入沉浸模式，Esc 退出', async ({ page }) => {
+  test('脑图沉浸：进入沉浸模式，Esc 退出', async ({ page }) => {
     await seed(page)
     await openMindmap(page)
 
-    await page.getByRole('button', { name: /全屏/ }).click()
+    await page.getByRole('button', { name: /沉浸/ }).click()
     const fs = page.locator('[data-testid="todos-fullscreen"]')
     await expect(fs).toBeVisible()
     await expect(fs).toHaveClass(/fixed/)
