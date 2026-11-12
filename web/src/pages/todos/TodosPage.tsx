@@ -41,6 +41,12 @@ export default function TodosPage(): JSX.Element {
   const [newDue, setNewDue] = useState('')
   const roots = useLiveQuery(listMapRoots, []) ?? []
   const [rootId, setRootId] = useState<string | null>(null)
+  /** 画布选中节点：快速添加的落点由它决定（选中 → 挂到它下面；未选中 → 图根一级分支） */
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const selectedTodo = useLiveQuery(
+    async () => (selectedNodeId ? ((await db.todos.get(selectedNodeId)) ?? null) : null),
+    [selectedNodeId],
+  )
   /** 有序的图根 id（脑图 ⌘] / ⌘[ 切图用） */
   const mapIds = useMemo(() => roots.map((r) => r.id), [roots])
 
@@ -82,16 +88,23 @@ export default function TodosPage(): JSX.Element {
     const raw = newTitle.trim()
     if (!raw) return
     const parsed = parseQuickAdd(raw)
-    // 脑图模式下快速添加 = 给当前画布加一个叶子（所见即所得：输入框在画布上方，
-    // 加进去的东西就必须出现在这张画布上）。还没有图时用 Inbox 做第一张画布。
+    // 脑图模式下快速添加的落点跟「选中」走（所见即所得）：
+    //   选中了节点 → 挂到它下面；没选中 → 图根的一级分支；
+    //   还没有图时用 Inbox 做第一张画布。
     // Inbox 捕获流另有 InboxDrawer 和本机 API 入口。经典模式仍建无父根任务。
     const mapId = mindmapEnabled ? (rootId ?? (await ensureInboxMap()).id) : null
+    const sel =
+      selectedTodo && !selectedNodeId?.startsWith('done-group:') && selectedTodo.map_id === mapId
+        ? selectedTodo
+        : undefined
     const todo = await createTask({
       title: parsed.title,
-      placement: mapId ? { mapId } : { root: true },
+      placement: sel && mapId ? { parentId: sel.id, mapId } : mapId ? { mapId } : { root: true },
       dueDate: newDue || parsed.due_date,
       assignee: parsed.assignee,
     })
+    // 新任务上画布选中 —— 用户立刻看到「刚才那条加到哪了」
+    if (mapId) useUI.setState({ todoFocusId: todo.id })
     // 与画布操作同口径：失败可撤（R4）
     pushMindmapUndo(async () => {
       const all = await db.todos.toArray()
@@ -106,6 +119,15 @@ export default function TodosPage(): JSX.Element {
       ...f,
       tagIds: f.tagIds.includes(id) ? f.tagIds.filter((x) => x !== id) : [...f.tagIds, id],
     }))
+
+  // 输入框占位文案要报落点：选中且属于当前图的节点 → 报节点名
+  const selTitle =
+    selectedTodo &&
+    selectedTodo.title &&
+    !selectedNodeId?.startsWith('done-group:') &&
+    (!mindmapEnabled || selectedTodo.map_id === rootId)
+      ? selectedTodo.title.slice(0, 14)
+      : ''
 
   const viewTabs = mindmapEnabled
     ? ([['mindmap', '脑图'], ['tree', '大纲'], ['list', '按时间']] as const)
@@ -183,7 +205,13 @@ export default function TodosPage(): JSX.Element {
             if (e.nativeEvent.isComposing) return
             if (e.key === 'Enter') void addQuick()
           }}
-          placeholder="＋ 添加任务，回车创建（支持「明天 交方案 @张三」）"
+          placeholder={
+            tab === 'mindmap' && mindmapEnabled
+              ? selTitle
+                ? `＋ 添加到「${selTitle}」下，回车创建（@人 / 明天 可识别）`
+                : '＋ 添加为图的一级分支，回车创建（先选中节点则加在它下面）'
+              : '＋ 添加任务，回车创建（支持「明天 交方案 @张三」）'
+          }
           className="input !h-8 flex-1 min-w-0 text-sm"
         />
         <DateInput
@@ -202,7 +230,13 @@ export default function TodosPage(): JSX.Element {
           <div className="h-full min-h-0 relative">
             {rootId ? (
               <div className="absolute inset-0">
-                <MindmapCanvas rootId={rootId} mapIds={mapIds} onSelectMap={setRootId} />
+                <MindmapCanvas
+                  rootId={rootId}
+                  mapIds={mapIds}
+                  onSelectMap={setRootId}
+                  selectedId={selectedNodeId}
+                  onSelectionChange={setSelectedNodeId}
+                />
               </div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-text-3">

@@ -48,7 +48,7 @@ test.describe('Shibei shell smoke', () => {
     await expect(today.getByRole('heading', { name: '今天' })).toBeVisible()
     await nav(page, '任务')
     await expect(page.getByRole('button', { name: '大纲', exact: true })).toBeVisible()
-    await expect(page.getByPlaceholder('＋ 添加任务，回车创建（支持「明天 交方案 @张三」）')).toBeVisible()
+    await expect(page.getByPlaceholder(/回车创建/)).toBeVisible()
     await page.screenshot({ path: 'tests/screenshots/01-today.png', fullPage: true })
   })
 

@@ -26,6 +26,10 @@ export type MindmapCanvasProps = {
   mapIds?: ID[]
   /** 切图回调（由页面持有图根状态） */
   onSelectMap?: (id: ID) => void
+  /** 受控选中节点（页面要用它决定快速添加落到哪；不传则内部自管） */
+  selectedId?: ID | null
+  /** 选中变化回调（画布的选中事件同时驱动页面状态） */
+  onSelectionChange?: (id: ID | null) => void
 }
 
 /**
@@ -246,15 +250,24 @@ function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
   }
 }
 
-export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCanvasProps): JSX.Element {
+export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId: selectedIdProp, onSelectionChange }: MindmapCanvasProps): JSX.Element {
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
   const coachTimer = useRef<number | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
   const [ready, setReady] = useState(0)
-  /** 当前选中的节点（驱动底部操作栏）；编辑态用于隐藏操作栏 */
-  const [selectedId, setSelectedId] = useState<ID | null>(null)
+  /** 当前选中的节点（驱动底部操作栏）；编辑态用于隐藏操作栏。
+   * 页面传 selectedId 就走受控（快速添加要据此决定落点），否则内部自管。 */
+  const [internalSelectedId, setInternalSelectedId] = useState<ID | null>(null)
+  const selectedId = selectedIdProp !== undefined ? selectedIdProp : internalSelectedId
+  const setSelectedId = useCallback(
+    (id: ID | null) => {
+      setInternalSelectedId(id)
+      onSelectionChange?.(id)
+    },
+    [onSelectionChange],
+  )
   const [editingUi, setEditingUi] = useState(false)
   /** 选中态的 ref 镜像：ME 的 click 监听器 mount 时注册一次，闭包拿不到最新 state */
   const selectedRef = useRef<ID | null>(null)

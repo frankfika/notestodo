@@ -156,6 +156,41 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(page.locator('.mindmap-canvas .tags', { hasText: '@李四' })).toBeVisible()
   })
 
+  test('快速添加的落点跟选中走：选中 → 挂到节点下；未选中 → 图根一级分支', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    const input = page.getByPlaceholder(/回车创建/)
+
+    // 选中 a：占位文案报落点，添加后成为 a 的孩子并上画布选中
+    await topic(page, 'a').click()
+    await expect(input).toHaveAttribute('placeholder', /添加到「定稿需求」下/)
+    await input.fill('写验收用例')
+    await input.press('Enter')
+    await expect.poll(async () => {
+      const rows = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return (await db.todos.toArray()).map((t) => ({ title: t.title, parent: t.parent_id }))
+      })
+      return rows.some((r) => r.title === '写验收用例' && r.parent === 'a')
+    }).toBe(true)
+    await expect(page.locator('.me-tpc', { hasText: '写验收用例' })).toBeVisible()
+
+    // 点画布空白取消选中：占位文案切回「图的一级分支」
+    const box = (await page.locator('.mindmap-canvas .map-container').boundingBox())!
+    await page.mouse.click(box.x + 30, box.y + box.height - 30)
+    await expect(input).toHaveAttribute('placeholder', /图的一级分支/)
+    await input.fill('整理会议纪要')
+    await input.press('Enter')
+    await expect.poll(async () => {
+      const rows = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return (await db.todos.toArray()).map((t) => ({ title: t.title, parent: t.parent_id }))
+      })
+      return rows.some((r) => r.title === '整理会议纪要' && r.parent === 'proj')
+    }).toBe(true)
+  })
+
   test('空图：中央引导按钮一键加第一条任务', async ({ page }) => {
     await seed(page, { empty: true })
     await openMindmap(page)
