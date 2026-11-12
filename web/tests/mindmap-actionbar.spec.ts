@@ -71,6 +71,8 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await page.keyboard.type('第一步')
     await page.keyboard.press('Enter')
     await expect(topic(page, 'a')).toBeVisible()
+    // 新节点占位「新节点」必须被整段替换，不能拼接成「新节点第一步」
+    await expect(page.locator('.me-tpc', { hasText: '新节点第一步' })).toHaveCount(0)
 
     // ② a 有了孩子 → 变成结构节点，「完成」按钮禁用
     await topic(page, 'a').click()

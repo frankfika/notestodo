@@ -178,9 +178,10 @@ function organicSubBranch(
  * 如果是，就别再 `refresh` 重画一遍 —— 重画会重建整棵 DOM，
  * ME 自己的动画、选中态全被抹掉，手感一下就变「不丝滑」了。
  *
- * 标题要做归一化：ME 新建节点的占位是 `New Node`（ME 的构造函数里
- * `newTopicName: ''` 是 falsy，会退回默认文案），而我们这边空标题渲染成
+ * 标题要做归一化：ME 新建节点的占位文案历史上是 `New Node`（不传
+ * newTopicName 时 ME 退回英文默认），而我们这边空标题渲染成
  * `未命名` —— 不归一化的话两者永远对不上，每次新建节点都会重画一次。
+ * 现在 newTopicName 显式传了「新节点」，「New Node」归一化只作兼容存量。
  *
  * 签名必须带上 tags：之前只比 id + 标题 + 结构，
  * 改关联人（@chip 渲染在 tags 里）这类不动标题的变更被判定为「一致」，
@@ -320,7 +321,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
         // 语义与我们的数据模型对不上，发现入口由底部操作栏承担
         contextMenu: false,
         allowUndo: false,
-        newTopicName: '',
+        newTopicName: '新节点',
         // F-09 · 用有机树枝替换 ME 默认的「折线 + 直线段」
         // （必须挂在 theme 上：ME 的 setTheme 会用 theme.generateMainBranch
         //   覆盖构造函数的同名选项）
