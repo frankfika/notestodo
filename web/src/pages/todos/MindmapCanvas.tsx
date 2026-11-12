@@ -667,7 +667,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       const mei = meiRef.current
       if (!mei) return
       const el = e.target as HTMLElement | null
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      // BUTTON 也要放行：工具栏按钮上的 Enter/Space 只该激活按钮，
+      // 否则焦点在「切换项目图 / 全屏」上按回车会顺手往画布里插节点
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON' || el.isContentEditable)) return
       if (isMindmapEditing()) return
 
       const isMod = e.metaKey || e.ctrlKey

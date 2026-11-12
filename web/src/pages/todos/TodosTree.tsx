@@ -73,7 +73,7 @@ function buildTree(all: Todo[]): Node[] {
 /** 落点模式：上 30% 插到前面 / 下 30% 插到后面（同级排序）；中间 40% 挂为子任务 */
 type DropMode = 'before' | 'after' | 'into'
 
-function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly, selected, onSelect }: {
+function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly, selectedId, onSelect }: {
   node: Node
   depth: number
   /** 同级节点（含自己），用于排序落点计算 */
@@ -92,13 +92,14 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
   setActiveId: (id: string) => void
   /** 脑图开启时大纲只读（R3 单一编辑真相源） */
   readOnly?: boolean
-  /** 行选中（脑图模式下点击行选中，快速添加据此落点） */
-  selected?: boolean
+  /** 行选中（脑图模式下点击行选中，快速添加据此落点）；子行按自己的 id 比较 */
+  selectedId?: string | null
   onSelect?: (id: string) => void
 }): JSX.Element {
   const [drop, setDrop] = useState<DropMode | null>(null)
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t = node.todo
+  const selected = selectedId === t.id
   const focused = useUI((s) => s.todoFocusId === t.id)
   const hasKids = node.children.length > 0
   const subTotal = node.total - 1
@@ -265,7 +266,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
           collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
           origins={origins} tabbable={false} setActiveId={setActiveId} readOnly={readOnly}
-          selected={selected} onSelect={onSelect} />
+          selectedId={selectedId} onSelect={onSelect} />
       ))}
     </>
   )
@@ -323,7 +324,7 @@ export default function TodosTree({ filter, tagByTodo, readOnly, selectedId, onS
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
           origins={origins} tabbable={tabbableId === n.todo.id}
           setActiveId={setActiveId} readOnly={readOnly}
-          selected={selectedId === n.todo.id} onSelect={onSelectRow} />
+          selectedId={selectedId} onSelect={onSelectRow} />
       ))}
       {tree.length === 0 && (
         <div className="text-sm text-text-3 py-8 text-center">

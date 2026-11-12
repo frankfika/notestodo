@@ -199,6 +199,9 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     // 切到大纲，点选「定稿需求」一行
     await page.getByRole('button', { name: '大纲', exact: true }).click()
     await page.locator('[data-todo="a"]').click()
+    // 选中行必须高亮：子行按自己的 id 比较，不能沿用父行的选中态
+    await expect(page.locator('[data-todo="a"]')).toHaveClass(/bg-accent/)
+    await expect(page.locator('[data-todo="proj"]')).not.toHaveClass(/bg-accent/)
 
     const input = page.getByPlaceholder(/回车创建/)
     await expect(input).toHaveAttribute('placeholder', /添加到「定稿需求」下/)
@@ -211,6 +214,31 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
       })
       return rows.some((r) => r.title === '大纲添加的子任务' && r.parent === 'a')
     }).toBe(true)
+  })
+
+  test('画布快捷键不劫持工具栏按钮：焦点在按钮上按 Enter 不新增节点', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    // 先选中叶子 a，让画布有编辑目标
+    await topic(page, 'a').click()
+    // 任务页挂载会自动建 Inbox 根 —— 以按键前的条数为基准
+    const countBefore = await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts')
+      return (await db.todos.count())
+    })
+    // 焦点移到工具栏按钮（不在画布内），回车只该激活按钮
+    await page.getByRole('button', { name: '切换项目图' }).focus()
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Escape')
+
+    await expect.poll(async () => {
+      const count = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return db.todos.count()
+      })
+      return count
+    }).toBe(countBefore)
   })
 
   test('脑图全屏：⛶ 进入沉浸模式，Esc 退出', async ({ page }) => {
