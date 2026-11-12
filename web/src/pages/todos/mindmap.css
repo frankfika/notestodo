@@ -73,6 +73,33 @@
   background: color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
+/* ── 拖拽手感（F-14）────────────────────────────────────
+ * 节点可拖：hover 给 grab 光标、按住变 grabbing，没这个光标
+ * 用户根本不知道节点能拖（ME 默认是 pointer）。 */
+.mindmap-canvas .map-container .me-tpc {
+  cursor: grab;
+}
+.mindmap-canvas .map-container .me-tpc:active {
+  cursor: grabbing;
+}
+/* 根节点不能拖（ME 内部也禁止），别误导 */
+.mindmap-canvas .map-container .me-root .me-tpc {
+  cursor: default;
+}
+/* 拖拽幽灵：ME 默认底色取 --main-bgcolor，我们的极简主题里它是
+ * 透明的 → 拖起来像「没抓着东西」。补给实底 + 浮起阴影。 */
+.mindmap-canvas .map-container .mind-elixir-ghost {
+  background: var(--bg-raise, #fff) !important;
+  box-shadow: var(--shadow-2, 0 8px 24px -6px rgba(15, 15, 15, 0.14));
+  opacity: 0.94;
+}
+/* 落点预览换 accent 色：整节点高亮 = 成为子节点，上下细条 = 排序 */
+.mindmap-canvas .map-container .me-parent .me-tpc .insert-preview .show {
+  background: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  opacity: 1 !important;
+  border-radius: 6px;
+}
+
 /* 选中态：底色高亮而不是矩形描边（描边在圆角节点上会出角） */
 .mindmap-canvas .map-container .selected {
   outline: none !important;

@@ -377,10 +377,37 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap }: MindmapCa
        * 捕获阶段快照「按下之前选的是谁」，click 时和快照比。
        */
       let selAtDown: string | null = null
+      /** 首次拖动教学：记录按下点，拖出阈值后教一次落点语义 */
+      let downPos: { x: number; y: number; onTopic: boolean } | null = null
+      let dragHintArmed =
+        typeof localStorage !== 'undefined' &&
+        !localStorage.getItem('mindmap_drag_hint_v1')
       container?.addEventListener(
         'pointerdown',
-        () => {
+        (e: Event) => {
           selAtDown = selectedRef.current
+          const ev = e as PointerEvent
+          const tpc = (ev.target as HTMLElement | null)?.closest?.('.me-tpc')
+          downPos = { x: ev.clientX, y: ev.clientY, onTopic: Boolean(tpc) }
+        },
+        { capture: true },
+      )
+      container?.addEventListener(
+        'pointermove',
+        (e: Event) => {
+          if (!downPos?.onTopic || !dragHintArmed) return
+          const ev = e as PointerEvent
+          if (Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y) < 10) return
+          dragHintArmed = false
+          localStorage.setItem('mindmap_drag_hint_v1', '1')
+          say('拖到节点上 = 变成它的子节点；拖到上 / 下边缘 = 排到它前面 / 后面')
+        },
+        { capture: true, passive: true },
+      )
+      container?.addEventListener(
+        'pointerup',
+        () => {
+          downPos = null
         },
         { capture: true },
       )
