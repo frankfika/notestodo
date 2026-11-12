@@ -12,11 +12,15 @@ import { NoteAiPanel } from '../../components/editor/NoteAiPanel'
 import TagPicker from '../../components/TagPicker'
 import { useToast } from '../../state/toast'
 import { applyTodoStatus } from '../../lib/todoStatus'
+import { getFeatures } from '../../lib/features'
+import { buildTask, type TaskPlacement } from '../../lib/mindmap/createTask'
+import { ensureInboxMap } from '../../lib/mindmap/mapRoots'
 
 /**
  * 单条笔记：Notion 风格块编辑器（TipTap）+ 顶部工具栏 + 关联任务。
  * 顶部「插入待办」—— 创建 Todo{ source:'note', origin_note_id:this.id }，
- * 标题取编辑器内选中的文本。
+ * 标题取编辑器内选中的文本；脑图模式下任务进 Inbox 图（不再单开一张图根），
+ * 「关联任务」列表按 origin_note_id 反查，与挂哪棵树无关。
  */
 export default function NoteDetailPage(): JSX.Element {
   const noteId = useUI((s) => s.noteId)
@@ -174,6 +178,19 @@ export default function NoteDetailPage(): JSX.Element {
       : { title, updated_at: now() })
   }
 
+  /**
+   * 笔记创建的任务落点：脑图模式下进 Inbox 图（任务页的捕获区）——
+   * 不再每建一条就冒一张新图根，把图库搅成「一笔记一张图」；
+   * 来源关联走 origin_note_id，与挂哪棵树无关。经典模式仍是无父根任务。
+   */
+  async function noteTaskPlacement(): Promise<{ placement: TaskPlacement; inboxId: ID | null }> {
+    if ((await getFeatures()).mindmap_tasks) {
+      const inbox = await ensureInboxMap()
+      return { placement: { parentId: inbox.id, mapId: inbox.id }, inboxId: inbox.id }
+    }
+    return { placement: { root: true }, inboxId: null }
+  }
+
   /** 扫描正文 `- [ ]` 行批量建任务；按标题去重保证幂等 */
   async function importChecklistTodos(): Promise<void> {
     if (!note) return
@@ -186,15 +203,14 @@ export default function NoteDetailPage(): JSX.Element {
       if (title && !existing.has(title) && !titles.includes(title)) titles.push(title)
     }
     if (titles.length === 0) return
-    const ts = now()
+    const { placement, inboxId } = await noteTaskPlacement()
+    let order = Date.now()
     for (const title of titles) {
-      await db.todos.add({
-        id: crypto.randomUUID(), kind: 'task', scope: null, parent_id: null, title,
-        status: 'open', source: 'note', origin_note_id: note.id,
-        sort_order: Date.now(), created_at: ts, updated_at: ts,
-        deleted_at: null, sync_version: 0,
-      })
+      const todo: Todo = buildTask({ title, placement, source: 'note', sortOrder: order++ })
+      todo.origin_note_id = note.id
+      await db.todos.add(todo)
     }
+    show(inboxId ? `已导入 ${titles.length} 条任务到 Inbox（任务页可见）` : `已导入 ${titles.length} 条任务`)
   }
 
   async function insertTodo(): Promise<void> {
@@ -206,24 +222,11 @@ export default function NoteDetailPage(): JSX.Element {
       ? ed.state.doc.textBetween(sel.from, sel.to, '\n').trim()
       : ''
     const title = text || '从笔记创建的任务'
-    const todo: Todo = {
-      id: crypto.randomUUID(),
-      kind: 'task',
-      scope: null,
-      parent_id: null,
-      title,
-      notes_md: undefined,
-      status: 'open',
-      source: 'note',
-      meeting_id: undefined,
-      origin_note_id: note.id,
-      sort_order: Date.now(),
-      created_at: now(),
-      updated_at: now(),
-      deleted_at: null,
-      sync_version: 0,
-    }
+    const { placement, inboxId } = await noteTaskPlacement()
+    const todo: Todo = buildTask({ title, placement, source: 'note', sortOrder: Date.now() })
+    todo.origin_note_id = note.id
     await db.todos.add(todo)
+    show(inboxId ? `已创建任务「${title.slice(0, 14)}」，放入 Inbox` : `已创建任务「${title.slice(0, 14)}」`)
   }
 
   /** 软删 + 可撤销：子页提升到被删页的父级；关联任务/评论保留，笔记可从备份恢复 */

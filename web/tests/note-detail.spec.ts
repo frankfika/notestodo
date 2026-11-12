@@ -100,11 +100,13 @@ test('笔记详情：编辑 + 插入待办 + 关联任务列表（笔记 ↔ 待
   // todo 元素 — 标题是 '从笔记创建的任务'（无「这条」）
   await expect(page.locator('li:has-text("从笔记创建的任务")').first()).toBeVisible()
 
-  // 6) DB 中 todo.origin_note_id 正确链接，note.todo_ids 含这条 id
+  // 6) DB 中 todo.origin_note_id 正确链接；脑图模式下任务应落进 Inbox 图（不再单开图根）
   const link = await page.evaluate(async (id) => new Promise<{
     todoCount: number
     todoOriginId: string | undefined
-    noteTodoIds: string[]
+    todoParentId: string | null | undefined
+    todoMapId: string | undefined
+    inboxRoot: { id: string; parent: string | null } | null
   }>((res, rej) => {
     const req = indexedDB.open('shibei')
     req.onerror = () => rej(new Error('idxb'))
@@ -115,11 +117,21 @@ test('笔记详情：编辑 + 插入待办 + 关联任务列表（笔记 ↔ 待
       const t = tx.objectStore('todos').getAll()
       n.onsuccess = () =>
         t.onsuccess = () => {
-          const todos = t.result as Array<{ origin_note_id?: string }>
+          const todos = t.result as Array<{
+            id: string
+            title: string
+            parent_id: string | null
+            map_id?: string
+            origin_note_id?: string
+          }>
           const linked = todos.filter((x) => x.origin_note_id === id)
+          const inbox = todos.find((x) => x.title === 'Inbox' && x.parent_id === null) ?? null
           res({
             todoCount: linked.length,
             todoOriginId: linked[0]?.origin_note_id,
+            todoParentId: linked[0]?.parent_id,
+            todoMapId: linked[0]?.map_id,
+            inboxRoot: inbox ? { id: inbox.id, parent: inbox.parent_id } : null,
           })
         }
       setTimeout(() => rej(new Error('readback-timeout')), 5_000)
@@ -129,6 +141,10 @@ test('笔记详情：编辑 + 插入待办 + 关联任务列表（笔记 ↔ 待
   // 关联以 todos.origin_note_id 为准（Note.todo_ids 冗余字段已停写）
   expect(link.todoCount).toBe(1)
   expect(link.todoOriginId).toBe(noteId)
+  // 落点：Inbox 图根被自动创建，任务挂在它下面（map_id 跟随 Inbox）
+  expect(link.inboxRoot).not.toBeNull()
+  expect(link.todoParentId).toBe(link.inboxRoot!.id)
+  expect(link.todoMapId).toBe(link.inboxRoot!.id)
 
   // 7) 切到「待办」页 → 该任务带 ✎ 来源标记（需求 #4 闭环）
   await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
