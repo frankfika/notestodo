@@ -79,12 +79,13 @@ fn system_audio_stop(app: tauri::AppHandle) -> serde_json::Value {
 // 重启生效（macOS TCC 不会即时刷新已运行进程）。
 
 /// 触发 macOS 屏录授权弹窗（首次调用会把本 App 自动加进「屏幕录制」列表）。
+/// macOS 15+ 由 ScreenCaptureKit 首次访问触发弹窗，CGRequest 只对老系统有效。
 /// 返回调用当下的授权状态；用户在弹窗里点允许后需重启才会翻 true。
 #[tauri::command]
 fn system_audio_request_permission() -> bool {
   #[cfg(target_os = "macos")]
   {
-    system_audio::tcc_request()
+    system_audio::prompt_permission()
   }
   #[cfg(not(target_os = "macos"))]
   {

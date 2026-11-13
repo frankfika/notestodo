@@ -81,10 +81,32 @@ pub(crate) fn tcc_granted() -> bool {
     unsafe { CGPreflightScreenCaptureAccess() }
 }
 
-/// 主动询问一次（首次启动触发 TCC 弹窗；用户拒/批都立即返回）。
+/// 主动询问一次（CGRequestScreenCaptureAccess 只对老系统有效；重复调用静默 no-op）。
 #[cfg(target_os = "macos")]
 pub(crate) fn tcc_request() -> bool {
     unsafe { CGRequestScreenCaptureAccess() }
+}
+
+/// 「一键授权」入口：触发系统屏录授权弹窗。
+///
+/// macOS 15+ 的系统弹窗由 ScreenCaptureKit 的首次访问触发；
+/// CGRequestScreenCaptureAccess 对已拒绝过的应用不再重复弹窗。
+/// 返回调用后的授权状态 —— 用户刚点「允许」时通常仍为 false，需重启进程才生效。
+#[cfg(target_os = "macos")]
+pub(crate) fn prompt_permission() -> bool {
+    if tcc_granted() {
+        return true;
+    }
+    let _ = tcc_request();
+    if tcc_granted() {
+        return true;
+    }
+    // 未授权时 get() 返回 userDeclined —— 价值在于让系统弹窗 / 把本 App 加进列表
+    {
+        use screencapturekit_sys::shareable_content::UnsafeSCShareableContent;
+        let _ = UnsafeSCShareableContent::get();
+    }
+    tcc_granted()
 }
 
 // ── 命令实现（跨平台入口）─────────────────────────────────────────────

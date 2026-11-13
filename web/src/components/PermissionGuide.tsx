@@ -82,6 +82,10 @@ export default function PermissionGuide(): JSX.Element | null {
     setTouched(true)
     const ok = await requestScreenPermission()
     if (ok) setGranted(true)
+    else
+      setErr(
+        '已请求授权。若没看到系统弹窗（macOS 15+ 对已拒绝过的应用不再重复弹），点「打开系统设置」把 openNotion 开关拨开，再点「重启 openNotion」。',
+      )
   }
   async function openSettings(): Promise<void> {
     setErr(null)
