@@ -20,15 +20,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.12.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+
+      # pnpm/action-setup 的 standalone 自安装器从独立 CDN 取二进制，
+      # 连续两次在 GitHub runner 上以 "self-installer exits with code 1" 挂掉。
+      # 改用 npm 从 registry 装（走 npm 自己的下载通道，稳定得多）。
+      - name: 安装 pnpm
+        run: npm install -g pnpm@11.12.0
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
