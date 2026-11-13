@@ -313,6 +313,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   const editingNodeIdRef = useRef<string | null>(null)
   /** 编辑结束时发现是「未命名的占位新节点」→ 标记取消，等创建补丁写回后软删 */
   const cancelNewNodeRef = useRef<string | null>(null)
+  /** 画布节点装饰（折叠计数 / 悬停＋）—— init effect 里创建，刷新时也要重跑 */
+  const decorateRef = useRef<(() => void) | null>(null)
 
   /** R1 · 规则提示：非模态浮层，3.2s 后自动消失 */
   const say = useCallback((msg: string): void => {
@@ -401,6 +403,83 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       }
 
       /**
+       * 画布节点装饰（纯 DOM，不碰数据）：
+       *   ① 折起的节点右上角显示直接子节点数 —— 收起后也知道下面压了多少条；
+       *   ② hover 节点浮出「＋」：点一下直接加子节点，不用先选中再跑底部操作栏。
+       * ME 每次重绘都会重建节点 DOM，所以靠 MutationObserver 反复补挂。
+       */
+      const decorate = (): void => {
+        const all = todosRef.current
+        const root = mei.container
+        if (!root) return
+        for (const tpc of Array.from(
+          root.querySelectorAll<HTMLElement>('.me-tpc[data-nodeid]'),
+        )) {
+          const raw = tpc.dataset.nodeid ?? ''
+          if (!raw.startsWith('me')) continue
+          const id = raw.slice(2)
+          if (id.startsWith('done-group:')) continue
+          // .me-epd 与 .me-tpc 是相邻兄弟；有 minus = 展开中
+          const epd = tpc.nextElementSibling as HTMLElement | null
+          const collapsed = !!epd?.classList?.contains('me-epd') && !epd.classList.contains('minus')
+          const kids = all.filter((t) => t.parent_id === id && !t.deleted_at).length
+
+          let badge = tpc.querySelector<HTMLElement>('.mm-count')
+          if (!badge) {
+            badge = document.createElement('span')
+            badge.className = 'mm-count'
+            badge.setAttribute('aria-hidden', 'true')
+            tpc.appendChild(badge)
+          }
+          const showBadge = collapsed && kids > 0
+          if (badge.textContent !== String(kids)) badge.textContent = String(kids)
+          badge.style.display = showBadge ? 'inline-block' : 'none'
+
+          let plus = tpc.querySelector<HTMLButtonElement>('.mm-node-add')
+          if (!plus) {
+            plus = document.createElement('button')
+            plus.type = 'button'
+            plus.className = 'mm-node-add'
+            plus.textContent = '＋'
+            plus.setAttribute('aria-label', '添加子节点')
+            tpc.appendChild(plus)
+          }
+          plus.dataset.addfor = id
+        }
+      }
+      decorateRef.current = decorate
+      decorate()
+      /** 装饰是纯 DOM 操作，按帧合并，别在 ME 频繁重绘时反复跑 */
+      let decorateScheduled = false
+      const scheduleDecorate = (): void => {
+        if (decorateScheduled) return
+        decorateScheduled = true
+        requestAnimationFrame(() => {
+          decorateScheduled = false
+          decorate()
+        })
+      }
+
+      /** 悬停「＋」加子节点：捕获阶段拦下，别让 ME 把它当成节点点击去进编辑 */
+      container?.addEventListener(
+        'pointerdown',
+        (e: Event) => {
+          const btn = (e.target as HTMLElement | null)?.closest?.(
+            '.mm-node-add',
+          ) as HTMLElement | null
+          if (!btn) return
+          e.preventDefault()
+          e.stopPropagation()
+          const id = btn.dataset.addfor
+          const el = id ? findEleSafe(mei, id) : null
+          if (!el) return
+          mei.selectNode?.(el)
+          void mei.addChild?.()
+        },
+        true,
+      )
+
+      /**
        * 双击节点 → 直接进编辑。
        *
        * ME v6 的 map 视图没有 dblclick 处理，它靠「再点一次已选中的节点」
@@ -470,6 +549,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       container?.addEventListener('click', (e: Event) => {
         if (document.querySelector('#input-box')) return
         const target = e.target as HTMLElement | null
+        // 悬停「＋」有自己的点击语义，别让它顺手把节点推进编辑态
+        if (target?.closest?.('.mm-node-add')) return
         const tpc = target?.closest?.(
           '.me-tpc',
         ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
@@ -528,6 +609,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
        * 幂等地再清一次。
        */
       editObserver = new MutationObserver(() => {
+        // ME 重绘 / 展开收起都会改 DOM —— 先补挂折叠计数与悬停「＋」
+        scheduleDecorate()
         if (document.querySelector('#input-box')) return
         if (isMindmapEditing()) {
           setMindmapEditing(false)
@@ -557,6 +640,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       editObserver.observe(mei.container ?? elRef.current!, {
         childList: true,
         subtree: true,
+        // 展开 / 收起只改 .me-epd 的 class，不会触发 childList
+        attributes: true,
+        attributeFilter: ['class'],
       })
 
       // 选中态 → 底部操作栏：鼠标党不用背快捷键也能增删节点
@@ -628,6 +714,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       void mei.init(data)
       fitToView()
     }
+    // 重绘后节点 DOM 是新的，重新补挂折叠计数 / 悬停「＋」
+    decorateRef.current?.()
   }, [todos, rootId, ready, origins, fitToView])
 
   /** #46 收尾：占位新节点被取消后，等创建补丁真正写回 todos 快照再软删（写入是异步的） */
@@ -953,7 +1041,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
         </div>
       )}
 
-      {/* 选中节点的操作栏：增删节点不用背快捷键（按钮上也标了键位，顺手教学） */}
+      {/* 选中节点的操作栏：增删节点不用背快捷键（主按钮带键位，次级操作收成图标钮） */}
       {showActionBar && selectedTodo && (
         <div className="mindmap-actionbar" role="toolbar" aria-label="节点操作">
           <button type="button" onClick={() => void meiRef.current?.addChild?.()}>
@@ -966,20 +1054,28 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           >
             ＋ 同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
           </button>
+          <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button
             type="button"
+            className="mindmap-actionbar-icon"
+            aria-label="上移"
+            title={`上移（${keyLabel('⌥')}↑）`}
             disabled={selectedTodo.id === rootId}
             onClick={() => moveSibling(selectedTodo, -1)}
           >
-            ↑ 上移 <kbd className="mindmap-kbd">{keyLabel('⌥')}↑</kbd>
+            ↑
           </button>
           <button
             type="button"
+            className="mindmap-actionbar-icon"
+            aria-label="下移"
+            title={`下移（${keyLabel('⌥')}↓）`}
             disabled={selectedTodo.id === rootId}
             onClick={() => moveSibling(selectedTodo, 1)}
           >
-            ↓ 下移 <kbd className="mindmap-kbd">{keyLabel('⌥')}↓</kbd>
+            ↓
           </button>
+          <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button type="button" onClick={() => void meiRef.current?.beginEdit?.()}>
             ✎ 改名 <kbd className="mindmap-kbd">F2</kbd>
           </button>
@@ -998,20 +1094,26 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             {selectedTodo.status === 'done' ? '取消完成' : '✓ 完成'}{' '}
             <kbd className="mindmap-kbd">Space</kbd>
           </button>
+          <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button
             type="button"
+            className="mindmap-actionbar-icon"
+            aria-label="入 Today"
+            title={`加入 Today（${mod()}T）`}
             disabled={!todayEligible(selectedTodo, byParentAll)}
             onClick={() => void addToday(selectedTodo)}
           >
-            ☼ 入 Today <kbd className="mindmap-kbd">{mod()}T</kbd>
+            ☼
           </button>
           {originJump && (
             <button
               type="button"
-              title="跳到这条任务的来源（笔记 / 会议）"
+              className="mindmap-actionbar-icon"
+              aria-label={`来源：${originJump.label}`}
+              title={`跳到来源（${originJump.label}）`}
               onClick={originJump.run}
             >
-              ↗ 来源：{originJump.label}
+              ↗
             </button>
           )}
           <button

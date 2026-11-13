@@ -325,6 +325,10 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
 
     const hint = page.locator('.mindmap-empty')
     await expect(hint).toBeVisible()
+    // 引导不能压在根节点上（之前居中 → 正好盖住图根）
+    const hintBox = (await hint.boundingBox())!
+    const rootBox = (await page.locator('.mindmap-canvas .me-tpc').first().boundingBox())!
+    expect(hintBox.y).toBeGreaterThanOrEqual(rootBox.y + rootBox.height)
     await hint.getByRole('button', { name: '＋ 添加第一条任务' }).click()
 
     // 直接进入新节点编辑态，打字即写标题
@@ -334,5 +338,44 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(page.locator('.me-tpc', { hasText: '第一件事' })).toBeVisible()
     // 有内容后引导消失
     await expect(hint).toHaveCount(0)
+  })
+
+  test('收起的节点显示子节点数；hover 浮出「＋」一键加子节点', async ({ page }) => {
+    await seed(page)
+    // 给 a 挂两个子节点
+    await page.evaluate(async () => {
+      const { db } = await import('/src/db/db.ts')
+      const ts = new Date().toISOString()
+      const base = {
+        kind: 'task' as const,
+        scope: null,
+        status: 'open' as const,
+        source: 'manual' as const,
+        map_id: 'proj',
+        created_at: ts,
+        updated_at: ts,
+        deleted_at: null,
+        sync_version: 0,
+        parent_id: 'a',
+      }
+      await db.todos.bulkPut([
+        { ...base, id: 'a1', title: '子一', sort_order: 1 } as never,
+        { ...base, id: 'a2', title: '子二', sort_order: 2 } as never,
+      ])
+    })
+    await openMindmap(page)
+
+    const tpc = page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]')
+    // 收起 a → 角标显示直接子节点数
+    await page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"] + .me-epd').click()
+    await expect(tpc.locator('.mm-count')).toHaveText('2')
+    await expect(tpc.locator('.mm-count')).toBeVisible()
+
+    // hover 浮出「＋」→ 点一下直接建子节点并进改名，不用先选中再找操作栏
+    await tpc.hover()
+    const plus = tpc.locator('.mm-node-add')
+    await expect(plus).toBeVisible()
+    await plus.click()
+    await expect(page.locator('#input-box')).toBeVisible()
   })
 })

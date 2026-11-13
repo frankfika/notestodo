@@ -111,6 +111,65 @@
 .mindmap-canvas .map-container .me-root .me-tpc {
   cursor: default;
 }
+
+/* ── 节点装饰（纯 DOM，不改数据）────────────────────────────
+ * ① .mm-count：节点收起时右上角显示直接子节点数 —— 收起后也知道下面压了几条；
+ * ② .mm-node-add：hover 节点浮出「＋」，点一下直接加子节点，
+ *    不用先选中再跑去底部操作栏。 */
+.mindmap-canvas .map-container .me-tpc {
+  position: relative;
+}
+
+.mindmap-canvas .map-container .me-tpc .mm-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--text-2, #6e6e73);
+  color: var(--bg-raise, #fff);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mindmap-canvas .map-container .me-tpc > .mm-node-add {
+  position: absolute;
+  bottom: -9px;
+  right: -9px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line, #e5e5ea);
+  background: var(--bg-raise, #fff);
+  color: var(--text-2, #6e6e73);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  /* ME 把 .me-tpc 的子元素全设成 pointer-events:none，这里要能点 */
+  pointer-events: auto;
+  box-shadow: var(--shadow-1, 0 1px 2px rgba(15, 15, 15, 0.05));
+}
+
+.mindmap-canvas .map-container .me-parent:hover > .me-tpc > .mm-node-add,
+.mindmap-canvas .map-container .me-tpc > .mm-node-add:focus-visible {
+  display: inline-flex;
+}
+
+.mindmap-canvas .map-container .me-tpc > .mm-node-add:hover {
+  color: var(--accent, #2f6bff);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
 /* 拖拽幽灵：ME 默认底色取 --main-bgcolor，我们的极简主题里它是
  * 透明的 → 拖起来像「没抓着东西」。补给实底 + 浮起阴影。 */
 .mindmap-canvas .map-container .mind-elixir-ghost {
@@ -388,8 +447,10 @@
   justify-content: center;
   align-items: center;
   gap: 2px;
-  /* 窄屏兜底：按钮变多后换行，并限制宽度防止 translateX(-50%) 把两端切出屏 */
-  max-width: calc(100vw - 24px);
+  /* left:50% + 绝对定位时可用宽度只剩容器一半，shrink-to-fit 会把按钮挤成两行；
+   * 显式 max-content 让它按内容宽度排一行，窄屏再由 max-width 兜底换行。 */
+  width: max-content;
+  max-width: calc(100% - 24px);
   padding: 4px;
   border-radius: 12px;
   background: var(--bg-raise, #fff);
@@ -423,6 +484,22 @@
   color: var(--danger, #d64541);
 }
 
+/* 次级操作收成图标钮：一排带键位提示的按钮会把操作栏撑成两三层，显得凌乱 */
+.mindmap-actionbar button.mindmap-actionbar-icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.mindmap-actionbar-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line, #e5e5ea);
+}
+
 /* 窄屏换行后的操作栏会盖住右下角的「适应画布 / 快捷键」，抬高一档 */
 @media (max-width: 480px) {
   .mindmap-actionbar {
@@ -433,12 +510,14 @@
 /* ── 空图引导 ──────────────────────────────────────────────── */
 .mindmap-empty {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  /* 根节点画在画布正中；引导落在它下方，不能盖住节点本身 */
+  top: calc(50% + 56px);
   z-index: 15;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
   pointer-events: none; /* 画布仍可交互，只有按钮可点 */
 }
