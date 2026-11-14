@@ -69,8 +69,8 @@ test('断网后应用仍可用（SW 离线壳 + 本地数据）', async ({ page,
 
   expect(await page.evaluate(() => navigator.onLine)).toBe(false)
 
-  // 应用渲染了（默认落地页是 AI 工作台）
-  await expect(page.getByText('AI 工作台').first()).toBeVisible({ timeout: 10_000 })
+  // 应用渲染了（断网后仍能回到今天页）
+  await expect(page.getByTestId('today-page')).toBeVisible({ timeout: 10_000 })
 
   // 本地数据在断网状态下仍可读
   const title = await page.evaluate(async (id) => {

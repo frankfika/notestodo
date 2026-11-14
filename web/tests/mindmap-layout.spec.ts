@@ -82,8 +82,9 @@ test.describe('脑图布局 · 画布优先', () => {
     await openMindmap(page)
 
     await page.getByTitle('Inbox 捕获').click()
-    await page.getByPlaceholder('捕获…').fill('随手记一条')
-    await page.getByPlaceholder('捕获…').press('Enter')
+    // 捕获框占位文案现在是「记一条想法或待办…」
+    await page.getByPlaceholder('记一条想法或待办…').fill('随手记一条')
+    await page.getByPlaceholder('记一条想法或待办…').press('Enter')
     await page.waitForTimeout(800)
 
     const captured = await page.evaluate(async () => {
@@ -106,7 +107,8 @@ test.describe('脑图布局 · 画布优先', () => {
     // 点入口 → 到「今天」页，槽位在那儿
     await page.getByTitle('今天要做的事（⌘T 入槽）').click()
     await expect(page.locator('[data-testid="today-page"]')).toBeVisible()
-    await expect(page.getByText('今日清单')).toBeVisible()
+    // 「今日清单」在今天页多处出现（标题、按钮、说明），用精确匹配锁标题那一处
+    await expect(page.locator('.section-title', { hasText: /^今日清单$/ })).toBeVisible()
     await expect(page.getByRole('button', { name: '定稿需求' })).toBeVisible()
   })
 })

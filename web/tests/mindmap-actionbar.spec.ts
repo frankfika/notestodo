@@ -65,7 +65,7 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(bar.getByRole('button', { name: /上移/ })).toBeVisible()
     await expect(bar.getByRole('button', { name: /下移/ })).toBeVisible()
     await expect(bar.getByRole('button', { name: /删除/ })).toBeEnabled()
-    await expect(page.getByRole('button', { name: '适应画布' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '适应' })).toBeVisible()
 
     // ① 点「＋ 子节点」→ 进入新节点编辑态（操作栏让位）
     await bar.getByRole('button', { name: /子节点/ }).click()
@@ -187,7 +187,7 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
 
     // 选中 a：占位文案报落点，添加后成为 a 的孩子并上画布选中
     await topic(page, 'a').click()
-    await expect(input).toHaveAttribute('placeholder', /添加到「定稿需求」下/)
+    await expect(input).toHaveAttribute('placeholder', /加到「定稿需求」下/)
     await input.fill('写验收用例')
     await input.press('Enter')
     await expect.poll(async () => {
@@ -199,10 +199,10 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     }).toBe(true)
     await expect(page.locator('.me-tpc', { hasText: '写验收用例' })).toBeVisible()
 
-    // 点画布空白取消选中：占位文案切回「图的一级分支」
+    // 点画布空白取消选中：占位文案切回「当前图的第一层」
     const box = (await page.locator('.mindmap-canvas .map-container').boundingBox())!
     await page.mouse.click(box.x + 30, box.y + box.height - 30)
-    await expect(input).toHaveAttribute('placeholder', /图的一级分支/)
+    await expect(input).toHaveAttribute('placeholder', /的第一层/)
     await input.fill('整理会议纪要')
     await input.press('Enter')
     await expect.poll(async () => {
@@ -227,7 +227,7 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await expect(page.locator('[data-todo="proj"]')).not.toHaveClass(/bg-accent/)
 
     const input = page.getByPlaceholder(/回车创建/)
-    await expect(input).toHaveAttribute('placeholder', /添加到「定稿需求」下/)
+    await expect(input).toHaveAttribute('placeholder', /加到「定稿需求」下/)
     await input.fill('大纲添加的子任务')
     await input.press('Enter')
     await expect.poll(async () => {
@@ -298,6 +298,74 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     const bar = page.locator('.mindmap-actionbar')
     await bar.getByRole('button', { name: /周会纪要/ }).click()
     await expect(page.locator('input[placeholder="无标题"]')).toHaveValue('周会纪要')
+  })
+
+  test('脑图操作栏可直接设置 / 清空截止日期', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    await topic(page, 'a').click()
+    const bar = page.locator('.mindmap-actionbar')
+    const dateInput = bar.locator('input[type="date"]')
+    await dateInput.fill('2026-11-20')
+
+    await expect.poll(async () => {
+      const t = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return db.todos.get('a')
+      })
+      return t?.due_date ?? null
+    }).toBe('2026-11-20')
+    await expect(page.locator('.mindmap-canvas .tags', { hasText: '截止 11/20' })).toBeVisible()
+
+    await bar.getByRole('button', { name: '清空截止日期' }).click()
+    await expect.poll(async () => {
+      const t = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return db.todos.get('a')
+      })
+      return t?.due_date ?? null
+    }).toBeNull()
+  })
+
+  test('一级分支可在操作栏切到左侧 / 右侧，并持久化方向', async ({ page }) => {
+    await seed(page)
+    await openMindmap(page)
+
+    await topic(page, 'a').click()
+    const bar = page.locator('.mindmap-actionbar')
+    const root = topic(page, 'proj')
+    const child = topic(page, 'a')
+
+    await bar.getByRole('button', { name: '左侧' }).click()
+    await expect.poll(async () => {
+      const row = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return db.kv.get('mindmap.side.proj')
+      })
+      return (row?.value as Record<string, number> | undefined)?.a ?? null
+    }).toBe(0)
+    await expect.poll(async () => {
+      const rootBox = await root.boundingBox()
+      const childBox = await child.boundingBox()
+      if (!rootBox || !childBox) return null
+      return childBox.x + childBox.width / 2 < rootBox.x + rootBox.width / 2
+    }).toBe(true)
+
+    await bar.getByRole('button', { name: '右侧' }).click()
+    await expect.poll(async () => {
+      const row = await page.evaluate(async () => {
+        const { db } = await import('/src/db/db.ts')
+        return db.kv.get('mindmap.side.proj')
+      })
+      return (row?.value as Record<string, number> | undefined)?.a ?? null
+    }).toBe(1)
+    await expect.poll(async () => {
+      const rootBox = await root.boundingBox()
+      const childBox = await child.boundingBox()
+      if (!rootBox || !childBox) return null
+      return childBox.x + childBox.width / 2 > rootBox.x + rootBox.width / 2
+    }).toBe(true)
   })
 
   test('390px 窄屏：操作栏不溢出视口，按钮仍可点', async ({ page }) => {

@@ -128,3 +128,26 @@ test('先点选再拖拽（真实用户路径）→ 移动落库，且不弹出�
   expect(parent).toBe('b')
   await expect(page.locator('#input-box')).toHaveCount(0)
 })
+
+test('先点选节点，再轻微带出拖拽手势后松手 → 不误进编辑态', async ({ page }) => {
+  await seed(page)
+  await page.locator('aside').getByRole('button', { name: '任务' }).click()
+  await page.locator('.mindmap-canvas').waitFor({ state: 'visible', timeout: 15000 })
+  await topic(page, 'c').waitFor({ state: 'visible', timeout: 15000 })
+
+  await topic(page, 'c').click()
+  await expect(page.locator('.mindmap-actionbar')).toBeVisible()
+
+  const from = await topic(page, 'c').boundingBox()
+  expect(from).toBeTruthy()
+
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from!.x + from!.width / 2 + 10, from!.y + from!.height / 2 + 2, { steps: 4 })
+  await expect(page.locator('.mindmap-wrap')).toHaveClass(/is-dragging/)
+  await page.mouse.up()
+  await page.waitForTimeout(250)
+
+  await expect(page.locator('.mindmap-wrap')).not.toHaveClass(/is-dragging/)
+  await expect(page.locator('#input-box')).toHaveCount(0)
+})

@@ -17,8 +17,8 @@ async function seed(page: Page): Promise<void> {
     const ts = new Date().toISOString()
     const base = { status: 'open', source: 'manual', notes_md: '', created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0 }
     await db.todos.bulkPut([
-      { id: 'p1', kind: 'task', scope: null, parent_id: null, title: '父任务', sort_order: 10, ...base },
-      { id: 'c1', kind: 'task', scope: null, parent_id: null, title: '收件箱任务', sort_order: 20, ...base },
+      { id: 'p1', kind: 'task', scope: null, parent_id: null, title: '父任务', sort_order: 10, map_id: 'p1', ...base },
+      { id: 'c1', kind: 'task', scope: null, parent_id: null, title: '收件箱任务', sort_order: 20, map_id: 'c1', ...base },
     ])
   })
   await page.evaluate(() => (window as unknown as { __uiStore: { getState: () => { goTodos: () => void } } }).__uiStore.getState().goTodos())
@@ -32,6 +32,12 @@ const parentOf = (page: Page, id: string) =>
   page.evaluate(async (id) => {
     const { db } = await import('/src/db/db.ts')
     return (await db.todos.get(id))?.parent_id ?? null
+  }, id)
+
+const mapOf = (page: Page, id: string) =>
+  page.evaluate(async (id) => {
+    const { db } = await import('/src/db/db.ts')
+    return (await db.todos.get(id))?.map_id ?? null
   }, id)
 
 test('拖拽：把任务拖到另一个任务上 = 挂为它的子任务；非法落点（自身）不动', async ({ page }) => {
@@ -56,6 +62,7 @@ test('拖拽：把任务拖到另一个任务上 = 挂为它的子任务；非�
   }, { from, to })
   await html5Drag('c1', 'p1')
   await expect.poll(() => parentOf(page, 'c1')).toBe('p1')
+  await expect.poll(() => mapOf(page, 'c1')).toBe('p1')
 
   // 拖到自己上 = 不动
   await html5Drag('c1', 'c1')
@@ -102,4 +109,5 @@ test('⋯ 菜单「移到根级」= 取消挂载', async ({ page }) => {
   await page.locator('[data-todo="c1"] button[title="更多操作"]').click()
   await page.getByRole('button', { name: '移到根级' }).click()
   await expect.poll(() => parentOf(page, 'c1')).toBe(null)
+  await expect.poll(() => mapOf(page, 'c1')).toBe('c1')
 })

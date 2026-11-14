@@ -194,7 +194,8 @@ test.describe('F-02 脑图快捷键语义', () => {
     await topic(page, 'wait').click()
     await page.keyboard.press(`${MOD}+t`)
     await expect(page.locator('.mindmap-coach')).toBeVisible()
-    await expect(page.locator('.mindmap-coach')).toContainText('Waiting')
+    // Waiting 状态已中文化（不再用英文系统词）
+    await expect(page.locator('.mindmap-coach')).toContainText('等待')
     expect(await slotIds(page)).not.toContain('wait')
   })
 
@@ -236,7 +237,8 @@ test.describe('F-02 脑图快捷键语义', () => {
   })
 
   test('快捷键可发现：角标点开即清单，且没有巨型工具条', async ({ page }) => {
-    const hintBtn = page.getByRole('button', { name: '快捷键' })
+    // 角标按钮文案是「说明」（比「快捷键」更贴近用途），点开才是完整清单
+    const hintBtn = page.getByRole('button', { name: '说明' })
     await expect(hintBtn).toBeVisible()
     await hintBtn.click()
     const panel = page.locator('.mindmap-hint-panel')

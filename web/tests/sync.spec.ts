@@ -94,7 +94,8 @@ test('同步：推送 / 拉取 / 冲突副本', async ({ page }) => {
 
     // ── 1. 本机建任务 → 同步 → relay 收到 ─────────────────────────
     await page.evaluate(() => (window as unknown as { __uiStore?: { getState: () => { goTodos: () => void } } }).__uiStore?.getState().goTodos())
-    const quickAdd = page.getByPlaceholder(/添加任务/)
+    // 任务页顶部的快速创建框（按名称定位，避免撞上别的输入框）
+    const quickAdd = page.locator('input[name="todosQuickAdd"]')
     await quickAdd.fill('同步测试任务')
     await quickAdd.press('Enter')
     await expect(page.getByText('同步测试任务')).toBeVisible()

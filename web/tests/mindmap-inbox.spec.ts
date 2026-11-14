@@ -75,9 +75,11 @@ test.describe('inbox capture', () => {
       await db.todos.bulkPut([root, leaf])
       const data = todosToMindData(await db.todos.toArray(), 'r1')
       const child = data.nodeData.children?.[0]
-      return child?.topic
+      return { topic: child?.topic, tags: child?.tags }
     })
-    expect(topic).toContain('Waiting')
+    // Waiting 不再拼进标题（避免「… · Waiting · Waiting」），改用「等待中」标签
+    expect(topic.topic).toBe('等反馈')
+    expect(JSON.stringify(topic.tags)).toContain('等待中')
   })
 
   test('API POST/GET /inbox/captures', async ({ page }) => {

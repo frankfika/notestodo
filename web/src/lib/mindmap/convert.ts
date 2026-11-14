@@ -11,11 +11,21 @@ import type { MeOperation, MindmapNodeMeta, TodoOp } from './types'
 import { captureAndPushPatchUndo } from './undoStack'
 import { evictIfPresent } from './todaySlots'
 
-/** Waiting 节点在画布上的显示后缀（拼接 / 剥离必须同源） */
-export const WAITING_SUFFIX = ' · Waiting'
-
 /** ME 原生 tag：支持 { text, className }，逾期 / 今天到期用独立 class 上色 */
 type MenuTag = { text: string; className?: string }
+
+/**
+ * 历史遗留：Waiting 节点以前把「 · Waiting」拼进标题。
+ * 现在 Waiting 用「等待中」标签渲染，但老数据里固化过的后缀还在 ——
+ * 回写标题时剥掉，避免越改越脏（「… · Waiting · Waiting」）。
+ */
+const LEGACY_WAITING_SUFFIX = ' · Waiting'
+
+function stripWaitingSuffix(title: string): string {
+  return title.endsWith(LEGACY_WAITING_SUFFIX)
+    ? title.slice(0, -LEGACY_WAITING_SUFFIX.length)
+    : title
+}
 
 /** 截止日期的小标签：「截止 11/13」，逾期标「逾期 11/10」，今天到期单独上色。
  *  颜色口径与列表一致：逾期红 / 今天 accent / 其余灰（灰由 CSS 默认规则给）。 */
@@ -44,6 +54,7 @@ function originTag(t: Todo, origins?: OriginTitles): string | undefined {
 export type MENode = {
   id: string
   topic: string
+  direction?: 0 | 1
   children?: MENode[]
   expanded?: boolean
   style?: Record<string, string>
@@ -66,12 +77,13 @@ export function todosToMindData(
   rootId: ID,
   _opts?: { hideDone?: boolean },
   origins?: OriginTitles,
+  mainDirections?: Record<string, 0 | 1>,
 ): MEData {
   const byParent = indexByParent(all)
   const root = all.find((t) => t.id === rootId && isLive(t))
   if (!root) {
     return {
-      direction: 1,
+      direction: 2,
       nodeData: {
         id: rootId,
         topic: '（空图）',
@@ -120,25 +132,23 @@ export function todosToMindData(
       })
     }
     const waiting = Boolean(t.waiting_reason && t.status === 'open')
-    const topic = waiting
-      ? `${t.title || '未命名'}${WAITING_SUFFIX}`
-      : t.title || '未命名'
+    const topic = t.title || '未命名'
     // 节点上的事项信息：@负责人 + 截止日期（逾期标出来），
     // 与完成项的「@谁 · 完成 xx/xx」同一排灰字
     const tags: (string | MenuTag)[] = []
     if (t.assignee) tags.push(`@${t.assignee}`)
     if (t.due_date) tags.push(dueTag(t.due_date))
+    if (waiting) tags.push({ text: '等待中', className: 'tag-waiting' })
     const origin = originTag(t, origins)
     if (origin) tags.push(origin)
     return {
       id: t.id,
       topic,
+      direction: t.parent_id === rootId ? mainDirections?.[t.id] : undefined,
       expanded: true,
       tags: tags.length ? tags : undefined,
       children: children.length ? children : undefined,
-      style: waiting
-        ? { opacity: '0.82', fontStyle: 'italic', color: 'var(--warning, #c77c2a)' }
-        : undefined,
+      style: waiting ? { opacity: '0.92' } : undefined,
       metadata: {
         todoId: t.id,
         status: t.status,
@@ -152,7 +162,7 @@ export function todosToMindData(
     }
   }
 
-  return { direction: 1, nodeData: build(root) }
+  return { direction: 2, nodeData: build(root) }
 }
 
 function bump(t: Todo, patch: Partial<Todo>): Partial<Todo> {
@@ -185,11 +195,10 @@ export function mindEventToTodoPatches(
     const cur = byId.get(ev.target.id)
     if (!cur) return []
     let title = ev.target.topic
-    // Waiting 节点的画布标题是「标题 · Waiting」拼出来的显示串 ——
-    // 回写前必须剥掉后缀，否则编辑一次就把「 · Waiting」固化进数据
-    if (cur.waiting_reason && cur.status === 'open' && title.endsWith(WAITING_SUFFIX)) {
-      title = title.slice(0, -WAITING_SUFFIX.length)
-    }
+    // 老数据的标题可能还带着「 · Waiting」后缀（现在 Waiting 改用「等待中」标签渲染，
+    // 但历史记录里固化过的后缀还在）。回写时必须剥掉，
+    // 否则编辑一次就把后缀固化进数据，越改越脏。
+    title = stripWaitingSuffix(title)
     // 与快速录入同口径（parseQuickAdd）：节点里直接写
     // 「写方案 @张三 明天」→ 自动识别负责人和截止日期，标题只留事。
     // 不写则不碰：只在解析出结果时覆盖对应字段，不清空已有值。

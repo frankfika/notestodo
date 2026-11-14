@@ -204,8 +204,8 @@ test.describe('Shibei shell smoke', () => {
     await page.waitForTimeout(300)
     await page.getByRole('button', { name: '＋ 添加任务' }).click()
     await page.waitForTimeout(1000)
-    // onboarding 卡片应该自动消失（卡片头「openNotion · 新用户引导」不再渲染）
-    await expect(page.locator('text=新用户引导')).toHaveCount(0, { timeout: 3000 })
+    // onboarding 卡片应该自动消失（卡片头「开始使用」不再渲染）
+    await expect(page.locator('text=开始使用')).toHaveCount(0, { timeout: 3000 })
   })
 
   test('快捷键提示跟随平台（mac=⌘ / 其他=⌃）', async ({ page }) => {
@@ -218,7 +218,11 @@ test.describe('Shibei shell smoke', () => {
     // .kbd 提示在 ⌘K 命令面板里 —— scope 到弹层，避免命中今天页顶部的 ? 键帽
     const kbd = page.locator('.bg-scrim .kbd').first()
     await expect(kbd).toBeVisible({ timeout: 8000 })
-    const isMac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))
+    const isMac = await page.evaluate(() => {
+      const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+      const platform = uaData?.platform ?? navigator.userAgent ?? ''
+      return /mac|iphone|ipad|ipod/i.test(platform)
+    })
     const expected = isMac ? '⌘' : '⌃'
     expect(await kbd.innerText()).toContain(expected)
   })

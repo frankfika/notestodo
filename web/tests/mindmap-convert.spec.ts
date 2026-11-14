@@ -94,10 +94,11 @@ test.describe('mindEventToTodoPatches', () => {
     expect(noop).toHaveLength(0)
   })
 
-  test('finishEdit：Waiting 节点回写时剥掉「 · Waiting」显示后缀', () => {
+  test('finishEdit：Waiting 节点标题不再带「 · Waiting」后缀', () => {
     const all = [t('root', null), t('w1', 'root', { title: '催设计稿', waiting_reason: '等设计' })]
     const byId = new Map(all.map((x) => [x.id, x]))
-    // 用户在画布里把「催设计稿 · Waiting」改成「催设计稿和文案 · Waiting」
+    // Waiting 现在用「等待中」标签渲染，不再拼进标题；
+    // 但用户在画布里真写了带后缀的标题时，落库仍要剥掉后缀
     const ops = mindEventToTodoPatches(
       { name: 'finishEdit', target: { id: 'w1', topic: '催设计稿和文案 · Waiting' }, origin: 'main' },
       { all, mapId: 'root', byId },

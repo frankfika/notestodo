@@ -25,17 +25,33 @@ type UndoEntry = {
   run: () => Promise<void>
 }
 
-const stack: UndoEntry[] = []
+/**
+ * 撤销栈挂在 globalThis 上，不挂模块作用域。
+ *
+ * 之前 `const stack: UndoEntry[] = []` 在模块顶层：Vite dev 下同一模块
+ * 可能被求值两次（不同 import 路径 / HMR 后的新实例），于是
+ * convert.ts 往 A 实例 push、调用方从 B 实例读 —— 撤销看着「没生效」。
+ * 全局单例保证「推入」和「读出」永远是同一个栈。
+ */
+type UndoGlobal = {
+  __openNotionUndoStack?: UndoEntry[]
+  __openNotionMindmapEditing?: boolean
+}
+const g = globalThis as unknown as UndoGlobal
+if (!g.__openNotionUndoStack) g.__openNotionUndoStack = []
+const stack = g.__openNotionUndoStack
 
-let mindmapEditing = false
+function isEditing(): boolean {
+  return g.__openNotionMindmapEditing === true
+}
 
 export function setMindmapEditing(editing: boolean): void {
-  mindmapEditing = editing
+  g.__openNotionMindmapEditing = editing
 }
 
 /** 编辑态唯一事实源（ME bus 的 beginEdit / finishEdit 维护） */
 export function isMindmapEditing(): boolean {
-  return mindmapEditing
+  return isEditing()
 }
 
 export function canUndoMindmap(scope?: string): boolean {

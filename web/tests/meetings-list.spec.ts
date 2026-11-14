@@ -95,7 +95,9 @@ test('多会议列表：分组 + 计数 + 状态徽章 + MeetingPreview 联动',
   // 1) 列表有 6 条会议
   const liCount = await page.locator('aside li button[type="button"], aside ul li button').count()
   // Use the list within the 300px-wide sidebar list area
-  const allMeetingButtons = await page.locator('.w-\\[300px\\] ul li button').count()
+  // 每行有两个 button：行主体（打开会议）+ ⋯ 菜单（更多操作）——
+  // 所以这里数「会议行主体」，不能直接数所有 button
+  const allMeetingButtons = await page.locator('.w-\\[300px\\] ul li button:not([aria-haspopup="menu"])').count()
   expect(allMeetingButtons).toBe(6)
 
   // 2) 分组：进行中 / 今天 / 更早，每组带计数

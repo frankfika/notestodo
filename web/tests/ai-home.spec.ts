@@ -1,37 +1,35 @@
 /**
- * AI 工作台 e2e —— AI 从「能答」到「能动手」
+ * 助手入口 e2e —— AI 从首页主区退到辅助层后，仍然能顺手叫出来
  *
  * 验证：
- *   1. 默认落地页是「今天」（侧栏有 AI 一级入口）
- *   2. AI 页快捷动作 chips 可见
- *   3. 未配置 AI 时提问不白屏，给出错误提示
- *   4. 动作层：create_task 走自然语言解析（明天 / @负责人），delete 标记为破坏性
+ *   1. 默认落地页是「今天」
+ *   2. 首页只保留「助手」辅助入口，不再把 AI 做成主工作区
+ *   3. 仍然能打开助手抽屉
+ *   4. 未配置 AI 时提问不白屏，给出错误提示
+ *   5. 动作层：create_task 走自然语言解析（明天 / @负责人），delete 标记为破坏性
  */
 import { test, expect } from '@playwright/test'
 
 const BASE = process.env.SHIBEI_URL ?? 'http://127.0.0.1:5173/'
 
-test('落地页是「今天」；AI 工作台可进入且快捷动作可见', async ({ page }) => {
+test('落地页是「今天」；首页只保留助手入口，仍能打开抽屉', async ({ page }) => {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(600)
   const close = page.locator('button[aria-label="关闭"]').first()
   if (await close.isVisible({ timeout: 1500 }).catch(() => false)) await close.click()
 
-  // 一级导航有 AI
-  await expect(page.getByRole('button', { name: '✦ AI' })).toBeVisible()
   // 默认落地页 = 今天（先看今天要做什么）
   await expect(page.getByTestId('today-page')).toBeVisible()
-  // AI 是一级入口，点进去就是 AI 工作台
-  await page.getByRole('button', { name: '✦ AI' }).click()
-  await page.waitForTimeout(400)
-  await expect(page.getByText('AI 工作台').first()).toBeVisible()
-  // 快捷动作
-  await expect(page.getByRole('button', { name: '新建任务：明天交方案 @张三' })).toBeVisible()
+  await expect(page.getByText('助手').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: '✦ 打开助手' })).toBeVisible()
+  await page.getByRole('button', { name: '✦ 打开助手' }).click()
+  await expect(page.getByRole('complementary', { name: 'AI 助手' })).toBeVisible()
 
   // 没配 AI 时提问 → 报错而不是白屏
-  await page.getByRole('button', { name: '列出本周到期的任务' }).click()
+  await page.getByPlaceholder(/问点什么/).fill('列出本周到期的任务')
+  await page.getByPlaceholder(/问点什么/).press('Enter')
   await page.waitForTimeout(1200)
-  const body = await page.locator('main').innerText()
+  const body = await page.locator('body').innerText()
   expect(body.length).toBeGreaterThan(0)
   expect(body).not.toContain('undefined')
 })
