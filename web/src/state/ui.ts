@@ -26,12 +26,13 @@ export interface RouteState {
    每天重新打开仍从「今天」开始，这才是落地页该有的行为。
    只记顶层页面：详情页带 id，刷新后那个 id 可能已经失效。 */
 const LAST_VIEW_KEY = 'openNotion.lastView.v1'
-const PERSISTABLE: ViewName[] = ['today', 'ai', 'meetings', 'notes', 'todos', 'board', 'report', 'templates', 'settings']
+const PERSISTABLE: ViewName[] = ['today', 'meetings', 'notes', 'todos', 'board', 'report', 'templates', 'settings']
 
 function readLastView(): ViewName {
   if (typeof window === 'undefined') return 'today'
   try {
     const v = window.sessionStorage.getItem(LAST_VIEW_KEY)
+    if (v === 'ai') return 'today'
     return v && (PERSISTABLE as string[]).includes(v) ? (v as ViewName) : 'today'
   } catch {
     return 'today'
@@ -51,6 +52,9 @@ interface UIStore extends RouteState {
   goReport: () => void
   goTemplates: () => void
   goSettings: () => void
+  taskDetailTodoId: string | null
+  openTaskDetail: (todoId: string) => void
+  closeTaskDetail: () => void
 
   cmdkOpen: boolean
   setCmdkOpen: (open: boolean) => void
@@ -79,10 +83,12 @@ export const useUI = create<UIStore>((set) => ({
   meetingId: null,
   noteId: null,
   todoFocusId: null,
+  taskDetailTodoId: null,
 
   route: (r) => set(r),
   goToday: () => set({ view: 'today', meetingId: null, noteId: null, todoFocusId: null }),
-  goAi: () => set({ view: 'ai', meetingId: null, noteId: null, todoFocusId: null }),
+  // AI 工作台已并入「今天」页；旧入口保持兼容，改为回到今天并直接打开 AI 抽屉
+  goAi: () => set({ view: 'today', meetingId: null, noteId: null, todoFocusId: null, aiOpen: true }),
   goMeetings: () => set({ view: 'meetings', meetingId: null, noteId: null }),
   goMeeting: (meetingId) => set({ view: 'meeting-detail', meetingId, noteId: null }),
   goNotes: () => set({ view: 'notes', meetingId: null, noteId: null }),
@@ -92,6 +98,8 @@ export const useUI = create<UIStore>((set) => ({
   goReport: () => set({ view: 'report', meetingId: null, noteId: null }),
   goTemplates: () => set({ view: 'templates', meetingId: null, noteId: null }),
   goSettings: () => set({ view: 'settings', meetingId: null, noteId: null }),
+  openTaskDetail: (todoId) => set({ taskDetailTodoId: todoId }),
+  closeTaskDetail: () => set({ taskDetailTodoId: null }),
 
   cmdkOpen: false,
   setCmdkOpen: (open) => set({ cmdkOpen: open }),

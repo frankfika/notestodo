@@ -3,10 +3,15 @@
  *   mac → ⌘
  *   其他 → ⌃
  * 用法：`<span>{mod()}K</span>` 让快捷键提示在 Mac/Win/Linux 上都正确。
+ *
+ * navigator.platform 已被标记废弃（各浏览器陆续移除），这里改用
+ * navigator.userAgentData.platform 优先、userAgent 兜底。
  */
 export function mod(): string {
   if (typeof navigator === 'undefined') return '⌘'
-  return /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : '⌃'
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+  const platform = uaData?.platform ?? navigator.userAgent ?? ''
+  return /mac|iphone|ipad|ipod/i.test(platform) ? '⌘' : '⌃'
 }
 
 export function uid(): string {

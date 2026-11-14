@@ -146,6 +146,8 @@ export interface Todo extends EntityMeta {
   notes_md?: string
   status: TodoStatus
   due_date?: ISODate
+  /** 可选的具体时间（HH:mm）；只在真的需要排到钟点时才用 */
+  due_time?: string
   start_date?: ISODate
   assignee?: string          // 委派人员（团队协作预留，MVP 纯文本存值）
   source: 'manual' | 'meeting' | 'note'

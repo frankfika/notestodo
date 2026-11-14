@@ -129,6 +129,37 @@ export class ShibeiDB extends Dexie {
       .upgrade(async (tx) => {
         await tx.table('kv').delete('features')
       })
+    // v12: 修正历史任务的 map 归属 —— 根节点 map_id 必须等于自身，
+    // 子节点必须跟随父链所在的图根。否则任务树一移动，脑图和任务就会分叉。
+    this.version(12)
+      .stores({
+        todos:
+          'id,parent_id,kind,status,due_date,meeting_id,origin_note_id,source,scope,period,board_id,map_id',
+      })
+      .upgrade(async (tx) => {
+        const table = tx.table('todos')
+        const rows = (await table.toArray()) as Array<Todo & { map_id?: string; parent_id: string | null }>
+        const byId = new Map(rows.map((r) => [r.id, r]))
+        const resolveMapId = (start: Todo & { map_id?: string; parent_id: string | null }): string => {
+          if (start.parent_id == null) return start.id
+          let cur = start.parent_id
+          const seen = new Set<string>([start.id])
+          while (cur && !seen.has(cur)) {
+            seen.add(cur)
+            const row = byId.get(cur)
+            if (!row) return start.id
+            if (row.parent_id == null) return row.id
+            cur = row.parent_id
+          }
+          return start.id
+        }
+
+        for (const row of rows) {
+          const nextMapId = resolveMapId(row)
+          if (row.map_id === nextMapId) continue
+          await table.update(row.id, { map_id: nextMapId })
+        }
+      })
   }
 }
 
