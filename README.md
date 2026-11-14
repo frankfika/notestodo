@@ -4,20 +4,29 @@
 
 产品名 **openNotion**（仓库名 notestodo；旧名 NotesToGO / 拾贝 Shibei）。一个 AI-native 的会议速记 + 笔记/任务工作区。Web MVP → mac/iPad/iPhone。PWA：可「添加到主屏幕 / Dock」直接当原生应用用。
 
-**当前状态（2026-10-31，v0.3.0）**：Phase-1～4 之上完成 openNotion 方向重构——Notion 式页面树 + 块编辑器、多笔记本、多看板、任务树、块评论、AI 面板、GitHub/飞书集成、腾讯会议/飞书妙记转录导入、本机 MCP server。会议垂直链路（录音 → 转录 → 纪要 → 任务）完整保留。桌面包名 **openNotion**。
+**当前状态（v0.6.2 之后持续开发中）**：openNotion 方向重构已完成 —— Notion 式页面树 + 块编辑器、多笔记本、任务四视图（脑图 / 大纲 / 按时间 / 看板）同源一份数据、块评论、GitHub / 飞书集成、腾讯会议 / 飞书妙记转录导入、本机 MCP server。会议垂直链路（录音 → 转录 → 纪要 → 任务）完整保留。桌面包名 **openNotion**。
+
+近期主线：**今天页做成单主动作首页**（AI 降为助手层，⌘J 随时唤起）；**任务创建前说清落点、创建后立刻看见结果**；**笔记量大后仍能全文检索找回**；**手机 / iPad / 桌面响应式重排**。
 
 ## 核心特性
 
-- **Notion 式页面工作区**：侧栏页面树（无限嵌套、拖拽换父/防成环、按笔记本分区），空页即写（无向导，标题自动聚焦）；页面列表/表格双视图（列头排序、hover peek、笔记本 tab + tag 筛选）；详情页面包屑「笔记本 › 父页 › 当前页」。
+- **Notion 式页面工作区**：侧栏页面树（无限嵌套、拖拽换父/防成环、按笔记本分区），空页即写（无向导，标题自动聚焦）；页面列表/表格双视图（列头排序、hover peek、笔记本 tab + tag 筛选）；详情页面包屑「笔记本 › 父页 › 当前页」；侧栏支持**搜页面并直接打开**。
+- **笔记量大也能找回**：笔记页全文检索（标题 / 正文 / 笔记本 / 标签）+ 范围筛选（文档页 / 会议纪要 / 已置顶）+ 笔记本 / 标签筛选，顶部实时显示「N 篇匹配」并可一键清空。
 - **块编辑器**（TipTap）：`/` 斜杠菜单原地转换块（文本/H1–H3/待办/列表/引用/代码/分割线，分组+拼音筛选）；块手柄 ⋮⋮ 拖拽移动，点开有 转换为 / 颜色（9 色持久化，`<!-- color -->` 语法对 Obsidian 不可见）/ 评论 / 移动到其它页面 / 删除；`[[双链]]` + 反向链接面板。
 - **块评论**：手柄菜单写评论（⌘↵ 提交），页底集中列表，支持解决/删除。
-- **任务树**：无限嵌套子任务（拖拽换父、双击改名、截止日期、子树进度 n/m、软删子树），三种视图：树 / 按时间（已过期/今天/本周/稍后/无日期）/ 看板。看板点卡片跳回树并高亮。
-- **多看板**（Trello 式）：多板切换/新建/重命名/删除，自定义列增删改，拖拽换列，列底快速加卡；看板卡与任务树同源。
+- **任务四视图，同一份数据**（脑图 / 大纲 / 按时间 / 看板）：
+  - **脑图**（默认）：一图一项目，画布上直接增删改节点、拖拽改结构、⌘T 入 Today；节点显示截止日期（逾期标出）、负责人、来源；点节点右侧浮出操作栏（设截止 / 完成 / 切左右侧），不用背快捷键；完成后自动折进「已完成 (N)」折叠组，折叠角标显示还剩几个子节点；沉浸模式吃满整屏。
+  - **大纲**：嵌套树 + 拖拽换父 + 子树进度 n/m。
+  - **按时间**：已过期 / 今天 / 本周 / 稍后 / 无日期分组。
+  - **看板**（Trello 式）：列 = 阶段、卡片 = 任务本身，自定义列增删改、拖拽换列、列底快速加卡；卡片搜索 + 多维筛选（今天 / 已逾期 / 已指派 / 有标签）。
+  - **创建落点可预期**：创建前就写明「这条会加到哪儿」（挂到当前选中项下 / 放进 Inbox / 加到当前图），创建后立刻滚动定位并高亮 2.4 秒——不用自己去找「刚才那条去哪了」。
+  - **任务详情统一收口**（`TaskDetailDrawer`）：标签、截止日期 + 具体钟点、负责人、备注、来源跳转、「在对应脑图里打开」，各视图行为一致。
 - **一条龙的会议**：任何入口开录即进会中速记（左速记 / 右实时字幕 + 相关资料）；散会后一次 LLM 调用产出标题 + 笔记（速记为骨架）+ 待办。
 - **一键录音**：浏览器 MediaRecorder + 5 分钟分片落本地 IndexedDB，崩溃最多丢 5 分钟；桌面版 ScreenCaptureKit 同时混录系统声音（会议对方的声音）；麦克风被拒时按环境给出正确指引。
 - **外部会议导入**：腾讯会议 / 飞书妙记导出的转录文本一键粘贴导入（自动解析时间戳 + 说话人），导入即可生成 AI 纪要；飞书日历日程可同步为会议。
 - **AI 转录 + 笔记**：BYOK，支持 MiniMax asr-1.0（含说话人分离）/ Deepgram Nova-3 / OpenAI Whisper；自定义模板（`{{var}}` 语法）决定笔记结构，可「重新整理 / 换模板」。AI 提取的待办永不丢出处（时间戳 → 原句匹配 → 无出处三级回退）。
-- **AI 面板**：笔记页右侧 ✦ AI 抽屉——总结本页 / 续写一段 / 提取待办，结果一键插入文末；走你配的任意 OpenAI/Anthropic 兼容端点。
+- **AI 面板**：笔记页右侧 ✦ AI 抽屉——总结本页 / 续写一段 / 提取待办，结果一键插入文末；走你配的任意 OpenAI/Anthropic 兼容端点。全局助手（⌘J）能问也能动手：建任务、改任务、完成、删除、建笔记，删除先确认、执行后可撤销。
+- **单主动作首页**：「今天」页先摊开**今天要做的事**（今日清单 + 今日焦点 + 正在录的会 + 最近的会议），而不是甩一个空 AI 输入框；助手退到助手层，需要时再 ⌘J 唤起。首次引导第一屏直接给真实动作（开一场会 / 写一页笔记 / 理任务），AI 配置退到第二层，不挡在第一步前面。
 - **GitHub 集成**：设置页配 token + repo，open issues 一键导成任务（幂等、PR 自动过滤）。
 - **MCP server**：`mcp/` 零依赖 stdio server，把本机 HTTP API 包成 7 个工具（todos CRUD + notes 读/建），Claude Desktop 配置即用。
 - **会中实时字幕**：边说边出字（浏览器自带语音识别，免费无需 Key；默认关闭）。散会后没配 ASR Key 时自动用字幕作兜底转录。
@@ -28,6 +37,8 @@
 - **可安装 + 离线启动**：macOS Safari / Edge「添加到程序坞」、iOS「添加到主屏幕」；首次访问后断网也能开。
 - **多端同步（自托管 relay）**：`relay/` 是一个 Cloudflare Worker（Durable Object，按 `sha256(token)` 划分命名空间）。设置页填地址 + 令牌即启用：一次 POST 往返同时推 + 拉，联网自动对齐，断网照常本地写。冲突**永不丢数据**——较新改动胜出，另一版在本地留一份「（冲突副本）」由你自己合并。
 - **一条龙，零手动步骤（Foresight 式）**：从任何地方开录（侧栏「● 开始录音」/ 今天 / 日历 / ⌘⇧R）都直接进入会中速记页（左速记 / 右实时字幕 + 相关资料），只记关键词，回车即存并带时间锚点。散会后自动转录 → **一次** LLM 调用同时产出标题、完整笔记（以速记为骨架、转录补全细节）和待办。会议页只有「笔记 / 转录 / 资料」三个 Tab，笔记页顶部直接确认待办（每条带原文引用 + 建议 KR，一键「全部确认」）。
+- **Today 执行位**：脑图里按 ⌘T 把真正要执行的事放进「今天」（最多 5 条），在「今天」页推进；槽位属于**执行**不属于**规划**，所以它不占画布宽度，脑图右上角只留一个计数入口。
+- **响应式**：手机 / iPad / 桌面同一套代码。窄屏下笔记头部重排、看板列改为横向滑动、表格横向滚动、侧栏换成底部 tab + 页面抽屉；触屏上「⋯ 菜单 / ＋ 子任务 / 完成」等 hover 才出现的按钮改为常驻。
 - **macOS 桌面版 · Phase-3 系统音频**：Tauri 2 + ScreenCaptureKit 已实装 48kHz/2ch Float32 PCM 采集（`screencapturekit-sys` 0.2 直 ObjC FFI，避开 Xcode Swift toolchain 依赖）；PCM 通过 Tauri event `system_audio:chunk` 推前端并混入录音，banner 显示「mic+system」/「仅麦克风」/「未实装」/「需要屏录授权」四种状态。浏览器 / 未授权时仅录麦克风，UI 永不假装成功。
 - **本机内置模型（Foresight 式）**：设置顶部「AI 运行在哪里」三选一——本机内置（推荐，完全离线）/ 云端 API / 自建本地服务，选择立即生效。内置模式由应用自己从 huggingface.co 下载模型（转录：Whisper Large v3 Turbo 574MB / Small 190MB；笔记：Google Gemma 4 E4B 5.2GB / E2B 3.4GB / 12B 7.0GB），后台下载、侧栏显示进度、失败可断点重试；下载完成前照常录音，会议显示「等待模型」，模型就绪后自动转录整理。设置页「数据去向」实时自检会议内容是否离开本机。桌面端推理在应用进程内完成（`src-tauri/src/builtin/`）：whisper-rs（whisper.cpp + Metal）转录，llama-cpp-2（llama.cpp + Metal）跑 Gemma 4，提示词用模型自带的 Jinja 模板渲染（Gemma 4 用新的 `<|turn>` 格式），整理笔记时用 JSON 语法约束输出，思考通道不会混进笔记；录音以 16kHz i16 原始字节经 raw IPC 传给 Rust。模型下载源：Hugging Face / hf-mirror.com / OpenCSG（阿里云北京），国内自动优先国内源、失败自动换源、断点续传（不同源字节不一致时不拼接）；自动识别系统 / Clash 等 HTTP 代理，代理不可用时直连。
 - **为中国用户优化**：国内下载源（OpenCSG / hf-mirror）；转录热词（设置里的常用人名 / 术语 + 待办负责人 + 速记短词）让「李四」「PoC」「方案B」等专有名词转对；中文全角标点；whisper 强制简体输出；整理提示词约束负责人 / 截止日期分开写。**说话人区分**（借鉴 VibeVoice-ASR 的「谁 / 何时 / 说了什么」结构化转录）：sherpa-onnx = pyannote 分段 + 阿里达摩院 3D-Speaker CAM++ 中文声纹（共 30MB，随转录模型自动下载），按时间重叠给 whisper 每段标上「说话人 1 / 2 / …」。选型：VibeVoice-ASR-BitNet 自带说话人 + 热词，但中文会议集 WER 明显落后（AISHELL4 27.5% vs FunASR 20.4%）、需单独 fork 编译、模型 1.6GB；SenseVoice 中文最准但不支持热词——实测热词对人名 / 术语提升最大，故保留 whisper（热词）+ 独立说话人区分。
@@ -41,25 +52,32 @@
 .
 ├── docs/
 │   ├── DESIGN.md            # 产品架构与 UX 设计（Claude Code 主笔）
-│   └── SHARED_SPEC.md       # 模块开发规约（多 agent 协作接口）
+│   ├── SHARED_SPEC.md       # 模块开发规约（多 agent 协作接口）
+│   ├── ux-plan-2026-11.md   # UX 优化规划与已交付清单
+│   └── FORESIGHT_OKR_REDESIGN.md
 ├── mcp/                     # MCP stdio server（零依赖，包装本机 HTTP API 给 Claude Desktop 等）
+├── relay/                   # 同步 relay：Cloudflare Worker + Durable Object
 ├── research/                # 调研报告：竞品、开源方案
+├── promo/                   # 宣传片与截图素材
 ├── web/                     # React + Vite + Dexie 前端
 │   ├── src-tauri/           # Tauri 2 mac 原生壳（Rust + WKWebView）
+│   ├── tests/               # Playwright e2e（含移动端 / iPad / 视觉回归截图）
 │   └── src/
-│       ├── audio/           # 录音引擎（分片、异常恢复）
+│       ├── audio/           # 录音引擎（分片、异常恢复、系统声音混流）
 │       ├── pipeline/        # 转录/总结编排、任务恢复
-│       ├── transcribe/      # ASR provider 适配器（MiniMax / Deepgram / Whisper）
+│       ├── transcribe/      # ASR provider 适配器（MiniMax / Deepgram / Whisper / 内置）
 │       ├── llm/             # LLM 客户端（Anthropic + OpenAI 兼容）+ 模板渲染
 │       ├── calendar/        # .ics 订阅解析（ical.js）
 │       ├── data/            # .zip 导出/导入（fflate）
-│       ├── pages/           # 页面（Meetings / Meeting / Notes / Todos(树+时间) / Board / Templates / Settings）
-│       ├── components/      # 共享 UI 原语（MarkdownView / TodoRow / TagPicker / ...）
+│       ├── api/             # 本机 HTTP API（仅 Tauri，供 MCP / 脚本调用）
+│       ├── sync/            # 同步引擎 + 发件箱 + 协议定义
+│       ├── pages/           # 页面（Today / Meetings / Notes / Todos(脑图+大纲+按时间) / Board / Report / Templates / Settings）
+│       ├── components/      # 共享 UI 原语（编辑器 / TaskDetailDrawer / CommandPalette / ...）
+│       ├── lib/mindmap/     # 脑图 ⇄ 任务双向转换、撤销栈、Today 槽位、图库
 │       ├── db/              # Dexie 表 + 种子数据 + 设置 KV
 │       ├── state/           # Zustand stores（路由 + 录音状态机）
-│       ├── lib/             # 工具函数（id / time）
-│       └── styles/           # Tailwind v4 + OKLCH 设计令牌
-├── relay/                   # 同步 relay：Cloudflare Worker + Durable Object（core.mjs 与本地测试服务器共用）
+│       ├── lib/             # 工具函数（id / quickAdd / okr / knowledge / ...）
+│       └── styles/          # Tailwind v4 + OKLCH 设计令牌
 └── .github/workflows/       # CI（构建 + 全量 e2e + cargo check）与多平台 Release
 ```
 
@@ -88,6 +106,33 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 
 **首次使用**：进入「设置」页填 LLM + ASR 的 API Key（BYOK），今日页就能开始录音。
 
+### 交互约定
+
+这几条是这个产品反复打磨后定下的规矩，改代码前先看一眼：
+
+| 约定 | 说明 |
+|---|---|
+| **单主动作首页** | 落地页只给一个主动作（处理今天第一件事），AI 助手降为 ⌘J 抽屉，不跟主流程抢注意力 |
+| **落点可见** | 创建任何东西之前，先用一行文字说清「它会落在哪儿」；创建之后立刻滚动定位 + 短暂高亮 |
+| **同一份数据，不同视图** | 脑图 / 大纲 / 按时间 / 看板是同一批任务的四种看法，不允许某个视图私藏字段 |
+| **破坏性操作可撤销** | 删除内容一律「先执行 + toast 撤销」，不用 `window.confirm` 打断（仅「删除已下载的模型」这类需要重下的例外仍走确认） |
+| **诚实状态** | 录音、模型、同步、AI 的真实状态如实显示，不假装成功（`mic+system` / `仅麦克风` / `未实装` / `需要屏录授权`） |
+| **无障碍可用** | 不用嵌套交互元素；按钮配 `aria-label` / `aria-haspopup` / `aria-expanded`，键盘与读屏都能到 |
+
+### 常用快捷键
+
+| 键 | 做什么 |
+|---|---|
+| `⌘K` | 命令面板（搜索 + 跳转） |
+| `⌘J` | AI 助手 |
+| `⌘⇧R` | 开始 / 停止录音 |
+| `?` | 快捷键速查卡 |
+| `⌘T` | 脑图里把选中节点放进 Today |
+| `⌘]` / `⌘[` | 脑图切下一张 / 上一张 |
+| `Tab` / `Enter` / `F2` | 脑图加子节点 / 加兄弟节点 / 改标题 |
+
+> 非 macOS 上 `⌘` 显示为 `⌃`。
+
 ### CI 与多平台发布（GitHub Actions）
 
 `.github/workflows/` 下两个 workflow：
@@ -102,7 +147,7 @@ pnpm tauri build   # 产出 .app / .dmg（target/release/bundle/）
 ```bash
 # 1) 改版本号（web/package.json 与 web/src-tauri/tauri.conf.json 同步）
 # 2) 提交 + 打 tag
-git tag v0.5.0 && git push origin main --tags
+git tag v0.7.0 && git push origin main --tags
 # 3) 等 release.yml 跑完，在 GitHub Releases 里把草稿改成正式发布
 ```
 
@@ -112,9 +157,17 @@ git tag v0.5.0 && git push origin main --tags
 
 ```bash
 cd web
-npx playwright test              # 自动起 dev server（playwright.config.ts 的 webServer）
-SHIBEI_URL=http://127.0.0.1:4173 npx playwright test tests/offline.spec.ts   # 断网用例需生产构建：pnpm build && pnpm preview
+pnpm exec playwright test              # 自动起 dev server（playwright.config.ts 的 webServer）
+SHIBEI_URL=http://127.0.0.1:4173 pnpm exec playwright test tests/offline.spec.ts   # 断网用例需生产构建：pnpm build && pnpm preview
 ```
+
+### 本机 API / MCP（脚本与外部工具接入）
+
+桌面版可在 **设置 → 本机 API → 开放 API** 里打开一个只监听 `127.0.0.1` 的 HTTP 服务（默认端口 `17893`，Bearer token 鉴权），外部脚本 / Raycast / Claude Desktop 通过它读写任务和笔记。浏览器版没有宿主能监听本机端口，这一项只在桌面版可用。
+
+- 前端路由实现：`web/src/api/localApi.ts`；Tauri 侧监听：`web/src-tauri/src/api_server.rs`
+- 端点：`/todos`（列表 / 新建 / 改 / 删）、`/notes`（列表 / 新建 / 读）、`/maps`（图库 / 归档 / 恢复）、`/inbox/captures`、`/today`（今日槽位）
+- MCP 封装（零依赖 stdio server，7 个工具）：`mcp/`，配置见 [`mcp/README.md`](mcp/README.md)
 
 ### 多端同步（自托管）
 
@@ -147,14 +200,15 @@ openssl rand -hex 32              # 生成一个令牌 = 一个同步命名空�
 |------|------|------|
 | 平台 | Web（MVP） + Tauri 2 macOS desktop | 一份代码覆盖 mac/iPad/iPhone；桌面版承担系统音频 / 屏录授权 |
 | 存储 | Local-first（Dexie / IndexedDB） | 录音是敏感数据；断网可录；同步问题从 Day 1 降级 |
+| 任务模型 | 一份 todo 表，四种视图 | 脑图 / 大纲 / 按时间 / 看板同源；视图不该各自私藏一份数据 |
 | 转录 | MiniMax / Deepgram / Whisper 多 provider | BYOK；用户按价格/语言/说话人分离能力选择 |
-| 总结 | Anthropic-兼容 LLM（MiniMax M3 / Claude） | 中文质量 + 结构化输出 + 长上下文 |
+| 总结 | Anthropic-兼容 LLM（MiniMax M2.7 / Claude） | 中文质量 + 结构化输出 + 长上下文 |
 | 本地 LLM | Ollama（首选 preset）/ LM Studio / MLX / 自建 OpenAI 兼容 | Ollama 一行 `ollama serve` 就能跑；Ollama 跑不动再换 MLX |
 | 系统音频 | Tauri + ScreenCaptureKit (macOS) | 平台原生 loopback，无需 meeting bot；屏录权限用户在「系统设置」批准 |
 | 知识库 | MVP: keyword + 标题匹配（lib/knowledge.ts）| 零外部依赖，中英文混排都可用；升级到 on-device embedding 留接口 |
 | 日历 | .ics 订阅（ical.js） | 零 OAuth/审批，覆盖 Apple/Google/QQ/Outlook |
 | 导出 | .zip 含音频（fflate） | 数据所有权；14 KB minified |
-| 同步 | MVP 不做（M3 用 LWW） | 验证 PMF 前不投入 |
+| 同步 | 自托管 relay（Cloudflare Worker + DO） | 服务端不存明文内容；冲突永不丢数据，输的一方在本地留「冲突副本」 |
 
 ## Phase-2 能力（Foresight 路线图）
 
@@ -215,7 +269,7 @@ openssl rand -hex 32              # 生成一个令牌 = 一个同步命名空�
 | 4 | Local ASR 路径：Settings 加 Cloud \| Local ASR 切换 + Whisper / MLX / faster-whisper openai-compatible 客户端；`asr_mode` / `local_asr_*` 字段 + `resolveASRConfig` 镜像 Local LLM 模式 | `web/src/types.ts`、`web/src/transcribe/openai-whisper.ts`、`web/src/llm/test-connection.ts`、`web/src/pages/settings/SettingsPage.tsx` |
 | 2 | Tauri 端 `tauri-plugin-fs` + `tauri-plugin-dialog` 实装；桌面端递归 walk .md/.txt → knowledgeEntries；web 端 fallback 到 HTTP(S)。scope 缩窄到 `$HOME`/`$DOCUMENT`/`$DESKTOP`/`$DOWNLOAD`，**不**放 `"**"`。 | `web/src-tauri/Cargo.toml`、`web/src-tauri/capabilities/default.json`、`web/src-tauri/src/lib.rs`、`web/src/lib/knowledge.ts`、`web/src/pages/settings/SettingsPage.tsx` |
 | 3 | PDF 索引（`pdfjs-dist` lazy chunk + worker）：Vite 自动 code-split，用户不碰 PDF 时主 bundle 不增负担。扫描件 / 损坏 → 静默 skip。 | `web/src/lib/pdf.ts`、`web/src/lib/knowledge.ts` |
-| 1 | ScreenCaptureKit 系统音频采集（macOS）：`screencapturekit-sys` 0.2 直 ObjC FFI（避开 screencapturekit 11 的 swift-bridge 需要完整 Xcode 的问题）；48kHz/2ch Float32 PCM → Tauri event `system_audio:chunk` → 前端 banner。Phase-4 PR 会把 PCM 拼进 MediaRecorder。 | `web/src-tauri/src/system_audio.rs`、`web/src-tauri/src/lib.rs`、`web/src/lib/tauriSystemAudio.ts` |
+| 1 | ScreenCaptureKit 系统音频采集（macOS）：`screencapturekit-sys` 0.2 直 ObjC FFI（避开 screencapturekit 11 的 swift-bridge 需要完整 Xcode 的问题）；48kHz/2ch Float32 PCM → Tauri event `system_audio:chunk` → 前端 banner。Phase-4 已完成：PCM 经 `audio/systemMix.ts` 混进 MediaRecorder。 | `web/src-tauri/src/system_audio.rs`、`web/src-tauri/src/lib.rs`、`web/src/lib/tauriSystemAudio.ts` |
 
 ### Local ASR 起手（whisper.cpp / MLX STT / faster-whisper 兼容）
 
@@ -240,6 +294,8 @@ Phase-3 完整 brief 见 [`docs/CODEX_TASK_PHASE3.md`](docs/CODEX_TASK_PHASE3.md
 
 ## 状态机
 
+**会议**：
+
 ```
 meeting: recording → processing → transcribed → summarized
                                      ↓
@@ -248,6 +304,17 @@ meeting: recording → processing → transcribed → summarized
 
 所有 `recording → processing` 自动转写 + 总结由 `src/pipeline/jobs.ts` 调度；
 断网/崩溃由 IndexedDB 分片兜底，应用重启时 `resumePendingJobs()` 恢复。
+
+**任务**：一条 todo 在四个视图里都是同一个对象，只有位置和状态不同。
+
+```
+创建 → placement 决定落点（选中项下 / Inbox / 当前图根）
+     → map_id 与整棵子树的 map_id 保持一致（taskMapSync）
+     → 各视图从同一张表读，随时可互相跳转
+```
+
+`map_id` 与 `parent_id` 的一致性由 DB v12 的升级脚本兜底修正历史数据，
+避免「任务树已经搬走、脑图还留在旧图」的分裂。
 
 ## License
 
