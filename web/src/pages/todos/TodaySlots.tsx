@@ -31,10 +31,9 @@ export function TodayIndicator(): JSX.Element {
       type="button"
       onClick={() => goToday()}
       title="今天要做的事（⌘T 入槽）"
-      className="flex items-center gap-1.5 h-8 px-2.5 rounded-[10px] bg-bg-raise/85 backdrop-blur border border-line text-xs text-text-1 hover:border-accent/60 transition-colors"
+      className="flex items-center gap-2 h-8 px-3 rounded-full bg-bg-raise/90 backdrop-blur border border-line shadow-sm text-xs text-text-1 hover:border-line-strong transition-colors"
     >
-      <span className="text-text-3 shrink-0">☼</span>
-      <span className="font-medium">Today</span>
+      <span className="font-medium">今天</span>
       <span className="text-[10px] text-text-3 shrink-0">{state.slots.length}/{state.capacity}</span>
     </button>
   )
@@ -53,13 +52,13 @@ export function TodaySwapPrompt(): JSX.Element | null {
 
   if (!pending) return null
   return (
-    <div className="rounded-[10px] border border-line bg-bg-raise/95 backdrop-blur p-2 shadow-lg w-56">
-      <div className="text-xs text-text-2 mb-2">Today 已满，替换哪一项？</div>
+    <div className="rounded-[12px] border border-line bg-bg-raise/95 backdrop-blur p-2.5 shadow-lg w-64">
+      <div className="text-xs text-text-2 mb-2">今天的执行位已经满了，替换哪一项？</div>
       {state.slots.map((s) => (
         <button
           key={s.leafId}
           type="button"
-          className="block w-full text-left text-sm py-1 hover:text-accent truncate"
+          className="block w-full text-left text-sm py-1.5 px-2 rounded-[8px] hover:bg-bg-overlay hover:text-accent truncate"
           onClick={() => {
             void (async () => {
               const before = await getToday()
@@ -72,7 +71,7 @@ export function TodaySwapPrompt(): JSX.Element | null {
           替换「{titleOf(s.leafId)}」
         </button>
       ))}
-      <button type="button" className="text-xs text-text-3 mt-1" onClick={() => setPending(null)}>
+      <button type="button" className="text-xs text-text-3 mt-2 px-2" onClick={() => setPending(null)}>
         取消
       </button>
     </div>
@@ -88,10 +87,10 @@ export function TodaySlotsList(): JSX.Element {
   return (
     <div className="flex flex-col gap-1">
       {state.slots.length === 0 && (
-        <div className="text-xs text-text-3">还没有入槽 —— 在脑图里选中一个叶子按 ⌘T 加进来</div>
+        <div className="text-xs text-text-3">还没有加入今天的执行位，在脑图里选中一个叶子按 ⌘T 放进来。</div>
       )}
       {state.slots.map((s) => (
-        <div key={s.leafId} className="flex items-center gap-1">
+        <div key={s.leafId} className="flex items-center gap-2 rounded-[10px] px-2 py-1.5 hover:bg-bg-overlay/60 transition-colors">
           <button
             type="button"
             className="flex-1 text-left text-sm truncate hover:text-accent"
@@ -101,7 +100,7 @@ export function TodaySlotsList(): JSX.Element {
           </button>
           <button
             type="button"
-            className="text-xs text-text-3 hover:text-danger"
+            className="text-xs text-text-3 hover:text-danger shrink-0"
             onClick={() => {
               void (async () => {
                 const before = await getToday()

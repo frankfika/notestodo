@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { type JSX, useMemo, useRef, useState } from 'react'
+import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import { db } from '../../db/db'
-import { now, thisFriday, today as todayIso } from '../../lib/id'
+import { thisFriday, today as todayIso } from '../../lib/id'
 import { useAllTodos } from '../../lib/useAllTodos'
+import { useUI } from '../../state/ui'
 import type { Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import TodoTags from './TodoTags'
@@ -10,6 +11,7 @@ import { EditableTitle, TodoMenu, createTodo, useRowKeys } from './todoRowOps'
 import { doneLast, passFilter, type TodoFilter } from './filter'
 import { useOriginTitles } from '../../lib/originTitles'
 import { applyTodoStatus } from '../../lib/todoStatus'
+import { formatDueLabel } from '../../lib/todoMeta'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
@@ -30,14 +32,9 @@ function groupOf(t: Todo, today: string, weekEnd: string): GroupKey {
   return 'later'
 }
 
-function fmtDue(iso: string): string {
-  const [, m, d] = iso.split('-')
-  return `${Number(m)}/${Number(d)}`
-}
-
 /** 完成日期（ISO 时间戳 → 11/10） */
 function fmtCompleted(iso: string): string {
-  return fmtDue(iso.slice(0, 10))
+  return formatDueLabel(iso.slice(0, 10))
 }
 
 async function toggle(t: Todo): Promise<void> {
@@ -65,13 +62,17 @@ function Row({ t, byId, all, tagByTodo, tagsById, noteTitle, meetingTitle, tabba
   }
   const g = groupOf(t, todayIso(), thisFriday().slice(0, 10))
   const dueCls = g === 'overdue' ? 'text-red-500' : g === 'today' ? 'text-accent' : 'text-text-3'
+  // 刚创建 / 刚从别处跳过来的那条：短暂高亮，让用户一眼看到落点
+  const focused = useUI((s) => s.todoFocusId === t.id)
 
   return (
     <div
       data-todo={t.id}
       tabIndex={tabbable ? 0 : -1}
       onFocus={() => setActiveId(t.id)}
-      className="group flex items-center gap-2 h-9 px-2 rounded-[8px] hover:bg-bg-overlay focus-visible:bg-bg-overlay outline-none transition-colors"
+      className={`group flex items-center gap-2 h-9 px-2 rounded-[8px] outline-none transition-colors ${
+        focused ? 'bg-accent/10 ring-1 ring-accent/30' : 'hover:bg-bg-overlay focus-visible:bg-bg-overlay'
+      }`}
     >
       <input
         type="checkbox"
@@ -104,7 +105,7 @@ function Row({ t, byId, all, tagByTodo, tagsById, noteTitle, meetingTitle, tabba
       <span className="hover-only opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
         <OriginChip t={t} noteTitle={noteTitle} meetingTitle={meetingTitle} />
       </span>
-      {t.due_date && <span className={`text-[11px] font-mono shrink-0 ${dueCls}`}>{fmtDue(t.due_date)}</span>}
+      {t.due_date && <span className={`text-[11px] font-mono shrink-0 ${dueCls}`}>{formatDueLabel(t.due_date, t.due_time)}</span>}
       <TodoMenu t={t} all={all} />
     </div>
   )
@@ -122,6 +123,20 @@ export default function TodosList({ filter, tagByTodo }: { filter: TodoFilter; t
 
   const containerRef = useRef<HTMLDivElement>(null)
   const onKeyDown = useRowKeys(containerRef, all)
+  const focusId = useUI((s) => s.todoFocusId)
+
+  // 顶部刚创建的任务：滚到那一行并短暂高亮。
+  // 不用用户自己在「今天 / 本周 / 无日期」里翻找刚加的那条。
+  useEffect(() => {
+    if (!focusId) return
+    const t = setTimeout(() => {
+      document.querySelector(`[data-todo="${focusId}"]`)?.scrollIntoView({ block: 'center' })
+    }, 60)
+    const clear = setTimeout(() => {
+      if (useUI.getState().todoFocusId === focusId) useUI.setState({ todoFocusId: null })
+    }, 2400)
+    return () => { clearTimeout(t); clearTimeout(clear) }
+  }, [focusId])
 
   const visible = useMemo(() => {
     // 「已归档」视图看的是被关闭掉的那批（它们平时被 live() 滤掉）

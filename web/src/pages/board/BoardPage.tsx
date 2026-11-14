@@ -2,8 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
-import { fmtDate, now, thisFriday, today as todayIso, uid } from '../../lib/id'
+import { now, thisFriday, today as todayIso, uid } from '../../lib/id'
 import DateInput from '../../components/DateInput'
+import TagPicker from '../../components/TagPicker'
+import AssigneePicker from '../../components/AssigneePicker'
 import type { Board, Tag, Todo } from '../../types'
 import OriginChip from '../../components/OriginChip'
 import TodoTags from '../todos/TodoTags'
@@ -11,6 +13,10 @@ import { buildTagByTodo } from '../todos/filter'
 import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
 import { useToast } from '../../state/toast'
 import { applyTodoStatus } from '../../lib/todoStatus'
+import { parseQuickAdd } from '../../lib/quickAdd'
+import { formatDueLabel } from '../../lib/todoMeta'
+import { buildTask } from '../../lib/mindmap/createTask'
+import { ensureInboxMap } from '../../lib/mindmap/mapRoots'
 
 const DONE_COL = '已完成'
 const DEFAULT_COLS = ['待办', '进行中', '待审']
@@ -46,21 +52,26 @@ async function ensureDefaultBoard(): Promise<void> {
 async function ensureWeeklyReportCard(): Promise<void> {
   const due = thisFriday()
   const id = `weekly-report-${due}`
-  const ts = now()
   const board = (await db.boards.orderBy('sort_order').first())
+  const inbox = await ensureInboxMap()
   try {
     await db.todos.add({
-      id, kind: 'task', parent_id: null, scope: null, title: '写本周周报', status: 'open', source: 'manual',
-      due_date: due, recurring: 'weekly-report', board_id: board?.id ?? null,
-      board_col: board?.columns[0] ?? '待办', sort_order: Date.now(),
-      created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+      ...buildTask({
+        id,
+        title: '写本周周报',
+        placement: { mapId: inbox.id },
+        dueDate: due,
+      }),
+      recurring: 'weekly-report',
+      board_id: board?.id ?? null,
+      board_col: board?.columns[0] ?? '待办',
     })
   } catch {
     // id 已存在 = 本周卡已建，忽略
   }
 }
 
-export default function BoardPage(): JSX.Element {
+export default function BoardPage({ embedded = false }: { embedded?: boolean } = {}): JSX.Element {
   const goTodos = useUI((s) => s.goTodos)
   const goReport = useUI((s) => s.goReport)
   const { show } = useToast()
@@ -68,6 +79,18 @@ export default function BoardPage(): JSX.Element {
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<string | null>(null)
   const [showAllDone, setShowAllDone] = useState(false)
+  const [query, setQuery] = useState('')
+  const [filterMode, setFilterMode] = useState<'all' | 'today' | 'overdue' | 'assigned' | 'tagged'>('all')
+  const focusId = useUI((s) => s.todoFocusId)
+
+  // 刚加的卡片高亮一会儿就撤掉，避免一直挂着像「没做完」
+  useEffect(() => {
+    if (!focusId) return
+    const clear = setTimeout(() => {
+      if (useUI.getState().todoFocusId === focusId) useUI.setState({ todoFocusId: null })
+    }, 2400)
+    return () => clearTimeout(clear)
+  }, [focusId])
 
   useEffect(() => { void (async () => { await ensureDefaultBoard(); await ensureWeeklyReportCard() })() }, [])
 
@@ -85,7 +108,7 @@ export default function BoardPage(): JSX.Element {
 
   const t0 = todayIso()
   const origins = useOriginTitles(all)
-  const cards = useMemo(() => {
+  const scopedCards = useMemo(() => {
     if (!board) return []
     const isDefault = boards[0]?.id === board.id
     const doneCut = Date.now() - 14 * 86400_000 // 完成列只留最近两周，避免无限增长
@@ -96,6 +119,32 @@ export default function BoardPage(): JSX.Element {
       return t.board_id ? t.board_id === board.id : isDefault
     }).sort((a, b) => a.sort_order - b.sort_order)
   }, [all, board, boards, showAllDone])
+  const cards = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return scopedCards.filter((t) => {
+      if (filterMode === 'today' && t.due_date !== t0) return false
+      if (filterMode === 'overdue' && !(t.due_date && t.due_date < t0 && t.status !== 'done')) return false
+      if (filterMode === 'assigned' && !t.assignee) return false
+      if (filterMode === 'tagged' && (tagByTodo.get(t.id)?.length ?? 0) === 0) return false
+      if (!q) return true
+      const haystack = [
+        t.title,
+        t.assignee ?? '',
+        t.due_date ?? '',
+        ...(tagByTodo.get(t.id) ?? []).map((id) => tagsById.get(id)?.name ?? ''),
+        t.origin_note_id ? (origins.noteTitles.get(t.origin_note_id) ?? '') : '',
+        t.meeting_id ? (origins.meetingTitles.get(t.meeting_id) ?? '') : '',
+      ].join('\n').toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [filterMode, origins, query, scopedCards, t0, tagByTodo, tagsById])
+  const boardCounters = useMemo(() => ({
+    all: scopedCards.length,
+    today: scopedCards.filter((t) => t.due_date === t0 && t.status !== 'done').length,
+    overdue: scopedCards.filter((t) => !!t.due_date && t.due_date < t0 && t.status !== 'done').length,
+    assigned: scopedCards.filter((t) => !!t.assignee).length,
+    tagged: scopedCards.filter((t) => (tagByTodo.get(t.id)?.length ?? 0) > 0).length,
+  }), [scopedCards, t0, tagByTodo])
 
   const olderDoneCount = useMemo(() => {
     if (!board || showAllDone) return 0
@@ -140,27 +189,25 @@ export default function BoardPage(): JSX.Element {
     })
   }
 
-  const add = async (col: string, title: string): Promise<void> => {
+  const add = async (col: string, raw: string): Promise<void> => {
     if (!board) return
-    const ts = now()
+    const parsed = parseQuickAdd(raw)
+    const inbox = await ensureInboxMap()
+    const todo = buildTask({
+      id: uid(),
+      title: parsed.title,
+      placement: { mapId: inbox.id },
+      dueDate: parsed.due_date,
+      assignee: parsed.assignee,
+      status: col === DONE_COL ? 'done' : 'open',
+    })
     await db.todos.add({
-      id: uid(), kind: 'task', parent_id: null, scope: null, title,
-      status: col === DONE_COL ? 'done' : 'open', source: 'manual',
-      board_id: board.id, board_col: col === DONE_COL ? undefined : col, sort_order: Date.now(),
-      created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
+      ...todo,
+      board_id: board.id,
+      board_col: col === DONE_COL ? undefined : col,
     })
-  }
-
-  const addBoard = async (): Promise<void> => {
-    const name = window.prompt('新看板名称')?.trim()
-    if (!name) return
-    const ts = now()
-    const id = uid()
-    await db.boards.add({
-      id, name, icon: '📋', columns: [...DEFAULT_COLS], sort_order: boards.length,
-      created_at: ts, updated_at: ts, deleted_at: null, sync_version: 0,
-    })
-    setBoardId(id)
+    // 刚加的卡片高亮一下 —— 用户能确认「它真的落在这列了」
+    useUI.setState({ todoFocusId: todo.id })
   }
 
   const renameBoard = async (b: Board): Promise<void> => {
@@ -260,34 +307,73 @@ export default function BoardPage(): JSX.Element {
   }
 
   return (
-    <div className="h-full flex flex-col px-6 md:px-10 pt-8 pb-6 gap-5 overflow-hidden">
-      <header className="flex flex-wrap items-end gap-4">
-        <div>
-          <div className="section-title">任务 · 看板</div>
-          <h1 className="text-2xl font-semibold tracking-tight">看板</h1>
-        </div>
-        <div className="ml-auto">
-          <button onClick={() => useUI.getState().goTodos()} className="btn-ghost text-xs h-8 px-3">← 任务树</button>
-        </div>
-        <div className="w-full flex gap-2 overflow-x-auto">
-          {boards.map((b) => (
-            <div key={b.id} onClick={() => setBoardId(b.id)}
-              className={`group flex items-center gap-0.5 pl-3 pr-1.5 h-7 rounded-full text-xs border whitespace-nowrap cursor-pointer transition-colors ${board?.id === b.id ? 'bg-accent/10 border-accent text-accent' : 'border-line text-text-2 hover:bg-bg-overlay'}`}>
-              <span>{b.icon} {b.name}</span>
-              <MiniMenu items={[
-                { label: '重命名', onClick: () => void renameBoard(b) },
-                { label: '删除看板', danger: true, onClick: () => void deleteBoard(b) },
-              ]} />
+    <div className={`h-full flex flex-col gap-4 overflow-hidden ${embedded ? 'px-4 md:px-6 pt-4 pb-4' : 'px-4 md:px-10 pt-6 md:pt-8 pb-6'}`}>
+      <header className={`flex flex-wrap gap-3 ${embedded ? 'items-start' : 'items-end gap-y-4'}`}>
+        {embedded ? (
+          <div className="w-full flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="text-sm font-medium text-text-1">看板</div>
+            <div className="text-xs text-text-3">列是阶段，卡片是任务本身</div>
+          </div>
+        ) : (
+          <>
+            <div>
+              <div className="section-title">任务 · 看板</div>
+              <h1 className="text-2xl font-semibold tracking-tight">看板</h1>
+              <p className="mt-1 max-w-[52ch] text-sm leading-relaxed text-text-3">
+                看板只是任务的推进视图：列代表阶段，标签、截止日期和负责人都属于任务本身，不该再额外要求你先理解“看板套看板”。
+              </p>
             </div>
-          ))}
-          <button onClick={() => void addBoard()}
-            className="px-3 h-7 rounded-full text-xs border border-dashed border-line text-text-3 hover:bg-bg-overlay whitespace-nowrap">
-            ＋ 新建看板
-          </button>
+            <div className="ml-auto">
+              <button onClick={() => useUI.getState().goTodos()} className="btn-ghost text-xs h-8 px-3">← 任务树</button>
+            </div>
+          </>
+        )}
+        <div className="w-full flex flex-col gap-2 lg:flex-row lg:items-center">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="筛卡片、负责人或标签"
+            className="input !h-10 flex-1 min-w-0 text-sm"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {([
+              ['all', '全部'],
+              ['today', '今天'],
+              ['overdue', '已逾期'],
+              ['assigned', '已指派'],
+              ['tagged', '有标签'],
+            ] as const).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setFilterMode(k)}
+                className={`px-3 h-8 rounded-full text-xs border transition-colors ${
+                  filterMode === k ? 'bg-accent/10 border-accent text-accent' : 'border-line text-text-2 hover:bg-bg-overlay'
+                }`}
+              >
+                {label} {boardCounters[k]}
+              </button>
+            ))}
+          </div>
+          <div className="text-xs text-text-3 lg:ml-auto">{cards.length} 张卡片</div>
         </div>
+        {boards.length > 1 && (
+          <div className="w-full flex flex-wrap items-center gap-2 overflow-x-auto">
+            <span className="text-[11px] text-text-3">历史分组</span>
+            {boards.map((b) => (
+              <div key={b.id} onClick={() => setBoardId(b.id)}
+                className={`group flex items-center gap-0.5 pl-3 pr-1.5 h-7 rounded-full text-xs border whitespace-nowrap cursor-pointer transition-colors ${board?.id === b.id ? 'bg-accent/10 border-accent text-accent' : 'border-line text-text-2 hover:bg-bg-overlay'}`}>
+                <span>{b.icon} {b.name}</span>
+                <MiniMenu items={[
+                  { label: '重命名', onClick: () => void renameBoard(b) },
+                  { label: '删除看板', danger: true, onClick: () => void deleteBoard(b) },
+                ]} />
+              </div>
+            ))}
+          </div>
+        )}
       </header>
 
-      <div className="flex-1 min-h-0 flex gap-4 overflow-x-auto">
+      <div className="flex-1 min-h-0 flex gap-3 md:gap-4 overflow-x-auto snap-x snap-mandatory pb-1">
         {cols.map((c, ci) => {
           const list = cardsByCol.get(c) ?? []
           const isDone = c === DONE_COL
@@ -296,7 +382,7 @@ export default function BoardPage(): JSX.Element {
               onDragOver={(e) => { e.preventDefault(); setOverCol(c) }}
               onDragLeave={() => setOverCol((o) => (o === c ? null : o))}
               onDrop={(e) => { e.preventDefault(); setOverCol(null); const id = e.dataTransfer.getData('text/plain') || dragId; if (id) void move(id, c); setDragId(null) }}
-              className={`flex-1 min-w-[240px] flex flex-col rounded-2xl p-3 gap-2 bg-bg-overlay transition-shadow ${overCol === c ? 'ring-2 ring-accent/50' : ''}`}>
+              className={`snap-start flex-1 min-w-[84vw] sm:min-w-[280px] md:min-w-[240px] flex flex-col rounded-2xl p-3 gap-2 bg-bg-overlay transition-shadow ${overCol === c ? 'ring-2 ring-accent/50' : ''}`}>
               <div className="group flex items-center gap-2 px-1 pb-1">
                 <span className={`h-2 w-2 rounded-full ${isDone ? 'bg-emerald-600' : DOTS[ci % DOTS.length]}`} />
                 <span className="text-[13px] font-semibold">{c}</span>
@@ -338,7 +424,7 @@ export default function BoardPage(): JSX.Element {
           )
         })}
         <button onClick={() => void addColumn()} data-testid="board-add-col"
-          className="shrink-0 self-start min-w-[160px] rounded-2xl border border-dashed border-line text-text-3 text-sm py-3 hover:bg-bg-overlay hover:text-accent transition-colors">
+          className="snap-start shrink-0 self-start min-w-[54vw] sm:min-w-[160px] rounded-2xl border border-dashed border-line text-text-3 text-sm py-3 hover:bg-bg-overlay hover:text-accent transition-colors">
           ＋ 添加列
         </button>
       </div>
@@ -358,6 +444,9 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
 }): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(t.title)
+  const openTaskDetail = useUI((s) => s.openTaskDetail)
+  // 刚加的卡片：短暂高亮，和列表/大纲用同一套「定位到它」的口径
+  const focused = useUI((s) => s.todoFocusId === t.id)
   const touch = (patch: Partial<Todo>): Promise<number> => {
     // 状态变化顺带把完成日期记上（看板的勾选也是一次「完成」）
     if (patch.status && patch.status !== t.status) {
@@ -373,8 +462,8 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
   }
 
   return (
-    <article draggable={!editing} onDragStart={onDragStart}
-      className={`card group p-3 hover:shadow-md transition-shadow ${t.recurring ? 'border-accent/60' : ''} ${dimmed ? 'opacity-40' : ''}`}>
+    <article draggable={!editing} onDragStart={onDragStart} onClick={() => openTaskDetail(t.id)}
+      className={`card group p-3 hover:shadow-md transition-shadow ${t.recurring ? 'border-accent/60' : ''} ${dimmed ? 'opacity-40' : ''} ${focused ? 'ring-1 ring-accent/50' : ''}`}>
       <div className="flex items-start gap-2">
         <input type="checkbox" checked={t.status === 'done'} title={t.status === 'done' ? '重开' : '完成'}
           onClick={(e) => e.stopPropagation()}
@@ -401,12 +490,13 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
         {kr && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[140px]">{kr.title}</span>}
         {t.recurring && <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">草稿已生成</span>}
         <TodoTags ids={tagIds} tagsById={tagsById} />
+        <AssigneePicker todoId={t.id} assignee={t.assignee} readonly />
         <OriginChip t={t}
           noteTitle={t.origin_note_id ? origins.noteTitles.get(t.origin_note_id) : undefined}
           meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
         {t.due_date && (
           <span className={`ml-auto ${t.status !== 'done' && overdue ? 'text-danger' : t.due_date === todayIso() && t.status !== 'done' ? 'text-warning' : 'text-text-3'}`}>
-            {fmtDate(t.due_date)}
+            {formatDueLabel(t.due_date, t.due_time)}
           </span>
         )}
       </div>
@@ -444,14 +534,34 @@ function CardMenu({ t, onTouch, onOpen, onRename, cols, onMoveTo }: {
       <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }} title="卡片操作"
         className="w-5 h-5 rounded-[5px] text-text-3 md:opacity-0 md:group-hover:opacity-100 hover:bg-bg-raise hover:text-text-1 text-xs leading-none transition-opacity">⋯</button>
       {open && (
-        <div className="card shadow-lg absolute right-0 top-6 z-50 w-44 p-1 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+        <div className="card shadow-lg absolute right-0 top-6 z-50 w-60 p-1 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button className={item} onClick={() => { onRename(); setOpen(false) }}>重命名</button>
+          <button className={item} onClick={() => { useUI.getState().openTaskDetail(t.id); setOpen(false) }}>打开详情</button>
+          <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line/60 mt-1">快捷日期</label>
+          <div className="flex flex-wrap gap-1 px-2 pb-1">
+            {[
+              ['今天', todayIso()],
+              ['本周五', thisFriday()],
+            ].map(([label, value]) => (
+              <button key={label} className="chip text-[11px] hover:border-accent hover:text-accent transition-colors" onClick={() => void onTouch({ due_date: value })}>
+                {label}
+              </button>
+            ))}
+          </div>
           <label className="px-2 py-1.5 text-[11px] text-text-3 flex items-center gap-2">
             截止日期
             <DateInput value={t.due_date ?? ''}
               onChange={(v) => void onTouch({ due_date: v || undefined })}
               className="input !h-6 !px-1.5 !py-0 text-[11px] flex-1" />
           </label>
+          <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line/60 mt-1">负责人</label>
+          <div className="px-2 pb-1">
+            <AssigneePicker todoId={t.id} assignee={t.assignee} />
+          </div>
+          <label className="px-2 pt-1 text-[11px] text-text-3 border-t border-line/60 mt-1">标签</label>
+          <div className="px-2 pb-1">
+            <TagPicker targetType="todo" targetId={t.id} />
+          </div>
           <button className={item} onClick={() => { void onTouch({ status: t.status === 'done' ? 'open' : 'done' }); setOpen(false) }}>
             {t.status === 'done' ? '标记为未完成' : '标记为已完成'}
           </button>
@@ -501,7 +611,7 @@ function MiniMenu({ items }: { items: MenuItem[] }): JSX.Element {
 function QuickAdd({ onAdd }: { onAdd: (title: string) => Promise<void> }): JSX.Element {
   const [v, setV] = useState('')
   return (
-    <input value={v} onChange={(e) => setV(e.target.value)} placeholder="+ 添加卡片，回车确认"
+    <input value={v} onChange={(e) => setV(e.target.value)} placeholder="+ 添加卡片，支持「明天 交方案 @张三」"
       onKeyDown={(e) => { if (e.key === 'Enter' && v.trim() && !e.nativeEvent.isComposing) { void onAdd(v.trim()); setV('') } }}
       className="input !bg-transparent !border-transparent hover:!border-line focus:!bg-bg-raise text-[13px]" />
   )

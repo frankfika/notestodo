@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { db } from '../../db/db'
-import { now, today as todayIso } from '../../lib/id'
+import { today as todayIso } from '../../lib/id'
 import { useAllTodos } from '../../lib/useAllTodos'
 import { useUI } from '../../state/ui'
 import type { Tag, Todo } from '../../types'
@@ -11,19 +11,19 @@ import { EditableTitle, TodoMenu, createTodo, useRowKeys } from './todoRowOps'
 import { doneLast, filterForTree, type TodoFilter } from './filter'
 import { useOriginTitles, type OriginTitles } from '../../lib/originTitles'
 import { applyTodoStatus } from '../../lib/todoStatus'
+import { formatDueLabel } from '../../lib/todoMeta'
+import { moveTodoWithMapSync } from '../../lib/mindmap/taskMapSync'
 
 const live = (t: Todo): boolean => t.deleted_at === null && t.status !== 'cancelled'
 
-function fmtDue(iso: string): string {
-  const [, m, d] = iso.split('-')
-  return `${Number(m)}/${Number(d)}`
+function DueBadge({ due, time }: { due?: string; time?: string }): JSX.Element | null {
+  if (!due) return null
+  return <span className={`text-[11px] font-mono ${dueCls(due)}`}>{formatDueLabel(due, time)}</span>
 }
 
-function DueBadge({ due }: { due?: string }): JSX.Element | null {
-  if (!due) return null
+function dueCls(due: string): string {
   const t = todayIso()
-  const cls = due < t ? 'text-red-500' : due === t ? 'text-accent' : 'text-text-3'
-  return <span className={`text-[11px] font-mono ${cls}`}>{fmtDue(due)}</span>
+  return due < t ? 'text-red-500' : due === t ? 'text-accent' : 'text-text-3'
 }
 
 async function toggle(t: Todo): Promise<void> {
@@ -73,7 +73,7 @@ function buildTree(all: Todo[]): Node[] {
 /** 落点模式：上 30% 插到前面 / 下 30% 插到后面（同级排序）；中间 40% 挂为子任务 */
 type DropMode = 'before' | 'after' | 'into'
 
-function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly, selectedId, onSelect }: {
+function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId, byId, all, tagByTodo, tagsById, origins, tabbable, setActiveId, readOnly, selectedId, onSelect, flashId }: {
   node: Node
   depth: number
   /** 同级节点（含自己），用于排序落点计算 */
@@ -95,12 +95,15 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
   /** 行选中（脑图模式下点击行选中，快速添加据此落点）；子行按自己的 id 比较 */
   selectedId?: string | null
   onSelect?: (id: string) => void
+  /** 刚创建 / 跳进来的那一行：短暂高亮 */
+  flashId?: string | null
 }): JSX.Element {
   const [drop, setDrop] = useState<DropMode | null>(null)
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t = node.todo
   const selected = selectedId === t.id
   const focused = useUI((s) => s.todoFocusId === t.id)
+  const flashing = flashId === t.id
   const hasKids = node.children.length > 0
   const subTotal = node.total - 1
   const subDone = node.done - (t.status === 'done' ? 1 : 0)
@@ -143,9 +146,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
 
     if (mode === 'into') {
       const last = Math.max(0, ...node.children.map((c) => c.todo.sort_order))
-      await db.todos.update(dragId, {
-        parent_id: t.id, sort_order: last + 10, updated_at: now(), sync_version: dragged.sync_version + 1,
-      })
+      await moveTodoWithMapSync(dragged, { parentId: t.id, sortOrder: last + 10 }, all)
       setCollapsed((s) => { const n = new Set(s); n.delete(t.id); return n })
     } else {
       // 同级插入：取目标行前后邻居的 sort_order 中点（跳过被拖行自身）
@@ -159,9 +160,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         const next = sibs[idx + 1]
         order = next ? (next.sort_order + t.sort_order) / 2 : t.sort_order + 10
       }
-      await db.todos.update(dragId, {
-        parent_id: t.parent_id ?? null, sort_order: order, updated_at: now(), sync_version: dragged.sync_version + 1,
-      })
+      await moveTodoWithMapSync(dragged, { parentId: t.parent_id ?? null, sortOrder: order }, all)
     }
     setDragId(null)
   }
@@ -181,7 +180,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         tabIndex={tabbable ? 0 : -1}
         onFocus={() => setActiveId(t.id)}
         onClick={() => onSelect?.(t.id)}
-        className={`group relative flex items-center gap-1.5 h-9 pr-2 rounded-[8px] transition-colors outline-none focus-visible:bg-bg-overlay ${selected || drop === 'into' ? 'bg-accent/10' : 'hover:bg-bg-overlay'} ${dragId === t.id ? 'opacity-40' : ''} ${focused ? 'bg-accent/10' : ''}`}
+        className={`group relative flex items-center gap-1.5 h-9 pr-2 rounded-[8px] transition-colors outline-none focus-visible:bg-bg-overlay ${selected || drop === 'into' ? 'bg-accent/10' : 'hover:bg-bg-overlay'} ${dragId === t.id ? 'opacity-40' : ''} ${focused ? 'bg-accent/10' : ''} ${flashing ? 'bg-accent/10 ring-1 ring-accent/30' : ''}`}
         style={{
           paddingLeft: 4 + depth * 24,
           // 插入位置指示线（复用笔记编辑器的视觉语言：accent 内嵌线）
@@ -214,7 +213,8 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         <input
           type="checkbox"
           checked={t.status === 'done'}
-          disabled={readOnly}
+          // 脑图模式下大纲只读，但**勾选完成**照常可用：
+          // 结构（拖拽 / 改名）以画布为真相源，完成状态是任务自身的属性
           onChange={() => void toggle(t)}
           className="shrink-0 accent-[var(--accent)]"
         />
@@ -229,9 +229,17 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         )}
         {subTotal > 0 && <span className="text-[11px] text-text-3 shrink-0">{subDone}/{subTotal}</span>}
         <TodoTags ids={tagByTodo.get(t.id) ?? []} tagsById={tagsById} />
-        {/* 关联人 + 完成日期：和「按时间」列表同一套口径 */}
+        {/* 关联人 + 到期日 + 完成日期：和「按时间」列表同一套口径 */}
         {t.assignee && (
           <span className="text-[11px] text-text-2 shrink-0" title="关联人（在「⋯」里改）">@{t.assignee}</span>
+        )}
+        {t.due_date && (
+          <span
+            className={`text-[11px] font-mono shrink-0 ${dueCls(t.due_date)}`}
+            title={`截止 ${formatDueLabel(t.due_date, t.due_time)}`}
+          >
+            截止 {formatDueLabel(t.due_date, t.due_time)}
+          </span>
         )}
         {t.completed_at && (
           <span className="text-[11px] font-mono text-text-3 shrink-0" title="完成日期">
@@ -249,7 +257,7 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
             noteTitle={t.origin_note_id ? origins.noteTitles.get(t.origin_note_id) : undefined}
             meetingTitle={t.meeting_id ? origins.meetingTitles.get(t.meeting_id) : undefined} />
         </span>
-        <DueBadge due={t.due_date} />
+        <DueBadge due={t.due_date} time={t.due_time} />
         {!readOnly && (
           <>
             <button
@@ -289,6 +297,8 @@ export default function TodosTree({ filter, tagByTodo, readOnly, selectedId, onS
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragId, setDragId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  /** 刚创建 / 跳进来的那一行：短暂高亮 */
+  const [flashId, setFlashId] = useState<string | null>(null)
   const focusId = useUI((s) => s.todoFocusId)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -297,10 +307,13 @@ export default function TodosTree({ filter, tagByTodo, readOnly, selectedId, onS
   // roving tabindex：没有手动选中过就默认第一行可 Tab 进入
   const tabbableId = activeId ?? tree[0]?.todo.id ?? null
 
-  // 从看板等跳进来：展开祖先 + 滚到该行。消费一次就清掉 focusId，避免 effect 反复跑
+  // 从看板等跳进来 / 顶部刚创建：展开祖先 + 滚到该行 + 短暂高亮。
+  // focusId 是全局的一次性信号，这里转成本地 flashId：高亮留一会儿再撤，
+  // 不会像「没做完」一样一直挂着。
   useEffect(() => {
     if (!focusId) return
     useUI.setState({ todoFocusId: null })
+    setFlashId(focusId)
     setCollapsed((s) => {
       const n = new Set(s)
       let p = byId.get(focusId)?.parent_id
@@ -308,7 +321,8 @@ export default function TodosTree({ filter, tagByTodo, readOnly, selectedId, onS
       return n
     })
     const t = setTimeout(() => document.querySelector(`[data-todo="${focusId}"]`)?.scrollIntoView({ block: 'center' }), 50)
-    return () => clearTimeout(t)
+    const clear = setTimeout(() => setFlashId((cur) => (cur === focusId ? null : cur)), 2400)
+    return () => { clearTimeout(t); clearTimeout(clear) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId])
 
@@ -322,6 +336,7 @@ export default function TodosTree({ filter, tagByTodo, readOnly, selectedId, onS
         <Row key={n.todo.id} node={n} depth={0} siblings={tree}
           collapsed={collapsed} setCollapsed={setCollapsed}
           dragId={dragId} setDragId={setDragId} byId={byId} all={all} tagByTodo={tagByTodo} tagsById={tagsById}
+          flashId={flashId}
           origins={origins} tabbable={tabbableId === n.todo.id}
           setActiveId={setActiveId} readOnly={readOnly}
           selectedId={selectedId} onSelect={onSelectRow} />

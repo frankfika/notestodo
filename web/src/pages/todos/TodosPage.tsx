@@ -12,6 +12,7 @@ import DateInput from '../../components/DateInput'
 import { getFeatures } from '../../lib/features'
 import { createTask } from '../../lib/mindmap/createTask'
 import { ensureInboxMap, listMapRoots } from '../../lib/mindmap/mapRoots'
+import { setLastMapId } from '../../lib/mindmap/attachToMap'
 import {
   canUndoMindmap,
   isMindmapEditing,
@@ -24,6 +25,7 @@ import { useToast } from '../../state/toast'
 import MapSwitcher from './MapSwitcher'
 import InboxDrawer from './InboxDrawer'
 import { TodayIndicator, TodaySwapPrompt } from './TodaySlots'
+import BoardPage from '../board/BoardPage'
 
 const STATUS_TABS = [
   ['active', '进行中'],
@@ -32,18 +34,17 @@ const STATUS_TABS = [
   ['all', '全部'],
 ] as const
 
-type ViewTab = 'mindmap' | 'tree' | 'list'
+type ViewTab = 'mindmap' | 'tree' | 'list' | 'board'
 
 /**
  * 任务页：列表（按时间分组）+ 大纲（嵌套树）；mindmap_tasks 开启时
  * 默认脑图 Tab（画布优先：图库 / Inbox 收成左上角浮层，Today 挪去「今天」页）。
- * 看板在独立路由 board。
+ * Trello 风格看板作为同级视图直接放进任务页，不再藏在独立路由后面。
  */
 export default function TodosPage(): JSX.Element {
   // 默认开：查询还没回来时先按脑图渲染，避免首帧闪一下经典列表
   const mindmapEnabled = useLiveQuery(async () => (await getFeatures()).mindmap_tasks, []) ?? true
   const [tab, setTab] = useState<ViewTab>('list')
-  const goBoard = useUI((s) => s.goBoard)
   const [filter, setFilter] = useState<TodoFilter>(EMPTY_FILTER)
   const [newTitle, setNewTitle] = useState('')
   const [newDue, setNewDue] = useState('')
@@ -62,6 +63,7 @@ export default function TodosPage(): JSX.Element {
     [allTodos, selectedNodeId],
   )
   const show = useToast((s) => s.show)
+  const focusId = useUI((s) => s.todoFocusId)
   /** 有序的图根 id（脑图 ⌘] / ⌘[ 切图用） */
   const mapIds = useMemo(() => roots.map((r) => r.id), [roots])
   /** 图根 id → 图名（跨图选中时报落点用） */
@@ -78,6 +80,20 @@ export default function TodosPage(): JSX.Element {
   useEffect(() => {
     if (!rootId && roots[0]) setRootId(roots[0].id)
   }, [roots, rootId])
+
+  useEffect(() => {
+    if (!rootId) return
+    void setLastMapId(rootId)
+  }, [rootId])
+
+  useEffect(() => {
+    if (!mindmapEnabled || !focusId) return
+    const hit = allTodos.find((t) => t.id === focusId)
+    if (!hit) return
+    const nextRootId = hit.map_id ?? hit.id
+    if (rootId !== nextRootId) setRootId(nextRootId)
+    if (selectedNodeId !== hit.id) setSelectedNodeId(hit.id)
+  }, [allTodos, focusId, mindmapEnabled, rootId, selectedNodeId])
 
   useEffect(() => {
     if (!fullscreen) return
@@ -125,6 +141,49 @@ export default function TodosPage(): JSX.Element {
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), []) ?? []
   const bindings = useLiveQuery(() => db.tagBindings.toArray(), []) ?? []
   const tagByTodo = useMemo(() => buildTagByTodo(bindings), [bindings])
+  const selectionAware = tab === 'mindmap' || tab === 'tree'
+  const selectedPlacementTodo =
+    selectionAware && mindmapEnabled && selectedTodo && !selectedNodeId?.startsWith('done-group:')
+      ? selectedTodo
+      : undefined
+
+  const currentMapTitle = rootId ? (mapTitleById.get(rootId) ?? '当前图') : '当前图'
+  const createContext = useMemo(() => {
+    if (tab === 'board') {
+      return {
+        title: '看板里直接在列底部加卡片',
+        detail: '这样一创建就知道它落在哪个阶段，不会和下面脱节。',
+        buttonLabel: '',
+      }
+    }
+    if (selectedPlacementTodo) {
+      const mapTitle = selectedPlacementTodo.map_id ? mapTitleById.get(selectedPlacementTodo.map_id) : ''
+      return {
+        title: `会加到「${selectedPlacementTodo.title || '未命名任务'}」下面`,
+        detail: mapTitle ? `当前落点：${mapTitle}` : '当前落点和下面选中的任务一致。',
+        buttonLabel: '加到当前项下',
+      }
+    }
+    if (mindmapEnabled && tab === 'mindmap') {
+      return {
+        title: `会出现在「${currentMapTitle}」的第一层`,
+        detail: '下面脑图里会直接看到这条新任务。',
+        buttonLabel: '加到当前图',
+      }
+    }
+    if (mindmapEnabled) {
+      return {
+        title: '会先放进 Inbox',
+        detail: '列表和大纲是全局视图，先收进 Inbox 更不容易迷路，后面再拖到具体图里。',
+        buttonLabel: '放进 Inbox',
+      }
+    }
+    return {
+      title: '会出现在下面的任务列表里',
+      detail: '这里创建的就是当前任务页里的新任务。',
+      buttonLabel: '创建任务',
+    }
+  }, [currentMapTitle, mapTitleById, mindmapEnabled, selectedPlacementTodo, tab])
 
   const addQuick = async (): Promise<void> => {
     const raw = newTitle.trim()
@@ -134,13 +193,13 @@ export default function TodosPage(): JSX.Element {
     //   选中了节点 → 挂到它下面；没选中 → 图根的一级分支；
     //   还没有图时用 Inbox 做第一张画布。
     // Inbox 捕获流另有 InboxDrawer 和本机 API 入口。经典模式仍建无父根任务。
-    const mapId = mindmapEnabled ? (rootId ?? (await ensureInboxMap()).id) : null
-    // 落点跟「选中」走（所见即所得）：选中 → 挂到它下面；没选中 → 图根一级分支。
-    // 大纲是跨图视图：选中行属于别的图时，落点跟到那张图上（不再猜当前图）。
-    const sel =
-      mindmapEnabled && selectedTodo && !selectedNodeId?.startsWith('done-group:')
-        ? selectedTodo
-        : undefined
+    const inbox = mindmapEnabled ? await ensureInboxMap() : null
+    const mapId = mindmapEnabled
+      ? (tab === 'mindmap' ? (rootId ?? inbox!.id) : inbox!.id)
+      : null
+    // 只有当下面这个视图真的看得到选中关系时，顶部创建才允许“挂到选中项下”；
+    // 否则会出现：你在脑图里选过一个节点，切到列表/看板后继续偷偷加到那里，体感非常迷。
+    const sel = selectedPlacementTodo
     const targetMapId = sel ? (sel.map_id ?? sel.id) : mapId
     const todo = await createTask({
       title: parsed.title,
@@ -153,13 +212,14 @@ export default function TodosPage(): JSX.Element {
       dueDate: newDue || parsed.due_date,
       assignee: parsed.assignee,
     })
-    // 新任务上画布选中 —— 用户立刻看到「刚才那条加到哪了」
-    if (targetMapId) useUI.setState({ todoFocusId: todo.id })
+    // 新任务立刻定位并高亮 —— 不用用户自己去找「刚才那条去哪了」
+    useUI.setState({ todoFocusId: todo.id })
     // 与画布操作同口径：失败可撤（R4）
     pushMindmapUndo(async () => {
       const all = await db.todos.toArray()
       await db.todos.bulkDelete([...subtreeIds(todo.id, all)])
     }, '添加任务', targetMapId ?? 'global')
+    show(createContext.title)
     setNewTitle('')
     setNewDue('')
   }
@@ -173,44 +233,96 @@ export default function TodosPage(): JSX.Element {
   // 输入框占位文案要报落点：选中节点 → 报节点名；选中行在别的图 → 带上图名，
   // 让「这条会落到哪张图」在跨图的大纲视图里一眼可见。
   const selTitle =
-    selectedTodo && selectedTodo.title && !selectedNodeId?.startsWith('done-group:')
-      ? selectedTodo.title.slice(0, 14)
+    selectedPlacementTodo && selectedPlacementTodo.title
+      ? selectedPlacementTodo.title.slice(0, 14)
       : ''
   const selMapTitle =
     mindmapEnabled &&
-    selectedTodo &&
-    selectedTodo.map_id &&
-    selectedTodo.map_id !== rootId
-      ? (mapTitleById.get(selectedTodo.map_id) ?? '')
+    selectedPlacementTodo &&
+    selectedPlacementTodo.map_id &&
+    selectedPlacementTodo.map_id !== rootId
+      ? (mapTitleById.get(selectedPlacementTodo.map_id) ?? '')
       : ''
 
   const viewTabs = mindmapEnabled
-    ? ([['mindmap', '脑图'], ['tree', '大纲'], ['list', '按时间']] as const)
-    : ([['list', '列表'], ['tree', '大纲']] as const)
+    ? ([['mindmap', '脑图'], ['tree', '大纲'], ['list', '按时间'], ['board', '看板']] as const)
+    : ([['list', '列表'], ['tree', '大纲'], ['board', '看板']] as const)
 
   return (
     <div
       className={`h-full flex flex-col${fullscreen ? ' fixed inset-0 z-50 bg-bg' : ''}`}
       data-testid={fullscreen ? 'todos-fullscreen' : undefined}
     >
-      {/* 一行搞定：视图切换 + 搜索/筛选 */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-line shrink-0 flex-wrap">
-        <div className="flex items-center gap-1">
+      <div className="border-b border-line bg-bg shrink-0">
+        <div className="px-4 pt-4 pb-3">
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="section-title">任务</div>
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h1 className="text-2xl font-semibold text-text-1 text-balance">任务</h1>
+                <span className="text-sm text-text-3">先推进当前项，其他视图需要时再展开。</span>
+              </div>
+            </div>
+          </div>
+
+          {tab === 'board' ? (
+            <div className="mt-4 rounded-2xl border border-line bg-bg-overlay/55 px-4 py-3">
+              <div className="text-sm font-medium text-text-1">{createContext.title}</div>
+              <div className="mt-1 text-xs leading-relaxed text-text-3">{createContext.detail}</div>
+            </div>
+          ) : (
+            <>
+              <div className="mt-4 flex flex-col gap-2 lg:flex-row">
+                <input
+                  value={newTitle}
+                  name="todosQuickAdd"
+                  autoComplete="off"
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return
+                    if (e.key === 'Enter') void addQuick()
+                  }}
+                  placeholder={
+                    selTitle
+                      ? `＋ 加到「${selMapTitle ? `${selMapTitle} › ` : ''}${selTitle}」下，回车创建`
+                      : `＋ ${createContext.title}，回车创建`
+                  }
+                  className="input !h-10 flex-1 min-w-0 text-sm"
+                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <DateInput
+                    value={newDue}
+                    onChange={setNewDue}
+                    title="截止日期（可选）"
+                    className="input !h-10 !w-auto text-sm text-text-2 shrink-0"
+                  />
+                  <button onClick={() => void addQuick()} className="btn-primary h-10 px-4 text-sm shrink-0">
+                    {createContext.buttonLabel}
+                  </button>
+                </div>
+              </div>
+              {/* 落点说明收成一行轻提示：告诉用户「这条会去哪」，不再抢一整块空间 */}
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-text-3 min-w-0">
+                <span className="shrink-0 text-text-2">↓ {createContext.title}</span>
+                <span className="truncate">{createContext.detail}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 视图切换收成次级层：默认先给主工作区，其他只是展开方式。 */}
+        <div className="flex items-center gap-2 px-4 pb-2 shrink-0 flex-wrap">
+          <span className="text-xs text-text-3">查看方式</span>
+          <div className="flex items-center gap-1">
           {viewTabs.map(([k, label]) => (
             <button
               key={k}
               onClick={() => setTab(k)}
               className={`px-3 h-8 rounded-[8px] text-sm transition-colors ${
-                tab === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'
+                tab === k ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-3 hover:bg-bg-overlay hover:text-text-1'
               }`}
             >{label}</button>
           ))}
-          {!mindmapEnabled && (
-            <button
-              onClick={goBoard}
-              className="px-3 h-8 rounded-[8px] text-sm text-text-2 hover:bg-bg-overlay hover:text-text-1 transition-colors"
-            >看板</button>
-          )}
         </div>
         {mindmapEnabled && !rootId && roots[0] && (
           <span className="ml-2 text-xs text-text-3">在左上角 ◱ 入口选择或新建图</span>
@@ -246,7 +358,7 @@ export default function TodosPage(): JSX.Element {
         <div className="flex-1" />
         {/* 搜索 / 状态 / 标签筛选只作用于大纲与列表 —— 脑图画布有自己的
             结构语义（done 折进折叠组、归档不出图），摆一排无效的控件只会吵 */}
-        {tab !== 'mindmap' && (
+        {tab !== 'mindmap' && tab !== 'board' && (
           <>
             <input
               value={filter.q}
@@ -282,30 +394,6 @@ export default function TodosPage(): JSX.Element {
           </>
         )}
       </div>
-
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-line shrink-0">
-        <input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return
-            if (e.key === 'Enter') void addQuick()
-          }}
-          placeholder={
-            mindmapEnabled
-              ? selTitle
-                ? `＋ 添加到「${selMapTitle ? `${selMapTitle} › ` : ''}${selTitle}」下，回车创建（@人 / 明天 可识别）`
-                : '＋ 添加为图的一级分支，回车创建（先选中节点则加在它下面）'
-              : '＋ 添加任务，回车创建（支持「明天 交方案 @张三」）'
-          }
-          className="input !h-8 flex-1 min-w-0 text-sm"
-        />
-        <DateInput
-          value={newDue}
-          onChange={setNewDue}
-          title="截止日期（可选）"
-          className="input !h-8 !w-auto text-sm text-text-2 shrink-0"
-        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -325,8 +413,22 @@ export default function TodosPage(): JSX.Element {
                 />
               </div>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-text-3">
-                选择一张进行中的图，或快速添加创建新图
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div className="card max-w-[520px] p-6 text-center">
+                  <div className="mx-auto mb-2 h-10 w-10 rounded-2xl border border-line bg-bg-overlay grid place-items-center text-lg text-text-3">
+                    ◎
+                  </div>
+                  <h2 className="text-lg font-semibold text-text-1">先创建第一张任务图</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-text-3">
+                    脑图适合把一个目标拆成几条分支，再把真正要执行的任务拖进今天。你可以直接从上面的快速添加开始，也可以先建一个 Inbox 图。
+                  </p>
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => void ensureInboxMap().then((map) => setRootId(map.id))}
+                      className="btn-primary h-9 px-4 text-sm"
+                    >创建 Inbox 图</button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -347,11 +449,13 @@ export default function TodosPage(): JSX.Element {
             <TodosTree
               filter={filter}
               tagByTodo={tagByTodo}
-              readOnly={mindmapEnabled}
+              readOnly={false}
               selectedId={mindmapEnabled ? selectedNodeId : undefined}
               onSelectRow={mindmapEnabled ? setSelectedNodeId : undefined}
             />
           </div>
+        ) : tab === 'board' ? (
+          <BoardPage embedded />
         ) : (
           <div className="h-full overflow-y-auto px-4 py-3">
             <TodosList filter={filter} tagByTodo={tagByTodo} />

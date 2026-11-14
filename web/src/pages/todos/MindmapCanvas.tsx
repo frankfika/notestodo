@@ -1,4 +1,6 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
 import {
   applyTodoPatches,
@@ -21,6 +23,8 @@ import type { ID, Todo } from '../../types'
 import { mod } from '../../lib/id'
 import './mindmap.css'
 import { applyTodoStatus } from '../../lib/todoStatus'
+import DateInput from '../../components/DateInput'
+import { setDue } from './todoRowOps'
 
 export type MindmapCanvasProps = {
   rootId: ID
@@ -43,6 +47,8 @@ const MINIMAL_PALETTE = ['#a3a3a0', '#b6b5b1', '#9aa3ab', '#b3a99f', '#a6a1ab']
 
 /** 自适应缩放的保底下限：再小字就看不清了，低于它只居中不继续缩 */
 const MIN_FIT_SCALE = 0.6
+const DRAG_INTENT_PX = 6
+const DRAG_SETTLE_MS = 220
 
 type MindElixirInstance = {
   init: (data: unknown) => void | Promise<void>
@@ -113,6 +119,7 @@ type BranchTag = string | { text: string; className?: string }
 type BranchNode = {
   id?: string
   topic?: string
+  direction?: 0 | 1
   children?: BranchNode[]
   tags?: BranchTag[]
   metadata?: MindmapNodeMeta
@@ -210,7 +217,7 @@ function treeSignature(node: BranchNode | undefined): string {
   if (!node) return ''
   const kids = node.children ?? []
   const visible = JSON.stringify(node.tags ?? [])
-  return `${node.id ?? ''}~${normTopic(node.topic)}~${visible}(${kids.map(treeSignature).join(',')})`
+  return `${node.id ?? ''}~${normTopic(node.topic)}~${node.direction ?? ''}~${visible}(${kids.map(treeSignature).join(',')})`
 }
 
 function normTopic(topic: string | undefined): string {
@@ -221,7 +228,12 @@ function normTopic(topic: string | undefined): string {
 /** 由应用层统一实现的键（避免 ME 内建键位重复触发） */
 const APP_KEYS = new Set(['Tab', 'Enter', 'F2', 'Delete', 'Backspace'])
 
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+const IS_MAC =
+  typeof navigator !== 'undefined' &&
+  /mac|iphone|ipad|ipod/i.test(
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
+      navigator.userAgent,
+  )
 
 /** 快捷键清单：画布右下角小面板直接渲染这份表，语义与实现同源 */
 const SHORTCUT_ROWS: { keys: string[]; desc: string; leaf?: boolean }[] = [
@@ -263,11 +275,13 @@ function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
 }
 
 export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId: selectedIdProp, onSelectionChange }: MindmapCanvasProps): JSX.Element {
+  const openTaskDetail = useUI((s) => s.openTaskDetail)
   const elRef = useRef<HTMLDivElement>(null)
   const meiRef = useRef<MindElixirInstance | null>(null)
   const coachTimer = useRef<number | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
+  const [draggingUi, setDraggingUi] = useState(false)
   const [ready, setReady] = useState(0)
   /** 当前选中的节点（驱动底部操作栏）；编辑态用于隐藏操作栏。
    * 页面传 selectedId 就走受控（快速添加要据此决定落点），否则内部自管。 */
@@ -281,9 +295,30 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     [onSelectionChange],
   )
   const [editingUi, setEditingUi] = useState(false)
+  const sideKey = useMemo(() => `mindmap.side.${rootId}`, [rootId])
+  const sideRow = useLiveQuery(() => db.kv.get(sideKey), [sideKey])
+  const mainDirections = useMemo(() => {
+    const raw = sideRow?.value
+    if (!raw || typeof raw !== 'object') return {}
+    return Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>)
+        .filter(([, v]) => v === 0 || v === 1),
+    ) as Record<string, 0 | 1>
+  }, [sideRow])
+  const mainDirectionsRef = useRef(mainDirections)
+  mainDirectionsRef.current = mainDirections
   /** 选中态的 ref 镜像：ME 的 click 监听器 mount 时注册一次，闭包拿不到最新 state */
   const selectedRef = useRef<ID | null>(null)
   selectedRef.current = selectedId
+  const dragStateRef = useRef({
+    startX: 0,
+    startY: 0,
+    onTopic: false,
+    moved: false,
+    suppressClickUntil: 0,
+  })
+  const draggingUiRef = useRef(false)
+  draggingUiRef.current = draggingUi
   const todos = useAllTodos()
   const focusId = useUI((s) => s.todoFocusId)
   const goNote = useUI((s) => s.goNote)
@@ -364,7 +399,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       if (cancelled || !elRef.current) return
       const mei = new MindElixir({
         el: elRef.current,
-        direction: 1,
+        direction: 2,
         editable: true,
         toolBar: false,
         // 右键菜单保持关闭：ME 自带的「插入父节点 / 连接 / 专注」
@@ -383,8 +418,13 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           generateSubBranch: organicSubBranch,
         },
       }) as unknown as MindElixirInstance
-      const data = todosToMindData(todos, rootId, undefined, originsRef.current)
+      const data = todosToMindData(todos, rootId, undefined, originsRef.current, mainDirections)
       await mei.init(data)
+      const keepId = selectedRef.current
+      if (keepId) {
+        const keepEl = findEleSafe(mei, keepId)
+        if (keepEl) mei.selectNode?.(keepEl)
+      }
       fitToView()
 
       // F-02 · 键位语义统一由应用层实现（见 SHORTCUT_ROWS）：
@@ -490,6 +530,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       container?.addEventListener('dblclick', (e: Event) => {
         // 已经在编辑了就别再开一个
         if (document.querySelector('#input-box')) return
+        if (performance.now() < dragStateRef.current.suppressClickUntil) return
         const target = e.target as HTMLElement | null
         // 标签（负责人 / 截止 / 来源）是展示信息，双击不该进改名
         if (target?.closest?.('.tags')) return
@@ -512,8 +553,6 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
        * 捕获阶段快照「按下之前选的是谁」，click 时和快照比。
        */
       let selAtDown: string | null = null
-      /** 首次拖动教学：记录按下点，拖出阈值后教一次落点语义 */
-      let downPos: { x: number; y: number; onTopic: boolean } | null = null
       let dragHintArmed =
         typeof localStorage !== 'undefined' &&
         !localStorage.getItem('mindmap_drag_hint_v1')
@@ -523,31 +562,63 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           selAtDown = selectedRef.current
           const ev = e as PointerEvent
           const tpc = (ev.target as HTMLElement | null)?.closest?.('.me-tpc')
-          downPos = { x: ev.clientX, y: ev.clientY, onTopic: Boolean(tpc) }
+          dragStateRef.current.startX = ev.clientX
+          dragStateRef.current.startY = ev.clientY
+          dragStateRef.current.onTopic = Boolean(tpc)
+          dragStateRef.current.moved = false
+          if (draggingUiRef.current) setDraggingUi(false)
         },
         { capture: true },
       )
       container?.addEventListener(
         'pointermove',
         (e: Event) => {
-          if (!downPos?.onTopic || !dragHintArmed) return
           const ev = e as PointerEvent
-          if (Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y) < 10) return
+          const dragState = dragStateRef.current
+          if (!dragState.onTopic) return
+          const moved =
+            Math.hypot(ev.clientX - dragState.startX, ev.clientY - dragState.startY) >= DRAG_INTENT_PX
+          if (!moved) return
+          dragState.moved = true
+          if (!draggingUiRef.current) setDraggingUi(true)
+          if (!dragHintArmed) return
           dragHintArmed = false
           localStorage.setItem('mindmap_drag_hint_v1', '1')
           say('拖到节点上 = 变成它的子节点；拖到上 / 下边缘 = 排到它前面 / 后面')
         },
         { capture: true, passive: true },
       )
+      const settleDragGesture = (): void => {
+        const dragState = dragStateRef.current
+        if (dragState.moved) dragState.suppressClickUntil = performance.now() + DRAG_SETTLE_MS
+        dragState.onTopic = false
+        dragState.moved = false
+        if (draggingUiRef.current) requestAnimationFrame(() => setDraggingUi(false))
+      }
       container?.addEventListener(
         'pointerup',
-        () => {
-          downPos = null
-        },
+        settleDragGesture,
         { capture: true },
       )
+      container?.addEventListener(
+        'pointercancel',
+        settleDragGesture,
+        { capture: true },
+      )
+      const swallowResidualTap = (e: Event): void => {
+        if (performance.now() >= dragStateRef.current.suppressClickUntil) return
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+      container?.addEventListener('click', swallowResidualTap, true)
+      container?.addEventListener('dblclick', swallowResidualTap, true)
       container?.addEventListener('click', (e: Event) => {
         if (document.querySelector('#input-box')) return
+        if (performance.now() < dragStateRef.current.suppressClickUntil) {
+          e.preventDefault()
+          e.stopPropagation()
+          return
+        }
         const target = e.target as HTMLElement | null
         // 悬停「＋」有自己的点击语义，别让它顺手把节点推进编辑态
         if (target?.closest?.('.mm-node-add')) return
@@ -570,6 +641,17 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             e.preventDefault()
             if (t.origin_note_id) goNote(t.origin_note_id)
             else if (t.meeting_id) goMeeting(t.meeting_id)
+            return
+          }
+          /**
+           * 纯展示标签（@负责人 / 截止 / 「等待中」）：点它不该进编辑态，
+           * 但**必须把节点选中** —— 否则 ME 不会选中，
+           * 后续按 ⌘T / Space 会作用在上一个节点上（实测 Waiting 标签点不中）。
+           */
+          const el = findEleSafe(mei, id)
+          if (el) {
+            mei.selectNode?.(el)
+            setSelectedId(id)
           }
           return
         }
@@ -586,6 +668,14 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           pendingNewNodeRef.current = (ev as { target?: { id?: string } }).target?.id ?? null
         }
         if ((ev as { name?: string }).name === 'beginEdit') {
+          if (performance.now() < dragStateRef.current.suppressClickUntil) {
+            requestAnimationFrame(() => {
+              ;(document.querySelector('#input-box') as HTMLElement | null)?.blur()
+            })
+            setMindmapEditing(false)
+            setEditingUi(false)
+            return
+          }
           setMindmapEditing(true)
           setEditingUi(true)
           editingNodeIdRef.current = (ev as { target?: { id?: string } }).target?.id ?? null
@@ -667,12 +757,12 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       meiRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootId])
+  }, [rootId, fitToView, mainDirections, setSelectedId])
 
   useEffect(() => {
     const mei = meiRef.current
     if (!mei || isMindmapEditing()) return
-    const data = todosToMindData(todos, rootId, undefined, origins)
+    const data = todosToMindData(todos, rootId, undefined, origins, mainDirections)
     /**
      * 渲染结果没变就别重画。
      *
@@ -716,7 +806,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     }
     // 重绘后节点 DOM 是新的，重新补挂折叠计数 / 悬停「＋」
     decorateRef.current?.()
-  }, [todos, rootId, ready, origins, fitToView])
+  }, [todos, rootId, ready, origins, fitToView, mainDirections, setSelectedId])
 
   /** #46 收尾：占位新节点被取消后，等创建补丁真正写回 todos 快照再软删（写入是异步的） */
   useEffect(() => {
@@ -845,7 +935,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     async (t: Todo): Promise<void> => {
       if (!todayEligible(t, byParentAll)) {
         const msg = t.waiting_reason
-          ? 'Waiting 不能入 Today，先清除原因或拆步'
+          ? '等待中的任务不能加入今天，先清掉等待原因或拆成下一步'
           : !isLeafTodo(t, byParentAll)
             ? '先拆成一步（按 Tab 加子节点），再 ⌘T'
             : '当前节点不可入 Today'
@@ -871,6 +961,34 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       if (el) void mei.removeNodes?.([el])
     },
     [rootId, say],
+  )
+
+  /** 节点截止日期：在脑图里直接改，不再逼用户切去列表/菜单找入口 */
+  const setDueDate = useCallback(
+    async (t: Todo, due: string): Promise<void> => {
+      const next = due || null
+      if ((t.due_date ?? null) === next) return
+      await setDue(t, next)
+      say(next ? `已设截止 ${next.slice(5, 10).replace('-', '/')}` : '已清掉截止日期')
+    },
+    [say],
+  )
+
+  /** 一级分支显式切左右侧：比拖到另一边更确定，也更容易被发现。 */
+  const setMainBranchDirection = useCallback(
+    async (t: Todo, direction: 0 | 1): Promise<void> => {
+      if (t.parent_id !== rootId) {
+        say('只有一级分支可以直接切到左侧或右侧')
+        return
+      }
+      if (mainDirectionsRef.current[t.id] === direction) return
+      await db.kv.put({
+        key: sideKey,
+        value: { ...mainDirectionsRef.current, [t.id]: direction },
+      })
+      say(direction === 0 ? '主分支已放到左侧' : '主分支已放到右侧')
+    },
+    [rootId, say, sideKey],
   )
 
   /** 空图引导：选中根节点并直接加第一个子节点 */
@@ -999,6 +1117,9 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
 
   const isDoneGroupSel = Boolean(selectedId?.startsWith('done-group:'))
   const rootKids = byParentAll.get(rootId) ?? []
+  const isMainBranchSelected = Boolean(selectedTodo && selectedTodo.parent_id === rootId)
+  const mainBranchDirection =
+    selectedTodo && selectedTodo.parent_id === rootId ? mainDirections[selectedTodo.id] : undefined
   // 选中态可能是页面从大纲视图带进来的其他图节点 —— 本图画布上没它，不出操作栏
   const showActionBar = Boolean(
     selectedTodo && selectedTodo.map_id === rootId && !editingUi && !isDoneGroupSel,
@@ -1020,7 +1141,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     : null
 
   return (
-    <div className="mindmap-wrap relative w-full h-full min-h-[420px]" onMouseDown={focusCanvas}>
+    <div className={`mindmap-wrap relative w-full h-full min-h-[420px]${draggingUi ? ' is-dragging' : ''}`} onMouseDown={focusCanvas}>
       {/* 教练提示常驻挂载、用 visibility 切显隐 —— 这样消失时能淡出，
           而不是「啪」地没了（内容为空时对读屏无影响）。 */}
       <div className="mindmap-coach" role="status" data-show={coach ? '1' : '0'}>
@@ -1031,12 +1152,12 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       {/* 空图引导：不给用户一面空白画布去猜 */}
       {rootKids.length === 0 && (
         <div className="mindmap-empty">
-          <div className="mindmap-empty-title">这张图还是空的</div>
+          <div className="mindmap-empty-title">先从一条真正要推进的事开始</div>
           <button type="button" className="mindmap-empty-btn" onClick={startFirstNode}>
             ＋ 添加第一条任务
           </button>
           <div className="mindmap-empty-hint">
-            之后选中任意节点，底部会出现操作栏（也可以按 Tab 继续拆）
+            先写主干，再逐层拆开。选中节点后，底部会出现更细的操作。
           </div>
         </div>
       )}
@@ -1045,14 +1166,14 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       {showActionBar && selectedTodo && (
         <div className="mindmap-actionbar" role="toolbar" aria-label="节点操作">
           <button type="button" onClick={() => void meiRef.current?.addChild?.()}>
-            ＋ 子节点 <kbd className="mindmap-kbd">Tab</kbd>
+            子节点 <kbd className="mindmap-kbd">Tab</kbd>
           </button>
           <button
             type="button"
             disabled={selectedTodo.id === rootId}
             onClick={() => void meiRef.current?.insertSibling?.('after')}
           >
-            ＋ 同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
+            同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
           </button>
           <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button
@@ -1077,8 +1198,28 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           </button>
           <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button type="button" onClick={() => void meiRef.current?.beginEdit?.()}>
-            ✎ 改名 <kbd className="mindmap-kbd">F2</kbd>
+            改名 <kbd className="mindmap-kbd">F2</kbd>
           </button>
+          <div className="mindmap-actionbar-date">
+            <span className="mindmap-actionbar-label">截止</span>
+            <DateInput
+              value={selectedTodo.due_date ?? ''}
+              onChange={(value) => void setDueDate(selectedTodo, value)}
+              title="设置截止日期"
+              className="mindmap-actionbar-dateinput"
+            />
+            {selectedTodo.due_date && (
+              <button
+                type="button"
+                className="mindmap-actionbar-icon"
+                aria-label="清空截止日期"
+                title="清空截止日期"
+                onClick={() => void setDueDate(selectedTodo, '')}
+              >
+                ×
+              </button>
+            )}
+          </div>
           <button
             type="button"
             disabled={selectedTodo.id === rootId || !isLeafTodo(selectedTodo, byParentAll)}
@@ -1094,6 +1235,31 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             {selectedTodo.status === 'done' ? '取消完成' : '✓ 完成'}{' '}
             <kbd className="mindmap-kbd">Space</kbd>
           </button>
+          <button type="button" onClick={() => openTaskDetail(selectedTodo.id)}>
+            详情
+          </button>
+          {isMainBranchSelected && (
+            <div className="mindmap-actionbar-group" role="group" aria-label="主分支位置">
+              <button
+                type="button"
+                className={mainBranchDirection === 0 ? 'is-active' : undefined}
+                aria-pressed={mainBranchDirection === 0}
+                title="放到左侧"
+                onClick={() => void setMainBranchDirection(selectedTodo, 0)}
+              >
+                左侧
+              </button>
+              <button
+                type="button"
+                className={mainBranchDirection === 1 ? 'is-active' : undefined}
+                aria-pressed={mainBranchDirection === 1}
+                title="放到右侧"
+                onClick={() => void setMainBranchDirection(selectedTodo, 1)}
+              >
+                右侧
+              </button>
+            </div>
+          )}
           <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button
             type="button"
@@ -1103,17 +1269,17 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             disabled={!todayEligible(selectedTodo, byParentAll)}
             onClick={() => void addToday(selectedTodo)}
           >
-            ☼
+            今
           </button>
           {originJump && (
             <button
               type="button"
-              className="mindmap-actionbar-icon"
+              className="mindmap-actionbar-source"
               aria-label={`来源：${originJump.label}`}
               title={`跳到来源（${originJump.label}）`}
               onClick={originJump.run}
             >
-              ↗
+              来源
             </button>
           )}
           <button
@@ -1130,7 +1296,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       <div className="mindmap-hint">
         {showKeys && (
           <div className="mindmap-hint-panel" role="menu" aria-label="脑图快捷键">
-            <div className="mindmap-hint-title">鼠标</div>
+            <div className="mindmap-hint-title">使用方式</div>
             <div className="mindmap-hint-row">
               <span className="mindmap-hint-desc">单击节点：选中，底部出操作栏</span>
             </div>
@@ -1149,7 +1315,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             <div className="mindmap-hint-row">
               <span className="mindmap-hint-desc">点「适应画布」：大图一键回到看得清的缩放</span>
             </div>
-            <div className="mindmap-hint-title">快捷键</div>
+            <div className="mindmap-hint-title">键盘</div>
             {SHORTCUT_ROWS.map((row) => (
               <div className="mindmap-hint-row" key={row.desc}>
                 <span className="mindmap-hint-keys">
@@ -1169,7 +1335,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
         )}
         <div className="mindmap-hint-actions">
           <button type="button" className="mindmap-hint-btn" onClick={fitToView}>
-            适应画布
+            适应
           </button>
           <button
             type="button"
@@ -1177,7 +1343,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             aria-expanded={showKeys}
             onClick={() => setShowKeys((v) => !v)}
           >
-            快捷键
+            说明
           </button>
         </div>
       </div>

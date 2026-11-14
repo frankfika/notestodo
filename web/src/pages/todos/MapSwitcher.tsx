@@ -89,15 +89,19 @@ export default function MapSwitcher({ rootId, onSelect }: MapSwitcherProps): JSX
         onClick={() => setOpen((o) => !o)}
         title="切换项目图"
         aria-label="切换项目图"
-        className="flex items-center gap-1.5 h-8 max-w-[220px] px-2.5 rounded-[10px] bg-bg-raise/85 backdrop-blur border border-line text-xs text-text-1 hover:border-accent/60 transition-colors"
+        className="flex items-center gap-2 h-8 max-w-[240px] px-3 rounded-full bg-bg-raise/90 backdrop-blur border border-line shadow-sm text-xs text-text-1 hover:border-line-strong transition-colors"
       >
-        <span className="text-text-3 shrink-0">◱</span>
+        <span className="text-text-3 shrink-0">项目图</span>
         <span className="truncate font-medium">{current?.title || '未命名'}</span>
         <span className="text-text-3 shrink-0">▾</span>
       </button>
 
       {open && (
-        <div className="absolute top-9 left-0 z-40 w-60 card shadow-lg p-2 flex flex-col gap-1.5">
+        <div className="absolute top-10 left-0 z-40 w-64 card shadow-lg p-2.5 flex flex-col gap-2">
+          <div className="px-1">
+            <div className="text-[11px] font-semibold text-text-2">项目图</div>
+            <div className="mt-0.5 text-[11px] text-text-3">一张图对应一件正在推进的事。</div>
+          </div>
           <div className="flex rounded-[6px] bg-bg-overlay p-0.5">
             {([
               ['active', '进行中'],
@@ -136,18 +140,18 @@ export default function MapSwitcher({ rootId, onSelect }: MapSwitcherProps): JSX
             })}
           </ul>
 
-          <div className="flex flex-col gap-1 border-t border-line pt-1.5">
+          <div className="flex flex-col gap-1 border-t border-line pt-2">
             {canArchive && (
               <button
                 type="button"
-                className="w-full h-7 rounded-[6px] text-[11px] text-text-2 hover:bg-bg-overlay hover:text-text-1 border border-line"
+                className="w-full h-8 rounded-[8px] text-[11px] text-text-2 hover:bg-bg-overlay hover:text-text-1 border border-line"
                 onClick={() => void onArchive()}
               >归档当前图</button>
             )}
             {libTab === 'archived' && rootId && archivedRoots.some((r) => r.id === rootId) && (
               <button
                 type="button"
-                className="w-full h-7 rounded-[6px] text-[11px] text-accent hover:bg-bg-overlay border border-line"
+                className="w-full h-8 rounded-[8px] text-[11px] text-accent hover:bg-bg-overlay border border-line"
                 onClick={() => void onRestore(rootId)}
               >恢复此图</button>
             )}

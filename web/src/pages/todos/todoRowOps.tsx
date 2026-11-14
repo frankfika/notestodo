@@ -6,8 +6,10 @@ import type { Todo } from '../../types'
 import TagPicker from '../../components/TagPicker'
 import DateInput from '../../components/DateInput'
 import { useToast } from '../../state/toast'
+import { useUI } from '../../state/ui'
 import { applyTodoStatus } from '../../lib/todoStatus'
 import { createTask } from '../../lib/mindmap/createTask'
+import { moveTodoWithMapSync } from '../../lib/mindmap/taskMapSync'
 import { evictIfPresent, getToday, setToday } from '../../lib/mindmap/todaySlots'
 import AssigneePicker from '../../components/AssigneePicker'
 import { archiveTodo, unarchiveTodo } from '../../lib/todoStatus'
@@ -52,7 +54,8 @@ export async function setDue(t: Todo, due: string | null): Promise<void> {
 
 export async function moveToRoot(t: Todo): Promise<void> {
   if (!t.parent_id) return
-  await db.todos.update(t.id, { parent_id: null, updated_at: now(), sync_version: t.sync_version + 1 })
+  const all = await db.todos.toArray()
+  await moveTodoWithMapSync(t, { parentId: null, sortOrder: t.sort_order }, all)
 }
 
 export async function toggleTodo(t: Todo): Promise<void> {
@@ -159,9 +162,7 @@ export async function indentTodo(t: Todo, all: Todo[]): Promise<void> {
   if (!prev) return
   const kids = all.filter((x) => x.parent_id === prev.id && x.deleted_at === null)
   const order = kids.length ? Math.max(...kids.map((k) => k.sort_order)) + 10 : t.sort_order
-  await db.todos.update(t.id, {
-    parent_id: prev.id, sort_order: order, updated_at: now(), sync_version: t.sync_version + 1,
-  })
+  await moveTodoWithMapSync(t, { parentId: prev.id, sortOrder: order }, all)
 }
 
 /** Shift+Tab：从父任务里提出来，变成父任务的下一个兄弟。 */
@@ -169,10 +170,7 @@ export async function outdentTodo(t: Todo, all: Todo[]): Promise<void> {
   if (!t.parent_id) return
   const parent = all.find((x) => x.id === t.parent_id)
   if (!parent) return
-  await db.todos.update(t.id, {
-    parent_id: parent.parent_id ?? null, sort_order: parent.sort_order + 0.5,
-    updated_at: now(), sync_version: t.sync_version + 1,
-  })
+  await moveTodoWithMapSync(t, { parentId: parent.parent_id ?? null, sortOrder: parent.sort_order + 0.5 }, all)
 }
 
 /* ── 常用快捷日期 ─────────────────────────────────────────────── */
@@ -352,6 +350,7 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { show } = useToast()
+  const openTaskDetail = useUI((s) => s.openTaskDetail)
 
   useEffect(() => {
     if (!open) return
@@ -389,6 +388,7 @@ export function TodoMenu({ t, all }: { t: Todo; all: Todo[] }): JSX.Element {
           className="card shadow-lg absolute right-0 top-7 z-50 w-56 p-1 flex flex-col gap-0.5"
           onClick={(e) => e.stopPropagation()}
         >
+          <button className={itemCls} onClick={() => { openTaskDetail(t.id); setOpen(false) }}>打开详情</button>
           <label className="px-2 pt-1 text-[11px] text-text-3">快捷日期</label>
           <div className="flex flex-wrap gap-1 px-2 pb-1">
             {QUICK_DATES.map((d) => (
