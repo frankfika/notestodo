@@ -8,22 +8,56 @@ import { mod } from '../lib/id'
 import { EngineChooser, useMissingBuiltin, missingNames } from './BuiltinModels'
 import { downloadModel, fmtGB } from '../lib/builtinModels'
 import { createPage } from '../lib/notes'
+import { completeOnboarding } from '../onboarding/state'
+import { useRecorder } from '../state/recorder'
 
 /**
- * 首次启动引导：右下角可关闭面板——始终不拦截主 UI。
- *       使用者可随手点开 / 关掉；全部 3 步完成才标记 done。
+ * 首次启动引导：不再把「开始干活」和「配置 AI」混成一个三步弹窗。
+ *
+ * 交互原则：
+ * 1. 第一屏只回答“现在先做什么”；
+ * 2. AI 配置是第二层，不强迫用户先理解模型与 provider；
+ * 3. 任何真实动作（开始录音 / 新建笔记 / 打开任务）都应把引导让开。
  *
  * 完成 / 关闭事件通过 db.kv['onboarding_done_v1'] 持久化，外部代码
- * （如开始录音）也可以写入它表示用户已"上手"。
+ * （如开始录音）也可以写入它表示用户已上手。
  */
+
+function QuickLane({
+  emoji,
+  title,
+  desc,
+  action,
+}: {
+  emoji: string
+  title: string
+  desc: string
+  action: JSX.Element
+}): JSX.Element {
+  return (
+    <div className="rounded-2xl border border-line bg-bg px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg-overlay text-lg">
+          {emoji}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-text-1">{title}</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-3">{desc}</p>
+        </div>
+        <div className="shrink-0">{action}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function Onboarding(): JSX.Element | null {
-  const [minimized, setMinimized] = useState(false)
-  const [step, setStep] = useState(0)
+  const [minimized, setMinimized] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1440)
+  const [showEngineSetup, setShowEngineSetup] = useState(false)
   const [draft, setDraft] = useState<AppSettings>(DEFAULT_SETTINGS)
   const goSettings = useUI((s) => s.goSettings)
   const goNote = useUI((s) => s.goNote)
-  const goMeetings = useUI((s) => s.goMeetings)
   const goTodos = useUI((s) => s.goTodos)
+  const startRecording = useRecorder((s) => s.start)
   // 选内置时要下的模型（已下好的不重复下）；笔记模型较大，首访只自动下转录侧
   const builtinNeed = useMissingBuiltin({ ...draft, ai_mode: 'builtin', asr_mode: 'builtin' })
   const asrNeed = builtinNeed.filter((m) => m.kind !== 'llm')
@@ -41,36 +75,43 @@ export default function Onboarding(): JSX.Element | null {
   }, [])
 
   async function close(done: boolean): Promise<void> {
-    if (done) await db.kv.put({ key: 'onboarding_done_v1', value: true })
+    if (done) await completeOnboarding()
     // 不需要 setOpen(false)：liveQuery 会驱动重新渲染
   }
 
-  async function saveKeysAndNext(): Promise<void> {
+  async function saveEngine(): Promise<void> {
     await saveSettings(draft)
     if (draft.ai_mode === 'builtin') for (const m of asrNeed) void downloadModel(m.id)
-    setStep(2)
+    await close(true)
   }
 
-  async function tryIt(where: 'meeting' | 'note' | 'todo'): Promise<void> {
+  async function startNote(): Promise<void> {
     await close(true)
-    if (where === 'note') goNote(await createPage())
-    else if (where === 'meeting') goMeetings()
-    else goTodos()
+    goNote(await createPage())
+  }
+
+  async function openTasks(): Promise<void> {
+    await close(true)
+    goTodos()
+  }
+
+  async function beginRecording(): Promise<void> {
+    setMinimized(true)
+    await startRecording()
   }
 
   if (!open) return null
 
-  // 气泡头状态——只剩一步
   if (minimized) {
     return (
       <button
         onClick={() => setMinimized(false)}
-        className="fixed bottom-5 md:bottom-5 right-5 z-40 card px-4 py-3 shadow-2xl hover:border-accent/40 transition-colors"
+        className="fixed bottom-20 md:bottom-5 right-3 md:right-5 z-40 card px-4 py-3 shadow-2xl hover:border-accent/40 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-accent text-lg leading-none">●</span>
-          <span className="text-sm text-text-1 font-medium">欢迎使用openNotion</span>
-          <span className="chip text-[10px]">{step + 1}/3</span>
+          <span className="text-accent text-sm leading-none">●</span>
+          <span className="text-sm text-text-1 font-medium">开始使用</span>
+          <span className="text-[11px] text-text-3">先做第一件事</span>
         </div>
       </button>
     )
@@ -81,92 +122,117 @@ export default function Onboarding(): JSX.Element | null {
       className="fixed bottom-20 md:bottom-5 right-3 md:right-5 z-40 w-[420px] max-w-[calc(100vw-1.5rem)] card p-5 shadow-2xl"
       role="dialog"
     >
-      {/* 顶栏 */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-accent text-base">●</span>
-        <span className="section-title">openNotion · 新用户引导</span>
-        <span className="chip text-[10px]">{step + 1}/3</span>
+      <div className="mb-4 flex items-center gap-2">
+        <span className="section-title">{showEngineSetup ? 'AI 设置' : '开始使用'}</span>
         <button
           onClick={() => setMinimized(true)}
           className="icon-btn ml-auto"
-          title="收起来（可从右下角小气泡再打开）"
+          title="先收起来"
           aria-label="最小化"
         >—</button>
         <button
           onClick={() => void close(true)}
           className="icon-btn"
-          title="关闭引导（不再显示）"
+          title="关闭引导"
           aria-label="关闭"
         >✕</button>
       </div>
 
-      {/* 进度 */}
-      <div className="flex items-center gap-1.5 mb-4">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className={`h-1 flex-1 rounded-full transition-colors ${
-              i <= step ? 'bg-accent' : 'bg-bg-overlay'
-            }`}
-          />
-        ))}
-      </div>
-
-      {step === 0 && (
+      {!showEngineSetup ? (
         <div>
-          <h3 className="text-base font-semibold text-text-1 mb-2">你的 AI 工作区</h3>
-          <p className="text-xs text-text-2 leading-relaxed mb-3">
-            一个地方管好三件事——所有数据存在你本机，导出 .zip 即可带走：
+          <h3 className="text-[22px] font-semibold leading-tight text-text-1">先做第一件事，不用先学概念</h3>
+          <p className="mt-2 text-sm leading-relaxed text-text-2">
+            这里最容易劝退人的地方，就是一上来先讲 AI、先讲引擎、先讲模型。真正顺的开始方式应该是：
+            你先开始一件事，剩下的边用边补。
           </p>
-          <div className="space-y-2 mb-4">
-            {([
-              { key: 'meeting' as const, icon: '🎙', title: '会议速记', desc: `按 ${mod()}⇧R 开录，散会自动转录、整理成笔记、提取待办` },
-              { key: 'note' as const, icon: '📝', title: '笔记', desc: 'Notion 式页面与块编辑器，支持双链、标签、AI 续写' },
-              { key: 'todo' as const, icon: '✅', title: '任务看板', desc: '任务树 + Trello 式看板，会议待办自动汇入' },
-            ]).map((c) => (
-              <div key={c.key} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5">
-                <span className="text-lg leading-none">{c.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-text-1">{c.title}</div>
-                  <p className="text-[11.5px] text-text-3 leading-snug">{c.desc}</p>
-                </div>
-                <button onClick={() => void tryIt(c.key)} className="btn-outline text-[11px] h-7 px-2.5 shrink-0">立即试试</button>
-              </div>
-            ))}
+          <div className="mt-4 space-y-2.5">
+            <QuickLane
+              emoji="🎙"
+              title="先开一场会"
+              desc={`直接开始录音，系统会把会议转成纪要、笔记和待办。快捷键 ${mod()}⇧R。`}
+              action={
+                <button onClick={() => void beginRecording()} className="btn-primary h-8 px-3 text-xs">
+                  ● 开始录音
+                </button>
+              }
+            />
+            <QuickLane
+              emoji="📝"
+              title="先写一页笔记"
+              desc="先把想法记下来，后面再慢慢整理结构、双链和标签。"
+              action={
+                <button onClick={() => void startNote()} className="btn-outline h-8 px-3 text-xs">
+                  新建笔记
+                </button>
+              }
+            />
+            <QuickLane
+              emoji="✅"
+              title="先理一下任务"
+              desc="把手头事项放进任务树或脑图里，今天先知道下一步做什么。"
+              action={
+                <button onClick={() => void openTasks()} className="btn-outline h-8 px-3 text-xs">
+                  打开任务
+                </button>
+              }
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setStep(1)} className="btn-primary text-xs h-8">选择 AI 引擎</button>
-            <button onClick={() => setMinimized(true)} className="btn-ghost text-xs h-8" title="收起到右下角气泡，随时再看">稍后</button>
+
+          <div className="mt-4 rounded-2xl border border-line bg-bg px-4 py-3">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg-overlay text-base">
+                ✦
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-text-1">AI 可以稍后再配</div>
+                <p className="mt-1 text-[12px] leading-relaxed text-text-3">
+                  不管你选本地、云端还是内置模型，都不该挡在第一步前面。需要时再进来配就行。
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <button onClick={() => setShowEngineSetup(true)} className="btn-outline h-8 px-3 text-xs">
+                现在配置 AI
+              </button>
+              <button onClick={() => setMinimized(true)} className="btn-ghost h-8 px-3 text-xs">
+                我先自己逛逛
+              </button>
+            </div>
           </div>
         </div>
-      )}
-
-      {step === 1 && (
+      ) : (
         <div>
-          <h3 className="text-base font-semibold text-text-1 mb-1">AI 在哪里运行？</h3>
-          <p className="text-[11px] text-text-3 mb-3">随时可以在「设置」里改。</p>
+          <h3 className="text-[20px] font-semibold leading-tight text-text-1">AI 运行方式可以慢慢选</h3>
+          <p className="mt-2 text-sm leading-relaxed text-text-2">
+            这里只做一件事：决定 AI 跑在哪里。以后随时都能在设置里改，不用现在把所有概念一次吃完。
+          </p>
+          <p className="mt-2 text-[12px] text-text-3">推荐顺序：先开用，跑顺了再优化模型和 provider。</p>
+
+          <div className="mt-4">
           <EngineChooser
             stacked
             settings={draft}
             onPick={(m) => setDraft({ ...draft, ai_mode: m, asr_mode: m })}
           />
+          </div>
 
           {draft.ai_mode === 'builtin' && draft.asr_mode === 'builtin' && (
-            <div className="text-[11.5px] text-text-2 mt-3 leading-relaxed space-y-1.5">
+            <div className="mt-3 space-y-1.5 rounded-2xl border border-line bg-bg px-4 py-3 text-[11.5px] leading-relaxed text-text-2">
               <p>
-                选好后自动下载 {missingNames(asrNeed)}（共 {fmtGB(asrNeed.reduce((a, m) => a + m.bytes, 0))}），
-                只需一次，之后转录完全离线（国内自动走 OpenCSG / hf-mirror 加速）。下载在后台进行，期间可以照常使用。
+                选好后会自动下载 {missingNames(asrNeed)}（共 {fmtGB(asrNeed.reduce((a, m) => a + m.bytes, 0))}），
+                之后转录就能完全离线。下载在后台进行，不会挡住你继续用。
               </p>
               {llmNeed.length > 0 && (
                 <p className="text-text-3">
-                  笔记模型 {missingNames(llmNeed)}（{fmtGB(llmNeed.reduce((a, m) => a + m.bytes, 0))}）较大，不自动下载——需要时到「设置 → AI 运行在哪里」一键获取，下好前的会议会先完成转录。
+                  笔记模型 {missingNames(llmNeed)}（{fmtGB(llmNeed.reduce((a, m) => a + m.bytes, 0))}）更大，
+                  暂时不会自动下；真的需要时再去设置里拉就行。
                 </p>
               )}
             </div>
           )}
 
           {draft.ai_mode === 'cloud' && (
-            <div className="space-y-2 mt-3">
+            <div className="mt-3 space-y-2">
             <label className="block">
               <span className="label">LLM API Key</span>
               <input
@@ -217,32 +283,17 @@ export default function Onboarding(): JSX.Element | null {
           )}
 
           {draft.ai_mode === 'local' && (
-            <p className="text-[11.5px] text-text-2 mt-3 leading-relaxed">
+            <p className="mt-3 rounded-2xl border border-line bg-bg px-4 py-3 text-[11.5px] leading-relaxed text-text-2">
               默认连接本机 Ollama（127.0.0.1:11434）与 whisper.cpp server（127.0.0.1:8080），可在「设置」里改地址和模型。
             </p>
           )}
 
-          <div className="flex items-center gap-2 mt-4">
-            <button onClick={() => setStep(0)} className="btn-ghost text-xs h-8">返回</button>
-            <button onClick={() => void saveKeysAndNext()} className="btn-primary text-xs h-8 ml-auto">
-              {draft.ai_mode === 'builtin' && asrNeed.length > 0 ? '开始下载并继续' : '保存并继续'}
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={() => setShowEngineSetup(false)} className="btn-ghost text-xs h-8">返回</button>
+            <button onClick={() => goSettings()} className="btn-ghost text-xs h-8">高级设置</button>
+            <button onClick={() => void saveEngine()} className="btn-primary text-xs h-8 ml-auto">
+              {draft.ai_mode === 'builtin' && asrNeed.length > 0 ? '保存并开始下载' : '保存设置'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div>
-          <h3 className="text-base font-semibold text-text-1 mb-2">一切就绪</h3>
-          <p className="text-xs text-text-2 leading-relaxed mb-4">
-            左侧栏随时切换 会议 / 任务 / 笔记。
-            <br />· {mod()}K 唤出命令面板（跳转 / 录制 / 导出）
-            <br />· {mod()}⇧R 随时开始录音，会议自动转录 + 整理成笔记
-            {draft.ai_mode === 'builtin' && asrNeed.length > 0 && <><br />· 转录模型正在后台下载，进度见左侧栏</>}
-          </p>
-          <div className="flex items-center gap-2">
-            <button onClick={() => goSettings()} className="btn-ghost text-xs h-8">去设置</button>
-            <button onClick={() => void close(true)} className="btn-primary text-xs h-8 ml-auto">开始</button>
           </div>
         </div>
       )}

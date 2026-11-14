@@ -146,31 +146,41 @@ export default function MeetingsPage(): JSX.Element {
                           />
                         </div>
                       ) : (
-                        <button
-                          onClick={() => setSelectedId(m.id)}
+                        /* 行主体是 button，⋯ 菜单是同级 button：
+                           之前是 <button> 里嵌 <span onClick> —— 嵌套交互元素无效，
+                           键盘和读屏都够不到「更多操作」。 */
+                        <div
                           className={`w-full flex items-center gap-2.5 px-5 py-2 text-left text-sm transition-colors ${
                             active ? 'bg-bg-overlay' : ''
                           } hover:bg-bg-overlay/50`}
                         >
-                          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusDot(m.status)}`} />
-                          <span className="flex-1 min-w-0 truncate text-text-1">{m.title}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${statusTone(displayStatus(m))}`}>
-                            {statusText(m)}
-                          </span>
-                          {pending > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-warning/40 text-warning bg-warning/8 shrink-0">
-                              待确认 {pending}
+                          <button
+                            onClick={() => setSelectedId(m.id)}
+                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left"
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${statusDot(m.status)}`} />
+                            <span className="flex-1 min-w-0 truncate text-text-1">{m.title}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${statusTone(displayStatus(m))}`}>
+                              {statusText(m)}
                             </span>
-                          )}
-                          <span className="text-[11px] text-text-3 font-mono tabular-nums shrink-0 group-hover:hidden">
-                            {fmtClock(m.audio.duration_ms)}
-                          </span>
-                          <span
-                            onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === m.id ? null : m.id) }}
-                            className="hidden group-hover:flex w-5 h-5 items-center justify-center rounded text-text-3 hover:text-text-1 shrink-0"
+                            {pending > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded border border-warning/40 text-warning bg-warning/8 shrink-0">
+                                待确认 {pending}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-text-3 font-mono tabular-nums shrink-0 group-hover:hidden">
+                              {fmtClock(m.audio.duration_ms)}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => setMenuFor(menuFor === m.id ? null : m.id)}
+                            aria-label={`${m.title} 更多操作`}
+                            aria-haspopup="menu"
+                            aria-expanded={menuFor === m.id}
+                            className="hidden group-hover:flex w-5 h-5 items-center justify-center rounded text-text-3 hover:text-text-1 shrink-0 focus-visible:flex focus-visible:bg-bg-raise"
                             title="更多操作"
-                          >⋯</span>
-                        </button>
+                          >⋯</button>
+                        </div>
                       )}
                       {menuFor === m.id && (
                         <div data-rowmenu className="card shadow-lg absolute right-2 top-8 z-50 w-36 p-1 flex flex-col gap-0.5">
@@ -226,46 +236,95 @@ function MeetingPreview({ meeting, onOpen }: { meeting: Meeting; onOpen: () => v
     () => db.todos.where('meeting_id').equals(meeting.id).and((x) => x.status === 'pending_review').count(),
     [meeting.id],
   ) ?? 0
+  const transcriptPreview = useMemo(
+    () => transcript?.segments.slice(0, 4).map((seg) => {
+      const speaker = seg.speaker_label?.trim() || '发言'
+      return `${speaker}：${seg.text}`
+    }).join('\n'),
+    [transcript],
+  )
+
+  const nextStep = (() => {
+    switch (displayStatus(meeting)) {
+      case 'recording':
+        return '会议还在进行中。回到详情页可以继续速记、看实时字幕和补充资料。'
+      case 'waiting_model':
+        return '当前在等本机模型就绪。模型下载完成后会自动继续转录和整理。'
+      case 'processing':
+      case 'transcribed':
+      case 'summarizing':
+        return '会议已经进入流水线。现在最适合做的事，是稍后回来看纪要和待确认待办。'
+      case 'failed':
+        return '这场会议处理失败了。进入详情页可以查看错误原因，并重新触发整理或转录。'
+      case 'summarized':
+        return pendingTodos > 0
+          ? '这场会议的纪要已经准备好。下一步建议先确认待办，再决定是否挂到任务树。'
+          : '纪要已经生成完成。可以直接进入详情页继续追问、回听原文或补充任务。'
+    }
+  })()
 
   return (
-    <div className="max-w-[720px] mx-auto px-8 py-10">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="max-w-[940px] mx-auto px-6 py-8 md:px-8 md:py-10">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className={`h-2 w-2 rounded-full ${statusDot(meeting.status)}`} />
         <span className="text-xs text-text-3">{statusText(meeting)}</span>
         <span className="ml-auto text-xs text-text-3">{fmtDateTime(meeting.started_at)}</span>
       </div>
-      <h2 className="text-2xl font-semibold text-text-1 mb-1">{meeting.title}</h2>
-      <div className="flex items-center gap-3 text-xs text-text-3 mb-6">
-        <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>
-        <span>·</span>
-        <span>音频 {meeting.audio.format} · {meeting.audio.chunk_count} 片</span>
-        {meeting.audio.size_bytes > 0 && (
-          <>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl font-semibold text-text-1 text-balance">{meeting.title}</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-text-3">
+            <span className="tabular-nums">{fmtClock(meeting.audio.duration_ms)}</span>
             <span>·</span>
-            <span>{(meeting.audio.size_bytes / (1024 * 1024)).toFixed(1)} MB</span>
-          </>
-        )}
+            <span>音频 {meeting.audio.format} · {meeting.audio.chunk_count} 片</span>
+            {meeting.audio.size_bytes > 0 && (
+              <>
+                <span>·</span>
+                <span>{(meeting.audio.size_bytes / (1024 * 1024)).toFixed(1)} MB</span>
+              </>
+            )}
+          </div>
+        </div>
+        <button onClick={onOpen} className="btn-primary h-10 px-5 shrink-0">打开详情 →</button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <Stat label="转录" value={transcript ? `${transcript.segments.length} 段` : '—'} />
-        <Stat label="纪要" value={summary ? '已生成' : '—'} />
-        <Stat label="待审待办" value={String(pendingTodos)} />
+      <div className="grid gap-4 mt-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(260px,0.8fr)]">
+        <div className="space-y-4">
+          {summary ? (
+            <div className="card p-5">
+              <div className="section-title mb-2">纪要预览</div>
+              <p className="text-sm leading-relaxed text-text-2 whitespace-pre-wrap line-clamp-6">{summary.content_md}</p>
+            </div>
+          ) : (
+            <div className="card p-5">
+              <div className="section-title mb-2">纪要状态</div>
+              <p className="text-sm leading-relaxed text-text-3">{nextStep}</p>
+            </div>
+          )}
+
+          <div className="card p-5">
+            <div className="section-title mb-2">转录预览</div>
+            {transcriptPreview ? (
+              <pre className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-2 font-sans">{transcriptPreview}</pre>
+            ) : (
+              <p className="text-sm text-text-3">转录还没准备好。完成后这里会显示前几段原文，方便快速判断这场会的内容密度。</p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
+            <Stat label="转录" value={transcript ? `${transcript.segments.length} 段` : '—'} />
+            <Stat label="纪要" value={summary ? '已生成' : '—'} />
+            <Stat label="待审待办" value={String(pendingTodos)} />
+          </div>
+
+          <div className="card p-5">
+            <div className="section-title mb-2">下一步</div>
+            <p className="text-sm leading-relaxed text-text-2">{nextStep}</p>
+          </div>
+        </div>
       </div>
-
-      {summary ? (
-        <div className="card p-5 mb-6">
-          <div className="section-title mb-2">摘要预览</div>
-          <p className="text-sm text-text-2 line-clamp-4 whitespace-pre-wrap">{summary.content_md}</p>
-        </div>
-      ) : (
-        <div className="card p-5 mb-6">
-          <div className="section-title mb-2">尚未生成纪要</div>
-          <p className="text-sm text-text-3">在详情页可触发总结，或换模板重新生成。</p>
-        </div>
-      )}
-
-      <button onClick={onOpen} className="btn-primary h-10 px-5">打开详情 →</button>
     </div>
   )
 }

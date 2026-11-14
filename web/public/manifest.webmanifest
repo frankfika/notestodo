@@ -1,7 +1,7 @@
 {
-  "name": "openNotion — AI 工作区",
+  "name": "openNotion — 今天",
   "short_name": "openNotion",
-  "description": "开会时只管说话，散会时纪要和待办已经排好。本地优先，BYOK，多端可装。",
+  "description": "把会议、任务和笔记收进一个继续工作的入口。本地优先，BYOK，多端可装。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

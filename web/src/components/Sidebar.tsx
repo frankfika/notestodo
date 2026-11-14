@@ -10,10 +10,9 @@ import { createPage } from '../lib/notes'
 import { uid } from '../lib/id'
 import type { ID, Note } from '../types'
 
-// 只留 3 个一级入口：看板 / 周报 并入「任务」，模板并入设置与会议页
+// 一级入口再收一层：AI 工作台并入「今天」，一级导航只留今天 / 会议 / 任务 / 笔记
 const NAV: { view: ViewName; label: string; icon: string }[] = [
   { view: 'today', label: '今天', icon: '☼' },
-  { view: 'ai', label: 'AI', icon: '✦' },
   { view: 'meetings', label: '会议', icon: '●' },
   { view: 'todos', label: '任务', icon: '◎' },
   { view: 'notes', label: '笔记', icon: '✎' },
@@ -21,6 +20,7 @@ const NAV: { view: ViewName; label: string; icon: string }[] = [
 
 /** 子页面归属到哪个一级入口（高亮用） */
 function navOf(v: ViewName): ViewName {
+  if (v === 'ai') return 'today'
   if (v === 'meeting-detail') return 'meetings'
   if (v === 'note-detail') return 'notes'
   if (v === 'board' || v === 'report') return 'todos'
@@ -50,6 +50,7 @@ function PageTree(): JSX.Element {
   const [dragPageId, setDragPageId] = useState<ID | null>(null)
   const [dropTarget, setDropTarget] = useState<ID | null>(null) // 行 id 或 'nb:<id>'/'root'
   const [renamingNb, setRenamingNb] = useState<ID | null>(null)
+  const [query, setQuery] = useState('')
 
   /** 防成环：target 是不是 dragged 的子孙 */
   const isDescendant = (draggedId: ID, targetId: ID): boolean => {
@@ -110,6 +111,44 @@ function PageTree(): JSX.Element {
   }, [notes])
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes])
   const nbIds = useMemo(() => new Set(notebooks.map((nb) => nb.id)), [notebooks])
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return [...notes]
+      .filter((n) => {
+        const parts: string[] = [n.title]
+        const nb = n.notebook_id ? notebooks.find((x) => x.id === n.notebook_id) : null
+        if (nb) parts.push(nb.name)
+        let p = n.parent_id ?? null
+        const seen = new Set<string>()
+        while (p && !seen.has(p)) {
+          seen.add(p)
+          const pn = byId.get(p)
+          if (!pn) break
+          parts.push(pn.title || '无标题')
+          p = pn.parent_id ?? null
+        }
+        return parts.join('\n').toLowerCase().includes(q)
+      })
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+      .slice(0, 60)
+      .map((n) => {
+        const parts: string[] = []
+        const nb = n.notebook_id ? notebooks.find((x) => x.id === n.notebook_id) : null
+        if (nb) parts.push(nb.name)
+        let p = n.parent_id ?? null
+        const seen = new Set<string>()
+        const parents: string[] = []
+        while (p && !seen.has(p)) {
+          seen.add(p)
+          const pn = byId.get(p)
+          if (!pn) break
+          parents.unshift(pn.title || '无标题')
+          p = pn.parent_id ?? null
+        }
+        return { note: n, path: [...parts, ...parents].join(' · ') }
+      })
+  }, [byId, notebooks, notes, query])
 
   const childrenOf = (pid: ID | null, notebookId: ID | null | undefined): Note[] =>
     childIndex.get(`${pid ?? ''}\u0000${notebookId ?? ''}`) ?? []
@@ -246,6 +285,47 @@ function PageTree(): JSX.Element {
     const nid = n.notebook_id ?? null
     return nid === null || !nbIds.has(nid)
   })
+  const searchInput = (
+    <div className="px-3 mb-2">
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="搜页面…"
+        className="input !h-8 text-[13px]"
+      />
+    </div>
+  )
+
+  if (query.trim()) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col mt-3">
+        <div className="flex items-center px-4 mb-1">
+          <span className="text-[11px] tracking-wide text-text-3">页面</span>
+          <span className="ml-auto text-[11px] text-text-3">{searchResults.length} 条结果</span>
+        </div>
+        {searchInput}
+        <ul className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
+          {searchResults.map(({ note, path }) => (
+            <li key={note.id}>
+              <button
+                type="button"
+                onClick={() => goNote(note.id)}
+                className={`w-full rounded-[10px] px-3 py-2 text-left transition-colors ${
+                  view === 'note-detail' && currentId === note.id ? 'bg-bg-raise text-text-1' : 'hover:bg-bg-overlay text-text-2 hover:text-text-1'
+                }`}
+              >
+                <div className="text-[13px] truncate">{note.title || '无标题'}</div>
+                {path && <div className="mt-0.5 text-[11px] text-text-3 truncate">{path}</div>}
+              </button>
+            </li>
+          ))}
+          {searchResults.length === 0 && (
+            <li className="px-3 py-6 text-[12px] text-text-3 text-center">没有找到匹配的页面</li>
+          )}
+        </ul>
+      </div>
+    )
+  }
 
   // 无笔记本：保持原来的一棵「页面」树
   if (notebooks.length === 0) {
@@ -268,6 +348,7 @@ function PageTree(): JSX.Element {
             onClick={() => void newNotebook()}
           >＋📓</button>
         </div>
+        {searchInput}
         <ul className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">{renderLevel(null, 0, null)}</ul>
       </div>
     )
@@ -285,6 +366,7 @@ function PageTree(): JSX.Element {
           onClick={() => void newNotebook()}
         >＋ 笔记本</button>
       </div>
+      {searchInput}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
         {notebooks.map((nb) => (
           <div key={nb.id}>
@@ -452,7 +534,6 @@ export default function Sidebar() {
  */
 export function BottomTabBar() {
   const { view, goMeetings, goNotes, goSettings } = useUI()
-  const goAi = useUI((s) => s.goAi)
   const goTodos = useUI((s) => s.goTodos)
   const goToday = useUI((s) => s.goToday)
   const [treeOpen, setTreeOpen] = useState(false)
@@ -472,7 +553,6 @@ export function BottomTabBar() {
 
   const items: { view: ViewName; label: string; icon: string; onClick: () => void; badge?: number | null }[] = [
     { view: 'today', label: '今天', icon: '☼', onClick: () => goToday() },
-    { view: 'ai', label: 'AI', icon: '✦', onClick: () => goAi() },
     { view: 'meetings', label: '会议', icon: '●', onClick: goMeetings },
     { view: 'todos', label: '任务', icon: '◎', onClick: () => goTodos(), badge: openTodos ?? 0 },
     { view: 'notes', label: '笔记', icon: '✎', onClick: goNotes },

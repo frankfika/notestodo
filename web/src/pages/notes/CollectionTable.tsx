@@ -56,8 +56,8 @@ export default function CollectionTable({ notes }: { notes: Note[] }): JSX.Eleme
   )
 
   return (
-    <div className="relative">
-      <table className="card w-full border-collapse">
+    <div className="relative overflow-x-auto">
+      <table className="card w-full min-w-[620px] border-collapse">
         <thead>
           <tr className="border-b border-line">
             {header('标题', 'title')}
