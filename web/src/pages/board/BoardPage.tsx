@@ -122,7 +122,8 @@ export default function BoardPage({ embedded = false }: { embedded?: boolean } =
   const cards = useMemo(() => {
     const q = query.trim().toLowerCase()
     return scopedCards.filter((t) => {
-      if (filterMode === 'today' && t.due_date !== t0) return false
+      // 和计数器同口径：「今天 / 已逾期」只算未完成的（完成的反正躺在已完成列）
+      if (filterMode === 'today' && (t.due_date !== t0 || t.status === 'done')) return false
       if (filterMode === 'overdue' && !(t.due_date && t.due_date < t0 && t.status !== 'done')) return false
       if (filterMode === 'assigned' && !t.assignee) return false
       if (filterMode === 'tagged' && (tagByTodo.get(t.id)?.length ?? 0) === 0) return false
@@ -192,6 +193,10 @@ export default function BoardPage({ embedded = false }: { embedded?: boolean } =
   const add = async (col: string, raw: string): Promise<void> => {
     if (!board) return
     const parsed = parseQuickAdd(raw)
+    if (!parsed.title) {
+      show('没识别出任务内容——写点具体的事，再回车')
+      return
+    }
     const inbox = await ensureInboxMap()
     const todo = buildTask({
       id: uid(),
@@ -470,7 +475,9 @@ function Card({ t, kr, overdue, dimmed, onDragStart, onOpen, tagIds, tagsById, c
           onChange={() => void touch({ status: t.status === 'done' ? 'open' : 'done' })}
           className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)] cursor-pointer" />
         {editing ? (
+          // stopPropagation：点击输入框会冒泡到卡片的「打开详情」，改个名抽屉就盖上来了
           <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
             onBlur={saveTitle}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveTitle()

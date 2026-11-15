@@ -90,10 +90,12 @@ export default function TodosPage(): JSX.Element {
     if (!mindmapEnabled || !focusId) return
     const hit = allTodos.find((t) => t.id === focusId)
     if (!hit) return
-    const nextRootId = hit.map_id ?? hit.id
-    if (rootId !== nextRootId) setRootId(nextRootId)
-    if (selectedNodeId !== hit.id) setSelectedNodeId(hit.id)
-  }, [allTodos, focusId, mindmapEnabled, rootId, selectedNodeId])
+    // 只有看得到选中关系的视图才跟：在列表 / 看板创建时，结果已经在那边
+    // 高亮出来了，不该再把隐藏着的脑图切走（用户切回脑图会发现自己图变了）。
+    // 大纲是跨图视图，只跟选中、不切当前图；脑图才切图。
+    if (tab === 'mindmap' && rootId !== (hit.map_id ?? hit.id)) setRootId(hit.map_id ?? hit.id)
+    if ((tab === 'mindmap' || tab === 'tree') && selectedNodeId !== hit.id) setSelectedNodeId(hit.id)
+  }, [allTodos, focusId, mindmapEnabled, rootId, selectedNodeId, tab])
 
   useEffect(() => {
     if (!fullscreen) return

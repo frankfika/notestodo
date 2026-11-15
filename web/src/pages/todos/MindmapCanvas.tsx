@@ -297,6 +297,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   const [editingUi, setEditingUi] = useState(false)
   const sideKey = useMemo(() => `mindmap.side.${rootId}`, [rootId])
   const sideRow = useLiveQuery(() => db.kv.get(sideKey), [sideKey])
+  /** 侧按钮点击 +1：只有按钮走整树重建（见 init effect 的注释），收割写入不触发 */
+  const [sideEpoch, setSideEpoch] = useState(0)
   const mainDirections = useMemo(() => {
     const raw = sideRow?.value
     if (!raw || typeof raw !== 'object') return {}
@@ -307,6 +309,41 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   }, [sideRow])
   const mainDirectionsRef = useRef(mainDirections)
   mainDirectionsRef.current = mainDirections
+  /** 侧按钮刚写入的方向 id：下一次收割时跳过它，避免把画布上的旧位置写回去 */
+  const pendingSideWriteRef = useRef<string | null>(null)
+  /**
+   * 从 ME 当前的树里读出各一级分支的左右侧。
+   * 画布拖拽切侧不经过 operation 补丁（ME 只改自己的布局数据）——
+   * 必须从这里收，否则下一次 refresh 按 kv 里的旧值把分支弹回去。
+   */
+  const harvestDirections = useCallback((): Record<string, 0 | 1> => {
+    const mei = meiRef.current
+    if (!mei) return {}
+    const kids = readMeNode(mei)?.children ?? []
+    const harvested: Record<string, 0 | 1> = {}
+    for (const k of kids) {
+      if (typeof k.id === 'string' && (k.direction === 0 || k.direction === 1)) harvested[k.id] = k.direction
+    }
+    return harvested
+  }, [])
+  /** 把收割到的方向写进 kv（与现值一致的键跳过；只增改不清，残留键无害） */
+  const persistDirections = useCallback(
+    async (harvested: Record<string, 0 | 1>): Promise<void> => {
+      const skip = pendingSideWriteRef.current
+      const next = { ...mainDirectionsRef.current }
+      let dirty = false
+      for (const [id, d] of Object.entries(harvested)) {
+        if (id === skip) continue
+        if (next[id] !== d) {
+          next[id] = d
+          dirty = true
+        }
+      }
+      pendingSideWriteRef.current = null
+      if (dirty) await db.kv.put({ key: sideKey, value: next })
+    },
+    [sideKey],
+  )
   /** 选中态的 ref 镜像：ME 的 click 监听器 mount 时注册一次，闭包拿不到最新 state */
   const selectedRef = useRef<ID | null>(null)
   selectedRef.current = selectedId
@@ -756,13 +793,25 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       meiRef.current?.destroy?.()
       meiRef.current = null
     }
+    // mainDirections 故意不进依赖：收割写入 kv 会在首帧后触发一次方向「变化」，
+    // 若在这里重建整个 ME 实例，进行中的拖拽手势和编辑框会被毁掉。
+    // 方向应用分两条路：用户拖拽 → 收割持久化 + refresh（不重建）；
+    // 侧按钮 → sideEpoch +1 走这里整树重建（ME 的 refresh 不会给已存在的节点重排方向）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootId, fitToView, mainDirections, setSelectedId])
+  }, [rootId, fitToView, setSelectedId, sideEpoch])
 
   useEffect(() => {
     const mei = meiRef.current
     if (!mei || isMindmapEditing()) return
-    const data = todosToMindData(todos, rootId, undefined, origins, mainDirections)
+    // 先把画布上拖出来的左右侧收进 kv 并并入本次渲染数据 —— 不然
+    // 下面 refresh(data) 用的是 kv 旧值，刚拖过去的分支会被弹回来
+    const harvested = harvestDirections()
+    // 侧按钮刚写入的节点：kv 是新的、画布是旧的，用 kv 值盖掉收割值，
+    // 否则合并结果还是旧方向，refresh 会因为「树一致」而跳过，按钮点了不挪窝
+    const pendingSide = pendingSideWriteRef.current
+    if (pendingSide && mainDirections[pendingSide] !== undefined) harvested[pendingSide] = mainDirections[pendingSide]
+    void persistDirections(harvested)
+    const data = todosToMindData(todos, rootId, undefined, origins, { ...mainDirections, ...harvested })
     /**
      * 渲染结果没变就别重画。
      *
@@ -806,7 +855,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     }
     // 重绘后节点 DOM 是新的，重新补挂折叠计数 / 悬停「＋」
     decorateRef.current?.()
-  }, [todos, rootId, ready, origins, fitToView, mainDirections, setSelectedId])
+  }, [todos, rootId, ready, origins, fitToView, mainDirections, setSelectedId, harvestDirections, persistDirections])
 
   /** #46 收尾：占位新节点被取消后，等创建补丁真正写回 todos 快照再软删（写入是异步的） */
   useEffect(() => {
@@ -982,10 +1031,14 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
         return
       }
       if (mainDirectionsRef.current[t.id] === direction) return
+      // 标记刚写入的节点：画布重建前若先跑一次收割，别把旧位置写回去
+      pendingSideWriteRef.current = t.id
       await db.kv.put({
         key: sideKey,
         value: { ...mainDirectionsRef.current, [t.id]: direction },
       })
+      // ME 的 refresh 不会给已存在的节点重排方向，按钮切侧走整树重建
+      setSideEpoch((n) => n + 1)
       say(direction === 0 ? '主分支已放到左侧' : '主分支已放到右侧')
     },
     [rootId, say, sideKey],

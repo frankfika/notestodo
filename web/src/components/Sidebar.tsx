@@ -484,7 +484,7 @@ export default function Sidebar() {
             <button
               key={item.view}
               onClick={() =>
-                ({ today: goToday, ai: useUI.getState().goAi, meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
+                ({ today: goToday, meetings: goMeetings, notes: goNotes, todos: () => goTodos() } as Record<string, () => void>)[item.view]()
               }
               className={`w-full flex items-center gap-2.5 px-3 h-8 rounded-[10px] text-sm transition-colors duration-150 ${
                 active ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-2 hover:bg-bg-overlay hover:text-text-1'

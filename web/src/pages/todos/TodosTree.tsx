@@ -213,8 +213,8 @@ function Row({ node, depth, siblings, collapsed, setCollapsed, dragId, setDragId
         <input
           type="checkbox"
           checked={t.status === 'done'}
-          // 脑图模式下大纲只读，但**勾选完成**照常可用：
-          // 结构（拖拽 / 改名）以画布为真相源，完成状态是任务自身的属性
+          // 勾选完成在任何视图都可用：完成状态是任务自身的属性，
+          // 结构编辑（拖拽 / 缩进）走 moveTodoWithMapSync，与画布同规则
           onChange={() => void toggle(t)}
           className="shrink-0 accent-[var(--accent)]"
         />
