@@ -42,7 +42,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/vite": "^4.0.0",
     "@tauri-apps/cli": "^2.12.4",
     "@types/markdown-it": "^14.2.0",
