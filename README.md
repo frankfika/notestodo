@@ -46,12 +46,42 @@
 - **Phase-2 本地模型**：Settings 切到「Local」即可指向 Ollama（`http://127.0.0.1:11434/v1`，无鉴权）/ LM Studio / MLX / 自建 OpenAI 兼容端点；切换 Cloud ↔ Local 不丢另一侧字段。
 - **Phase-2 知识库 + Live Assist**：会议详情「助手」Tab 按速记 / 转录自动推相关卡片，pin 到会议持续显示；MVP = keyword + 标题匹配（bigram + CJK 2-gram），无需联网。
 
+## 活页（Huoye）合并说明（分支 `feat/huoye-integration`）
+
+> 本仓库现在同时包含**原 openNotion 应用**与**活页（Huoye）对话式助手**。合并细节见
+> [`docs/HUOYE-INTEGRATION.md`](docs/HUOYE-INTEGRATION.md)；下面只讲大方向，细节以那份文档为准。
+
+**这次合并实际做到了什么：**
+
+- **原 openNotion 一行未改**：`web/`、`mcp/`、`relay/`、`promo/` 全部原样保留，历史未改写，远程默认分支未被动。
+- **新增 `huoye/`**：活页的完整源码（独立 pnpm workspace，自带测试与文档）。
+  它是**以对话为主、记忆可检查**的个人助手：今天页是家，对话框是主沟通方式，记忆是纯 Markdown 文件，
+  先确认再行动。一等公民的笔记（记忆文件本身即可写）、会议一条龙（录音 → 转录 → 纪要 → 带出处的待办）、
+  任务与确认流、可开关的主动外联（默认关闭）。
+- **新增 `integration/`**：notestodo 的笔记/会议与活页 Markdown 记忆之间的**真实数据桥**（双向转换 + CLI + 单测），
+  导入落成活页能直接打开的文件，且**不静默覆盖**已有笔记。
+
+**合并后仍不是同一套 UI**：目前是两个可各自独立运行的 App 共处一个仓库，靠数据桥把内容真的搬过去。
+统一 IA、后台自动同步、冲突合并**尚未做**。渠道真机联调、部分模型调用的端到端效果**尚未验证**。
+本次合并**未发布 GitHub Release、未打 tag**。
+
+**怎么跑：**
+
+```bash
+# 原 openNotion
+cd web && pnpm install && pnpm dev
+
+# 活页
+cd huoye && pnpm install && pnpm dev
+```
+
 ## 仓库结构
 
 ```
 .
 ├── docs/
 │   ├── DESIGN.md            # 产品架构与 UX 设计（Claude Code 主笔）
+│   ├── HUOYE-INTEGRATION.md # 活页 × notestodo 合并说明（真集成 / 共置 / 未做）
 │   ├── SHARED_SPEC.md       # 模块开发规约（多 agent 协作接口）
 │   ├── ux-plan-2026-11.md   # UX 优化规划与已交付清单
 │   └── FORESIGHT_OKR_REDESIGN.md
@@ -78,6 +108,16 @@
 │       ├── state/           # Zustand stores（路由 + 录音状态机）
 │       ├── lib/             # 工具函数（id / quickAdd / okr / knowledge / ...）
 │       └── styles/          # Tailwind v4 + OKLCH 设计令牌
+├── huoye/                   # 活页（Huoye）：对话式助手，独立 pnpm workspace
+│   ├── apps/server          # Hono 本地 API（笔记 / 会议 / 任务 / 确认流 / 主动外联）
+│   ├── apps/web             # React + Vite：今天页 / 对话 / 记忆页 / 笔记编辑器
+│   ├── apps/desktop         # Electron 外壳
+│   ├── packages/memory      # Markdown 文件记忆：frontmatter / 检索 / 双链 / 待办
+│   ├── packages/core        # 任务 / 确认 / 计量 / 模型调用
+│   ├── packages/schema      # 共享类型与 ID
+│   ├── packages/ui          # 共享样式（Today 气质）
+│   └── docs/                # 活页自己的设计与实现文档
+├── integration/             # notestodo ↔ 活页 笔记/会议 数据桥（库 + CLI + 单测）
 └── .github/workflows/       # CI（构建 + 全量 e2e + cargo check）与多平台 Release
 ```
 
