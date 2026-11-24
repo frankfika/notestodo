@@ -1,0 +1,576 @@
+/* 活页 · 今天页与外壳
+   视觉方向：「空气里的一页今天」——氛围洗底由 body 负责（见 packages/ui 的 styles.css），
+   这里只做层次：轻玻璃卡片、悬浮胶囊、安静的留白。所有颜色都走 token，不写死色值。 */
+
+/* ========================= 外壳：顶栏 ========================= */
+
+.hy-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  /* 左右走全页共用的页面边距：品牌左缘与「早上好」左缘同一条竖线，
+     「设置」右缘与内容右缘同一条竖线。 */
+  padding: 14px var(--hy-page-x) 12px;
+  flex-shrink: 0;
+}
+
+.hy-shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--hy-ink);
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-weight: 600;
+  font-size: var(--hy-fs-md, 16px);
+}
+
+/* 宽屏导航：一排安静的胶囊标签，选中项略深的半透明白底 + 深墨色。 */
+.hy-shell-nav {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hy-surface) 45%, transparent);
+  border: 1px solid var(--hy-line);
+  box-shadow: var(--hy-shadow);
+  backdrop-filter: blur(var(--hy-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--hy-blur, 12px));
+}
+
+.hy-shell-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: var(--hy-fs-sm, 13px);
+  font-weight: 500;
+  color: var(--hy-ink-faint);
+  white-space: nowrap;
+  transition: background-color 180ms var(--hy-ease), color 180ms var(--hy-ease), box-shadow 180ms var(--hy-ease);
+}
+
+.hy-shell-tab:hover {
+  color: var(--hy-ink);
+}
+
+.hy-shell-tab-active {
+  background: var(--hy-surface);
+  color: var(--hy-ink);
+  box-shadow: var(--hy-shadow);
+}
+
+/* 设置：次要层级，不和主行动抢。 */
+.hy-shell-settings {
+  position: relative;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hy-ink-faint);
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-size: var(--hy-fs-sm, 13px);
+  cursor: pointer;
+  transition: background-color 180ms var(--hy-ease), color 180ms var(--hy-ease);
+}
+
+.hy-shell-settings:hover {
+  background: var(--hy-surface);
+  color: var(--hy-ink);
+}
+
+.hy-shell-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--hy-accent);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* ========================= 外壳：窄屏悬浮胶囊导航 ========================= */
+
+/* 不再是贴底的一条带分隔线的横条，而是一排浮在内容之上的胶囊。
+   左右和内容同一个 --hy-page-x，底栏不自己贴边。 */
+.hy-mobile-nav {
+  position: fixed;
+  left: var(--hy-page-x);
+  right: var(--hy-page-x);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hy-surface) 55%, transparent);
+  border: 1px solid var(--hy-line);
+  box-shadow: var(--hy-shadow-lift);
+  backdrop-filter: blur(var(--hy-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--hy-blur, 12px));
+}
+
+.hy-mobile-nav-tab {
+  flex: 1;
+  padding: 7px 4px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: var(--hy-fs-sm, 13px);
+  font-weight: 500;
+  color: var(--hy-ink-faint);
+  white-space: nowrap;
+  transition: background-color 180ms var(--hy-ease), color 180ms var(--hy-ease);
+}
+
+.hy-mobile-nav-tab:hover {
+  color: var(--hy-ink);
+}
+
+.hy-mobile-nav-tab-active {
+  background: var(--hy-surface);
+  color: var(--hy-ink);
+}
+
+@media (min-width: 900px) {
+  .hy-shell-nav {
+    display: flex;
+  }
+
+  .hy-mobile-nav {
+    display: none;
+  }
+}
+
+/* 主内容区给悬浮底栏留出高度：底栏高度 + 安全区 + 间隙。
+   水平留白也走 --hy-page-x：顶栏、主内容、底栏、输入胶囊共用一套数。 */
+.hy-shell-main {
+  padding-inline: var(--hy-page-x);
+  padding-bottom: calc(var(--hy-mobile-nav-h, 52px) + env(safe-area-inset-bottom, 0px) + 20px);
+}
+
+/* 贴在主内容下面的输入条：左右同样走 --hy-page-x。 */
+.hy-shell-footer {
+  padding-inline: var(--hy-page-x);
+}
+
+.hy-shell-main-today {
+  padding-bottom: 0;
+}
+
+@media (min-width: 900px) {
+  .hy-shell-main {
+    padding-bottom: var(--hy-s5);
+  }
+}
+
+/* ========================= 今天页：骨架 ========================= */
+
+.hy-today {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.hy-today-left {
+  /* 窄屏：分段控件已经留出了上面的空气，这里从 0 起，
+     只给底部留一点收尾的空白。 */
+  padding: 0 0 var(--hy-s5);
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.hy-today-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: var(--hy-s4);
+  flex: 0 0 auto;
+}
+
+/* 窄屏分段控件（今天一览 / 对话）：胶囊分段，选中略深。 */
+.hy-today-segments {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  gap: 2px;
+  /* 和下面的问候之间走区块间距这一个数 */
+  margin-bottom: var(--hy-block-gap);
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hy-surface) 45%, transparent);
+  border: 1px solid var(--hy-line);
+  backdrop-filter: blur(var(--hy-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--hy-blur, 12px));
+}
+
+.hy-today-segment {
+  flex: 1;
+  padding: 7px 8px;
+  border-radius: 999px;
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-size: var(--hy-fs-sm, 13px);
+  font-weight: 500;
+  color: var(--hy-ink-faint);
+  cursor: pointer;
+  transition: background-color 180ms var(--hy-ease), color 180ms var(--hy-ease), box-shadow 180ms var(--hy-ease);
+}
+
+.hy-today-segment-active {
+  background: var(--hy-surface);
+  color: var(--hy-ink);
+  box-shadow: var(--hy-shadow);
+}
+
+/* ========================= 今天页：问候 ========================= */
+
+.hy-today-intro {
+  /* 问候这一组和下一个区块之间：桌面 32px / 窄屏 24px */
+  margin-bottom: var(--hy-block-gap);
+}
+
+/* 问候可以很大，但不用衬线撑气质：界面与正文都用无衬线。
+   大而松：38px / 字重 500 / 行高 1.3 / 字距 0。
+   600 + 负字距会让中文挤成一团、发堵。 */
+.hy-today-greeting {
+  margin: 0;
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-weight: 500;
+  font-size: var(--hy-fs-display, 38px);
+  line-height: 1.3;
+  letter-spacing: 0;
+  color: var(--hy-ink);
+}
+
+/* 日期眉题：靠字号、字重、灰阶分层，不靠拉开字距。
+   西文小标签那套 0.08em 套到中文日期上会把日期撕散。 */
+.hy-today-eyebrow {
+  /* 问候和日期之间：一个 s3 就够，别散开 */
+  margin-top: var(--hy-s3);
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+
+/* ========================= 今天页：区块标题 ========================= */
+
+.hy-today-block {
+  /* 区块之间：桌面 32px / 窄屏 24px，不手写 28 / 30 */
+  margin-bottom: var(--hy-block-gap);
+}
+
+.hy-today-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: var(--hy-s3);
+  flex-wrap: wrap;
+}
+
+.hy-today-title {
+  margin: 0;
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-weight: 500;
+  font-size: var(--hy-fs-md, 16px);
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: var(--hy-ink);
+}
+
+.hy-today-meta {
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+}
+
+/* ========================= 今天页：今日安排 ========================= */
+
+/* 清单：条目之间靠留白，不给每条都画框。 */
+.hy-today-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hy-today-task {
+  padding: var(--hy-s2) 0;
+}
+
+.hy-today-task-title {
+  color: var(--hy-ink);
+  font-size: var(--hy-fs-md, 16px);
+}
+
+.hy-today-task-status {
+  margin-top: var(--hy-s1);
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+}
+
+/* ========================= 今天页：今日简报（玻璃卡） ========================= */
+
+.hy-today-brief {
+  /* 玻璃卡内边距统一 24px（--hy-card-pad） */
+  padding: var(--hy-card-pad);
+  border-radius: var(--hy-radius, 18px);
+  background: var(--hy-surface);
+  border: 1px solid var(--hy-line);
+  box-shadow: var(--hy-shadow);
+  backdrop-filter: blur(var(--hy-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--hy-blur, 12px));
+}
+
+.hy-today-hint {
+  margin: 0 0 var(--hy-s3);
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+  line-height: 1.7;
+}
+
+/* 下一份简报的提示 */
+.hy-today-next {
+  margin: var(--hy-s3) 0 0;
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+}
+
+/* 空状态：比正文轻一档，但仍然读得清 */
+.hy-today-empty {
+  margin: 0;
+  color: var(--hy-ink-soft);
+  font-size: var(--hy-fs-sm, 13px);
+  line-height: 1.7;
+}
+
+.hy-today-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hy-today-point {
+  position: relative;
+  /* 圆点缩进 12px：一条要点在窄栏里也能一行放下，不留孤字 */
+  padding-left: var(--hy-s3);
+  margin-bottom: var(--hy-s2);
+  font-size: var(--hy-fs-base, 15px);
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--hy-ink);
+}
+
+.hy-today-point:last-child {
+  margin-bottom: 0;
+}
+
+.hy-today-point::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--hy-accent);
+  opacity: 0.45;
+}
+
+/* 全文展开：淡分隔 + 正常行距，不用衬线、不压行高。 */
+.hy-today-brief-full {
+  margin-top: var(--hy-s4);
+  padding-top: var(--hy-s4);
+  border-top: 1px solid var(--hy-line);
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-size: var(--hy-fs-base, 15px);
+  font-weight: 400;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  color: var(--hy-ink);
+}
+
+.hy-today-brief-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hy-s4);
+  flex-wrap: wrap;
+  margin-top: var(--hy-s3);
+  padding-top: var(--hy-s3);
+  border-top: 1px solid var(--hy-line);
+}
+
+/* ========================= 今天页：今天的痕迹 ========================= */
+
+/* 左栏底部的一条安静清单：标题自己一行，每条痕迹自己一行。
+   不做成主卡片，不挤成一行，也不跟悬浮输入抢位置。 */
+.hy-today-traces {
+  /* 和上一块（简报卡）之间：相邻外边距会合并，合成一个区块间距 */
+  margin-top: var(--hy-block-gap);
+  padding-top: var(--hy-s3);
+  border-top: 1px solid var(--hy-line);
+}
+
+.hy-today-traces-title {
+  margin: 0 0 var(--hy-s1);
+  font-family: var(--hy-font-sans, system-ui, sans-serif);
+  font-size: var(--hy-fs-xs, 12px);
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0;
+  color: var(--hy-ink-faint);
+}
+
+.hy-today-trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 一行一条痕迹：标签 | 一句状态 | 打开/写一页。 */
+.hy-today-trace {
+  display: grid;
+  grid-template-columns: 2.6em minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--hy-s3);
+  padding: var(--hy-s1) 0;
+}
+
+.hy-today-trace + .hy-today-trace {
+  border-top: 1px solid var(--hy-line-soft);
+}
+
+.hy-today-trace-label {
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+
+/* 状态：能看清，但比正文轻一档。 */
+.hy-today-trace-status {
+  color: var(--hy-ink-soft);
+  font-size: var(--hy-fs-sm, 13px);
+  line-height: 1.6;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 动作：更轻，悬停时才浮出来。 */
+.hy-today-trace-link {
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+  line-height: 1.6;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 180ms var(--hy-ease), border-color 180ms var(--hy-ease);
+}
+
+.hy-today-trace-link:hover {
+  color: var(--hy-accent);
+  border-bottom-color: currentColor;
+}
+
+/* ========================= 今天页：右栏对话 ========================= */
+
+/* 安静的淡字小标题，不要实线。 */
+.hy-today-right-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: var(--hy-s3);
+}
+
+.hy-today-chat-title {
+  font-size: var(--hy-fs-sm, 13px);
+  font-weight: 500;
+  color: var(--hy-ink-soft);
+}
+
+.hy-today-chat-note {
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs, 12px);
+}
+
+/* ========================= 断点 ========================= */
+
+@media (max-width: 899px) {
+  /* 窄屏：输入胶囊浮在底栏之上，完整可见；
+     底部留白 = 底栏高度 + 安全区 + 间隙，所以既不被压住也不被裁切。 */
+  .hy-today {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    padding-bottom: calc(var(--hy-mobile-nav-h, 52px) + env(safe-area-inset-bottom, 0px) + 112px);
+  }
+
+  .hy-today-right {
+    min-height: 56vh;
+  }
+
+  /* 输入胶囊：左右和内容、底栏同一个 --hy-page-x，不自己贴边。 */
+  .hy-today .hy-composer-pill {
+    position: fixed;
+    left: var(--hy-page-x);
+    right: var(--hy-page-x);
+    bottom: calc(var(--hy-mobile-nav-h, 52px) + env(safe-area-inset-bottom, 0px) + 20px);
+    width: auto;
+    max-width: none;
+    margin: 0;
+    z-index: 44;
+  }
+
+  /* 一览模式不说话：收起固定输入，痕迹不再被挡住，底边只给底栏留空。 */
+  .hy-today-glance {
+    padding-bottom: calc(var(--hy-mobile-nav-h, 52px) + env(safe-area-inset-bottom, 0px) + 32px);
+  }
+
+  .hy-today-glance .hy-composer-pill {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  /* 宽屏：左边「今天要看的」，右边「对话」。
+     两栏一起填满主内容区，左右边距由主内容区的 --hy-page-x 决定，
+     所以左栏左缘 = 顶栏品牌左缘，右栏右缘 = 「设置」右缘。 */
+  .hy-today {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+    overflow: hidden;
+  }
+
+  .hy-today-left {
+    overflow-y: auto;
+    /* 上 24 / 右 16（给分割线留呼吸，内容不贴线）/ 下 8 / 左 0（左缘贴着页面边距） */
+    padding: var(--hy-s6) var(--hy-s4) var(--hy-s2) 0;
+  }
+
+  .hy-today-right {
+    /* 分割线到内容之间留 40px，右栏内容不贴分割线 */
+    padding: var(--hy-s6) 0 var(--hy-s6) var(--hy-s8);
+    border-left: 1px solid var(--hy-line);
+  }
+
+  /* 宽屏：胶囊浮在右栏对话下方，左右正好是对话列的两条竖线
+     （气泡左缘 / 页面右缘），不再自己缩进一小截。 */
+  .hy-today .hy-composer-pill {
+    width: 100%;
+    max-width: none;
+    margin: var(--hy-s3) 0 0;
+  }
+}

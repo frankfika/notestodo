@@ -1,0 +1,19 @@
+{
+  "name": "@huoye/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "活页桌面壳：用本机窗口打开已经运行的本地网页。",
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "start": "pnpm build && electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "electron": "^45.4.1",
+    "typescript": "^5.9.3"
+  }
+}

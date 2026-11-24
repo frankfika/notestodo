@@ -1,0 +1,141 @@
+/* 字族：软几何无衬线。拉丁走 Figtree，中文走随包发布的 Noto Sans SC Variable，
+   两者都是可变字体，400–600 一律用真字重，不用合成。
+   等宽 Geist Mono 只给时间戳、路径、标识。 */
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/noto-sans-sc";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/source-serif-4/400.css";
+@import "@fontsource/source-serif-4/600.css";
+@import "@huoye/ui/styles.css";
+@import "tailwindcss";
+
+#root { min-height: 100vh; }
+
+.markdown-body p { margin: 0.4em 0 0.8em; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body ul { padding-left: 1.2em; }
+
+/* 窄屏底栏预留高度：悬浮胶囊导航按这个高度上浮，
+   输入胶囊也按它上移，保证既不被压住也不被裁切。
+   （packages/ui 里也会给一份默认值，这里保底一份。） */
+:root {
+  --hy-mobile-nav-h: 52px;
+}
+
+/* ------------------------------------------------------------------
+   悬浮胶囊输入的基础形状。
+   ChatPanel 的 form 直接用这个类名，类名必须留着；
+   具体配色交给 chat.css，这里只保证胶囊形状与 flex 布局不塌。
+   ------------------------------------------------------------------ */
+.hy-composer-pill {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 8px 8px 16px;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--hy-surface);
+  border: 1px solid var(--hy-line-2);
+  box-shadow: var(--hy-shadow-lift);
+  transition: border-color 180ms var(--hy-ease), background-color 180ms var(--hy-ease);
+}
+
+.hy-composer-pill:focus-within {
+  border-color: var(--hy-accent);
+}
+
+/* 对话面板骨架：线程自己滚动，胶囊留在下方。 */
+.hy-chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.hy-chat-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+@media (max-width: 899px) {
+  .hy-chat-thread {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* ------------------------------------------------------------------
+   记忆页：全文检索 + 范围
+   ------------------------------------------------------------------ */
+.hy-note-search {
+  margin-bottom: 18px;
+}
+
+.hy-note-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hy-scope-chip {
+  border: 1px solid var(--hy-line-2);
+  background: transparent;
+  color: var(--hy-ink-faint);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: var(--hy-fs-xs);
+  cursor: pointer;
+  transition: border-color 160ms var(--hy-ease), color 160ms var(--hy-ease), background-color 160ms var(--hy-ease);
+}
+
+.hy-scope-chip:hover {
+  color: var(--hy-ink);
+}
+
+.hy-scope-chip-on {
+  border-color: var(--hy-accent);
+  color: var(--hy-ink);
+  background: var(--hy-surface);
+}
+
+.hy-note-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* 笔记编辑器 */
+.hy-note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 笔记标题：跟其它标题一样用无衬线，不再用衬线撑「日记本」气质。 */
+.hy-note-title {
+  font-family: var(--hy-font-sans);
+  font-size: var(--hy-fs-xl);
+  font-weight: 600;
+  line-height: var(--hy-lh-title);
+  letter-spacing: 0;
+}
+
+/* 笔记编辑器的长文正文：全站唯一可以用衬线的地方。
+   标题和卡片一律无衬线，这里是例外。 */
+.hy-note-body {
+  font-family: var(--hy-font-serif);
+  font-weight: 400;
+  line-height: 1.9;
+}
+
+.hy-note-block {
+  border-top: 1px solid var(--hy-line);
+  padding-top: 12px;
+}

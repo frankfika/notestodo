@@ -1,0 +1,407 @@
+/* 活页 · 空气里的一页今天
+   规范见 docs/DESIGN.md：氛围洗底 + 轻玻璃卡片 + 悬浮胶囊。
+   所有色值自配，不对齐任何第三方产品的官方品牌色。 */
+
+:root {
+  /* 氛围洗底：竖向很淡的渐变，上面偏冷雾，下面偏暖沙 */
+  --hy-bg: #eef2f6;
+  --hy-bg-warm: #f6efe7;
+
+  /* 玻璃面：叠在洗底上的半透明白 */
+  --hy-surface: rgba(255, 255, 255, 0.72);
+  --hy-surface-2: rgba(255, 255, 255, 0.55);
+  --hy-surface-3: rgba(255, 255, 255, 0.86);
+
+  /* 墨色 */
+  --hy-ink: #1b2230;
+  --hy-ink-soft: #4b5567;
+  --hy-ink-faint: #79839a;
+
+  /* 线：卡片边线用很淡的白，控件边线用冷灰 */
+  --hy-line: rgba(255, 255, 255, 0.62);
+  --hy-line-2: rgba(27, 38, 58, 0.1);
+  --hy-line-soft: rgba(27, 38, 58, 0.07);
+
+  /* 强调：自配的沉静蓝 */
+  --hy-accent: #2f6fb0;
+  --hy-accent-hover: #255a92;
+  --hy-accent-soft: rgba(47, 111, 176, 0.12);
+  --hy-warm: #b5763f;
+  --hy-warm-soft: rgba(181, 118, 63, 0.12);
+  --hy-danger: #b04a3a;
+  --hy-danger-soft: rgba(176, 74, 58, 0.1);
+
+  /* 阴影：极轻、偏冷灰 */
+  --hy-shadow: 0 1px 2px rgba(36, 50, 72, 0.05), 0 8px 24px rgba(36, 50, 72, 0.05);
+  --hy-shadow-lift: 0 10px 30px rgba(36, 50, 72, 0.12);
+
+  /* 形状 */
+  --hy-radius: 18px;
+  --hy-radius-sm: 12px;
+  --hy-blur: saturate(1.12) blur(14px);
+  --hy-mobile-nav-h: 52px;
+
+  /* 字号 */
+  --hy-fs-xs: 12px;
+  --hy-fs-sm: 13px;
+  --hy-fs-base: 15px;
+  --hy-fs-md: 16px;
+  --hy-fs-lg: 19px;
+  --hy-fs-xl: 24px;
+  --hy-fs-2xl: 30px;
+  --hy-fs-display: 38px;
+
+  /* 行高：正文 1.7，标题 1.35 */
+  --hy-lh-body: 1.7;
+  --hy-lh-title: 1.35;
+
+  /* 页面边距：全页一套数。
+     顶栏、主内容、窄屏底栏、窄屏输入胶囊共用同一个 --hy-page-x，
+     所以「活页」的品牌、「早上好」的问候、内容右缘、底栏左右缘
+     永远落在同一条竖线上。 */
+  --hy-page-x: 32px;
+  /* 区块之间：桌面 32px / 窄屏 24px（见下面的窄屏覆盖） */
+  --hy-block-gap: 32px;
+  /* 玻璃卡内边距：统一 24px */
+  --hy-card-pad: 24px;
+
+  /* 间距 */
+  --hy-s1: 4px;
+  --hy-s2: 8px;
+  --hy-s3: 12px;
+  --hy-s4: 16px;
+  --hy-s5: 20px;
+  --hy-s6: 24px;
+  --hy-s7: 32px;
+  --hy-s8: 40px;
+  --hy-s9: 56px;
+  --hy-s10: 64px;
+
+  --hy-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* 字族：软几何无衬线。拉丁走 Figtree，中文走随包发布的 Noto Sans SC，
+     这样中英混排是同一家字，不会一边 Figtree、一边发虚的系统黑体。
+     衬线只留给笔记编辑器的长文正文（--hy-font-serif）。 */
+  --hy-font-sans: "Figtree Variable", "Figtree", "Noto Sans SC Variable", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --hy-font-serif: "Source Serif 4", "Songti SC", "Noto Serif CJK SC", "Noto Serif SC", Georgia, serif;
+  --hy-font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  color: var(--hy-ink);
+  font-family: var(--hy-font-sans);
+  font-size: var(--hy-fs-base);
+  font-weight: 400;
+  line-height: var(--hy-lh-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 窄屏：页面边距收窄到 20px，但顶栏 / 主内容 / 输入胶囊 / 底栏
+   仍然是同一个值（20px），不对齐的事情不会因为屏幕窄就出现。 */
+@media (max-width: 899px) {
+  :root {
+    --hy-page-x: 20px;
+    --hy-block-gap: 24px;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  /* 竖向氛围洗底：上方冷雾，中段干净，下方暖沙 */
+  background: linear-gradient(180deg, var(--hy-bg) 0%, #eef1f4 45%, var(--hy-bg-warm) 100%);
+  background-attachment: fixed;
+  color: var(--hy-ink);
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+a { color: var(--hy-accent); }
+
+/* 玻璃卡：一切区块容器的基元。半透明白 + 模糊，淡白边线，极轻冷灰阴影。 */
+.hy-glass {
+  background: var(--hy-surface);
+  -webkit-backdrop-filter: var(--hy-blur);
+  backdrop-filter: var(--hy-blur);
+  border: 1px solid var(--hy-line);
+  border-radius: var(--hy-radius);
+  box-shadow: var(--hy-shadow);
+}
+
+/* 更实的白面：助理气泡、输入框底 */
+.hy-glass-strong {
+  background: var(--hy-surface-3);
+}
+
+/* 标题：无衬线，靠字号与字重撑层级。
+   600 只留给真正的第一级标题，且不再收字距——中文收字距会挤。 */
+.hy-title {
+  font-family: var(--hy-font-sans);
+  font-weight: 600;
+  line-height: var(--hy-lh-title);
+  letter-spacing: 0;
+  color: var(--hy-ink);
+}
+
+/* 小标签 / 眉题：靠字号、字重、灰阶分层，不靠拉开字距。
+   中文眉题不套西文小标签的 0.08em 字距。 */
+.hy-eyebrow {
+  color: var(--hy-ink-faint);
+  font-size: var(--hy-fs-xs);
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+
+/* 文本链接：三级行动 */
+.hy-link {
+  color: var(--hy-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(47, 111, 176, 0.35);
+  transition: color 180ms var(--hy-ease), text-decoration-color 180ms var(--hy-ease);
+}
+
+.hy-link:hover {
+  color: var(--hy-accent-hover);
+  text-decoration-color: currentColor;
+}
+
+/* 按钮层级：胶囊形，实心主色是唯一有分量的动作 */
+.hy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.5rem 1.05rem;
+  background: var(--hy-accent);
+  color: #fff;
+  font-size: var(--hy-fs-base);
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(36, 50, 72, 0.1);
+  transition: background-color 180ms var(--hy-ease), border-color 180ms var(--hy-ease), color 180ms var(--hy-ease),
+    box-shadow 180ms var(--hy-ease);
+}
+
+.hy-btn:hover { background: var(--hy-accent-hover); }
+.hy-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+/* 次级：玻璃底 + 很淡的冷灰边，不抢层级 */
+.hy-btn-ghost {
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: var(--hy-blur);
+  backdrop-filter: var(--hy-blur);
+  color: var(--hy-ink);
+  border-color: var(--hy-line-2);
+  box-shadow: var(--hy-shadow);
+}
+
+.hy-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(27, 38, 58, 0.16);
+}
+
+/* 三级：文字按钮 */
+.hy-btn-quiet {
+  background: transparent;
+  color: var(--hy-accent);
+  border-color: transparent;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  box-shadow: none;
+}
+
+.hy-btn-quiet:hover {
+  background: transparent;
+  color: var(--hy-accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 危险：白底红字红边 */
+.hy-btn-danger {
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: var(--hy-blur);
+  backdrop-filter: var(--hy-blur);
+  color: var(--hy-danger);
+  border-color: rgba(176, 74, 58, 0.32);
+  box-shadow: var(--hy-shadow);
+}
+
+.hy-btn-danger:hover {
+  background: var(--hy-danger-soft);
+  border-color: var(--hy-danger);
+}
+
+/* 输入 */
+.hy-input, .hy-textarea {
+  width: 100%;
+  border: 1px solid var(--hy-line-2);
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: var(--hy-radius-sm);
+  padding: 0.55rem 0.75rem;
+  color: var(--hy-ink);
+  outline: none;
+  transition: border-color 180ms var(--hy-ease), background-color 180ms var(--hy-ease), box-shadow 180ms var(--hy-ease);
+}
+
+.hy-input::placeholder, .hy-textarea::placeholder { color: var(--hy-ink-faint); }
+
+.hy-input:focus, .hy-textarea:focus {
+  border-color: var(--hy-accent);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 3px var(--hy-accent-soft);
+}
+
+.hy-input-invalid,
+.hy-input[aria-invalid="true"] {
+  border-color: rgba(176, 74, 58, 0.55);
+}
+
+.hy-input-invalid:focus,
+.hy-input[aria-invalid="true"]:focus {
+  border-color: var(--hy-danger);
+}
+
+.hy-textarea {
+  min-height: 12rem;
+  resize: vertical;
+  line-height: 1.75;
+}
+
+/* 窄屏输入不小于 16px：移动端浏览器会自行放大 16px 以下的输入框，
+   放大后输入胶囊会压到底栏之上，破坏「输入完整浮在底栏上方」的布局。 */
+@media (max-width: 899px) {
+  .hy-input, .hy-textarea {
+    font-size: var(--hy-fs-md);
+  }
+}
+
+.hy-muted { color: var(--hy-ink-soft); }
+.hy-faint { color: var(--hy-ink-faint); }
+
+/* 导航：安静的胶囊标签，激活是半透明白底 + 深一点的墨色 */
+.hy-nav-link {
+  font-size: var(--hy-fs-base);
+  font-weight: 500;
+  color: var(--hy-ink-faint);
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: color 180ms var(--hy-ease), background-color 180ms var(--hy-ease), border-color 180ms var(--hy-ease);
+}
+
+.hy-nav-link:hover {
+  color: var(--hy-ink);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.hy-nav-link-active {
+  color: var(--hy-ink);
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--hy-line);
+  box-shadow: var(--hy-shadow);
+}
+
+/* 对话列表：安静的条目 */
+.hy-chat-link {
+  color: var(--hy-ink-soft);
+  border-radius: var(--hy-radius-sm);
+  transition: background-color 180ms var(--hy-ease), color 180ms var(--hy-ease);
+}
+
+.hy-chat-link:hover { background: rgba(255, 255, 255, 0.55); color: var(--hy-ink); }
+
+.hy-chat-link-active {
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--hy-ink);
+  box-shadow: var(--hy-shadow);
+}
+
+/* 设置索引：细左线表示当前位置 */
+.hy-settings-link {
+  border-left: 2px solid var(--hy-line-soft);
+  padding-left: 10px;
+  margin-left: -12px;
+  color: var(--hy-ink-faint);
+  transition: color 180ms var(--hy-ease), border-color 180ms var(--hy-ease);
+}
+
+.hy-settings-link:hover { color: var(--hy-ink); }
+
+.hy-settings-link-active {
+  border-left-color: var(--hy-accent);
+  color: var(--hy-ink);
+}
+
+/* 小标签 */
+.hy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: var(--hy-blur);
+  backdrop-filter: var(--hy-blur);
+  border: 1px solid var(--hy-line);
+  font-size: var(--hy-fs-xs);
+  font-weight: 500;
+  color: var(--hy-ink-soft);
+}
+
+.hy-pill-strong {
+  background: var(--hy-warm-soft);
+  border-color: rgba(181, 118, 63, 0.26);
+  color: var(--hy-warm);
+}
+
+/* 列表行：靠很淡的冷灰发丝线分隔 */
+.hy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hy-list-row {
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--hy-line-soft);
+}
+
+.hy-list-row:first-child { border-top: 0; }
+
+/* 区块标题：无衬线 + 500，字距归零 */
+.hy-section-title {
+  font-family: var(--hy-font-sans);
+  font-weight: 500;
+  font-size: var(--hy-fs-lg);
+  line-height: var(--hy-lh-title);
+  letter-spacing: 0;
+  color: var(--hy-ink);
+}
+
+/* 待确认内容的预览：等宽字，放在更实的白面上 */
+.hy-confirm-preview {
+  color: var(--hy-ink);
+  font-size: 0.9rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  font-family: var(--hy-font-mono);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--hy-line);
+  border-radius: var(--hy-radius-sm);
+  padding: 10px 12px;
+}

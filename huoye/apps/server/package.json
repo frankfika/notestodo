@@ -1,0 +1,27 @@
+{
+  "name": "@huoye/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.6",
+    "@huoye/config": "workspace:*",
+    "@huoye/connectors": "workspace:*",
+    "@huoye/core": "workspace:*",
+    "@huoye/memory": "workspace:*",
+    "@huoye/metering": "workspace:*",
+    "@huoye/schema": "workspace:*",
+    "hono": "^4.10.6",
+    "tsx": "^4.20.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}
