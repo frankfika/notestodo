@@ -304,10 +304,16 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
     await seed(page)
     await openMindmap(page)
 
+    // 用「今天 + 3 天」的动态日期：硬编码日期一旦过期，dueTag 会渲染成
+    // 「逾期 mm/dd」，断言里的「截止 mm/dd」就再也等不到（CI 曾因此必挂）。
+    const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+    const due = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, '0')}-${String(future.getDate()).padStart(2, '0')}`
+    const mmdd = due.slice(5).replace('-', '/')
+
     await topic(page, 'a').click()
     const bar = page.locator('.mindmap-actionbar')
     const dateInput = bar.locator('input[type="date"]')
-    await dateInput.fill('2026-11-20')
+    await dateInput.fill(due)
 
     await expect.poll(async () => {
       const t = await page.evaluate(async () => {
@@ -315,8 +321,8 @@ test.describe('F-13 节点操作栏 + 空图引导', () => {
         return db.todos.get('a')
       })
       return t?.due_date ?? null
-    }).toBe('2026-11-20')
-    await expect(page.locator('.mindmap-canvas .tags', { hasText: '截止 11/20' })).toBeVisible()
+    }).toBe(due)
+    await expect(page.locator('.mindmap-canvas .tags', { hasText: `截止 ${mmdd}` })).toBeVisible()
 
     await bar.getByRole('button', { name: '清空截止日期' }).click()
     await expect.poll(async () => {
