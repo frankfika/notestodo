@@ -1,9 +1,7 @@
 /**
  * F-09 · Apple 极简视觉走查（自动化）
  *
- * 之前 F-09 只做到「写了 mindmap.css + 没有巨型工具条」，
- * 没有可执行的走查清单。这里把「极简」拆成能断言的几条：
- * 无 ME 工具条 / 无常驻右键菜单 / 节点是轻卡片（白底细边）/
+ * 把「极简」拆成能断言的几条：无常驻工具条 / 节点是轻卡片（白底细边）/
  * 画布跟着应用令牌走（暗色不塌成白底）/ 教练提示是非模态浮层。
  * 末尾截图存 tests/screenshots/ 供人工 HIG 复核。
  */
@@ -44,7 +42,7 @@ async function seed(page: Page): Promise<void> {
 async function openMindmap(page: Page): Promise<void> {
   await page.locator('aside').getByRole('button', { name: '任务' }).click()
   await page.locator('.mindmap-canvas').waitFor({ state: 'visible', timeout: 15000 })
-  await page.locator('.mindmap-canvas .me-tpc').first().waitFor({ state: 'visible', timeout: 15000 })
+  await page.locator('.mindmap-canvas [data-mm-node]').first().waitFor({ state: 'visible', timeout: 15000 })
 }
 
 test.describe('F-09 脑图视觉走查', () => {
@@ -53,27 +51,26 @@ test.describe('F-09 脑图视觉走查', () => {
     await openMindmap(page)
   })
 
-  test('无 ME 工具条 / 无常驻右键菜单（不靠巨型工具条做操作）', async ({ page }) => {
+  test('无常驻巨型工具条 / 右键菜单', async ({ page }) => {
     await expect(page.locator('.mind-elixir-toolbar')).toHaveCount(0)
     await expect(page.locator('.context-menu')).toHaveCount(0)
   })
 
   test('节点是轻卡片（白底细边）；根 18px / 子节点 14px；继承应用字体', async ({ page }) => {
-    const root = page.locator('.mindmap-canvas .me-tpc[data-nodeid="meproj"]')
+    const root = page.locator('.mindmap-canvas [data-mm-node="proj"]')
     await expect(root).toBeVisible()
 
     const rootStyle = await root.evaluate((el) => {
       const cs = getComputedStyle(el)
       return { fontSize: cs.fontSize, fontFamily: cs.fontFamily }
     })
-    // 根节点 = 标题卡片：比子节点大（mindmap.css 的 .me-root .me-tpc）
+    // 根节点 = 标题卡片：比子节点大
     expect(rootStyle.fontSize).toBe('18px')
-    // 继承应用字体，不是 ME 自带的 system-ui 兜底
     const bodyFont = await page.evaluate(() => getComputedStyle(document.body).fontFamily)
     expect(rootStyle.fontFamily).toBe(bodyFont)
 
     // 子节点：14px 轻卡片 —— 有底色（--bg-raise）、有 1px 细边
-    const child = page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]')
+    const child = page.locator('.mindmap-canvas [data-mm-node="a"]')
     await expect(child).toBeVisible()
     const childStyle = await child.evaluate((el) => {
       const cs = getComputedStyle(el)
@@ -104,20 +101,19 @@ test.describe('F-09 脑图视觉走查', () => {
       page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim())
 
     const lightCanvas = await canvasBg()
-    expect(lightCanvas).not.toBe('rgb(250, 250, 250)') // 不再是写死的浅灰
+    expect(lightCanvas).not.toBe('rgb(250, 250, 250)')
 
     await page.evaluate(() => document.documentElement.classList.add('dark'))
     await page.waitForTimeout(150)
     const darkCanvas = await canvasBg()
     const darkApp = await appBg()
-    // 暗色下画布应是应用深色底（不是白/浅灰）
     expect(darkCanvas).not.toBe(lightCanvas)
     expect(darkCanvas).not.toBe('rgb(255, 255, 255)')
     expect(darkApp).not.toBe('')
   })
 
   test('教练提示是非模态浮层（不遮挡、不抢焦点）', async ({ page }) => {
-    await page.locator('.mindmap-canvas .me-tpc[data-nodeid="meproj"]').click()
+    await page.locator('.mindmap-canvas [data-mm-node="proj"]').click()
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+t' : 'Control+t')
     const coach = page.locator('.mindmap-coach')
     await expect(coach).toBeVisible()
@@ -129,12 +125,12 @@ test.describe('F-09 脑图视觉走查', () => {
     })
     expect(style.pointerEvents).toBe('none')
     expect(style.position).toBe('absolute')
-    // 没有全屏遮罩（CommandPalette / 速查卡那类 fixed inset-0 覆盖层）
+    // 没有全屏遮罩
     await expect(page.locator('div.fixed.inset-0')).toHaveCount(0)
   })
 
   test('截图存档（人工 HIG 复核用）', async ({ page }) => {
-    await page.locator('.mindmap-canvas .me-tpc[data-nodeid="meproj"]').click()
+    await page.locator('.mindmap-canvas [data-mm-node="proj"]').click()
     await page.waitForTimeout(300)
     await page.screenshot({ path: 'tests/screenshots/visual-mindmap.png', fullPage: false })
   })

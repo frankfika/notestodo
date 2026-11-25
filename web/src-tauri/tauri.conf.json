@@ -40,6 +40,17 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVCODY3M0Y5OTYwMUExRDMKUldUVG9RR1crWE9HVzd3VnNIaHhuQ1YveXFOd0RnWmhxNjJ2QUMvNWU2T2cyQXRIV1NQM1I3eTAK",
+      "endpoints": [
+        "https://github.com/frankfika/notestodo/releases/latest/download/latest.json"
+      ]
     }
   }
 }

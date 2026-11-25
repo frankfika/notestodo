@@ -113,6 +113,20 @@ export async function testASRConnection(settings: AppSettings): Promise<TestResu
       // GET（部分实现可用，部分 405；视为「不在此端点」-不清零成功的判定）
       return { ok: false, message: `HTTP ${res.status}：${(await res.text()).slice(0, 140)}` }
     }
+    if (cfg.provider === 'deepseek') {
+      // 发一小段静音 WAV：200=Key 有效且服务可用；401=鉴权失败；其他 4xx=已过鉴权、参数校验中
+      const wav = silentWav()
+      const form = new FormData()
+      form.append('file', new Blob([wav], { type: 'audio/wav' }), 'ping.wav')
+      res = await fetchWithTimeout(joinUrl(cfg.base_url.replace(/\/+$/, ''), '/v1/tools/asr'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cfg.api_key}` },
+        body: form,
+      })
+      if (res.ok) return { ok: true, message: '连接成功（静音探针已识别）' }
+      if (res.status === 401) return { ok: false, message: '鉴权失败：API Key 无效' }
+      return { ok: true, message: `Key 有效（已通过鉴权，HTTP ${res.status}）` }
+    }
     // minimax：空 body POST — 401+1004 鉴权错=无效 key；其他 4xx=已过鉴权、参数校验中
     const base = cfg.base_url.replace(/\/+$/, '')
     res = await fetchWithTimeout(joinUrl(base, '/v1/speech_to_text'), {
@@ -132,4 +146,29 @@ export async function testASRConnection(settings: AppSettings): Promise<TestResu
   } catch (e) {
     return { ok: false, message: e instanceof Error && e.name === 'AbortError' ? '连接超时' : `网络错误：${String(e)}` }
   }
+}
+/** 0.1s 静音 WAV（16k 16bit 单声道）—— DeepSeek ASR 连接探针 */
+function silentWav(): ArrayBuffer {
+  const sr = 16_000
+  const n = Math.floor(sr * 0.1)
+  const dataSize = n * 2
+  const buf = new ArrayBuffer(44 + dataSize)
+  const v = new DataView(buf)
+  const writeStr = (off: number, s: string): void => {
+    for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i))
+  }
+  writeStr(0, 'RIFF')
+  v.setUint32(4, 36 + dataSize, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  v.setUint32(16, 16, true)
+  v.setUint16(20, 1, true)
+  v.setUint16(22, 1, true)
+  v.setUint32(24, sr, true)
+  v.setUint32(28, sr * 2, true)
+  v.setUint16(32, 2, true)
+  v.setUint16(34, 16, true)
+  writeStr(36, 'data')
+  v.setUint32(40, dataSize, true)
+  return buf
 }

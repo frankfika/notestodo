@@ -179,6 +179,10 @@ pub fn run() {
       // 见 capabilities/default.json)。
       app.handle().plugin(tauri_plugin_fs::init())?;
       app.handle().plugin(tauri_plugin_dialog::init())?;
+      // GitHub Releases 自动更新（前端经 @tauri-apps/plugin-updater 触发检查/下载/安装）
+      app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+      // 更新装完后重启应用（@tauri-apps/plugin-process → relaunch）
+      app.handle().plugin(tauri_plugin_process::init())?;
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![

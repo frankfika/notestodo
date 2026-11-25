@@ -63,12 +63,11 @@ async function seed(page: Page): Promise<void> {
 async function openMindmap(page: Page): Promise<void> {
   await page.locator('aside').getByRole('button', { name: '任务' }).click()
   await page.locator('.mindmap-canvas').waitFor({ state: 'visible', timeout: 15000 })
-  await page.locator('.mindmap-canvas .me-tpc').first().waitFor({ state: 'visible', timeout: 15000 })
+  await page.locator('.mindmap-canvas [data-mm-node]').first().waitFor({ state: 'visible', timeout: 15000 })
 }
 
 function topic(page: Page, id: string) {
-  // ME 给节点加 data-nodeid="me<id>"
-  return page.locator(`.mindmap-canvas .me-tpc[data-nodeid="me${id}"]`)
+  return page.locator(`.mindmap-canvas [data-mm-node="${id}"]`)
 }
 
 async function todoOf(page: Page, id: string): Promise<{
@@ -136,7 +135,7 @@ test.describe('F-02 脑图快捷键语义', () => {
   test('⌘Enter：进入编辑（画布内出现输入框）', async ({ page }) => {
     await topic(page, 'a').click()
     await page.keyboard.press(`${MOD}+Enter`)
-    await expect(page.locator('.mindmap-canvas #input-box')).toBeVisible()
+    await expect(page.locator('[data-testid="mm-editor"]')).toBeVisible()
   })
 
   test('Delete：删除节点（软删，可 ⌘Z 撤销）', async ({ page }) => {
@@ -167,7 +166,7 @@ test.describe('F-02 脑图快捷键语义', () => {
 
   test('Space：编辑节点标题时不触发完成', async ({ page }) => {
     await topic(page, 'b').dblclick()
-    await expect(page.locator('.mindmap-canvas #input-box')).toBeVisible()
+    await expect(page.locator('[data-testid="mm-editor"]')).toBeVisible()
     await page.keyboard.press('Space')
     await page.waitForTimeout(300)
     expect((await todoOf(page, 'b'))?.status).toBe('open')
@@ -243,7 +242,7 @@ test.describe('F-02 脑图快捷键语义', () => {
     await hintBtn.click()
     const panel = page.locator('.mindmap-hint-panel')
     await expect(panel).toBeVisible()
-    await expect(panel).toContainText('新增子节点')
+    await expect(panel).toContainText('新增子任务')
     await expect(panel).toContainText('加入 Today')
     // 仅叶子规则在提示里可见可教（R1）
     await expect(panel).toContainText('仅叶子')

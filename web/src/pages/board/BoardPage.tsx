@@ -82,6 +82,16 @@ export default function BoardPage({ embedded = false }: { embedded?: boolean } =
   const [query, setQuery] = useState('')
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'overdue' | 'assigned' | 'tagged'>('all')
   const focusId = useUI((s) => s.todoFocusId)
+  /** 列滚动容器：snap-mandatory 在挂载时会把初始滚动条吸到最后一个 snap 点（末尾），
+   *  窄屏上表现为一进来只看到「已完成」列。挂载后主动复位到最左。 */
+  const colScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = colScrollRef.current
+    if (!el) return
+    el.scrollLeft = 0
+    const raf = requestAnimationFrame(() => { el.scrollLeft = 0 })
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   // 刚加的卡片高亮一会儿就撤掉，避免一直挂着像「没做完」
   useEffect(() => {
@@ -378,7 +388,7 @@ export default function BoardPage({ embedded = false }: { embedded?: boolean } =
         )}
       </header>
 
-      <div className="flex-1 min-h-0 flex gap-3 md:gap-4 overflow-x-auto snap-x snap-mandatory pb-1">
+      <div ref={colScrollRef} className="flex-1 min-h-0 flex gap-3 md:gap-4 overflow-x-auto snap-x snap-mandatory pb-1">
         {cols.map((c, ci) => {
           const list = cardsByCol.get(c) ?? []
           const isDone = c === DONE_COL

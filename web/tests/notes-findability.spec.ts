@@ -105,3 +105,26 @@ test('侧栏页面树支持快速搜索页面并直接打开', async ({ page }) 
   await page.locator('aside').getByRole('button', { name: /产品路线/ }).click()
   await expect(page.locator('main input').first()).toHaveValue('产品路线')
 })
+
+test('侧栏笔记本分区可折叠/展开，折叠后页面隐藏', async ({ page }) => {
+  await bootNotes(page)
+
+  const sidebar = page.locator('aside')
+  // 法务库分区默认展开，里面的页面可见
+  await expect(sidebar.getByText('供应商合同复盘')).toBeVisible()
+
+  // 点分区头的折叠 chevron（按 sort_order 第一个分区 = 法务库）
+  await sidebar.getByRole('button', { name: '折叠分区' }).first().click()
+  await expect(sidebar.getByText('供应商合同复盘')).toHaveCount(0)
+  // 分区头本身保留，未分配分区不受影响
+  await expect(sidebar.getByText('法务库')).toBeVisible()
+  await expect(sidebar.getByText('产品路线')).toBeVisible()
+
+  // 再点一次展开，页面回来
+  await sidebar.getByRole('button', { name: '展开分区' }).first().click()
+  await expect(sidebar.getByText('供应商合同复盘')).toBeVisible()
+
+  // 点分区标题本身也能折叠（整行都是点击区）
+  await sidebar.getByText('法务库').click()
+  await expect(sidebar.getByText('供应商合同复盘')).toHaveCount(0)
+})

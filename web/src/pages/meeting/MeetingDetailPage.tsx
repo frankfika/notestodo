@@ -970,7 +970,8 @@ function TranscriptTab({
   return (
     <div className="card p-5 space-y-3">
       {transcript.segments.map((seg, i) => {
-        const label = transcript.speaker_names[seg.speaker_label] ?? seg.speaker_label
+        // speaker_label 为空（如 DeepSeek ASR 不做说话人分离）时回退为「发言」
+        const label = (transcript.speaker_names[seg.speaker_label] ?? seg.speaker_label) || '发言'
         const isHighlight = i === targetIndex
         const isActive = i === activeIndex
         return (
@@ -1370,7 +1371,10 @@ function ChatPanel({
         throw new Error('请先在「设置」页填 LLM API Key')
       }
       const transcriptText = transcript?.segments
-        .map((s) => `[${fmtClock(s.start_ms)}] ${s.speaker_label}: ${s.text}`)
+        .map((s) => {
+          const who = s.speaker_label || '发言' // speaker_label 为空（如 DeepSeek ASR）时回退
+          return `[${fmtClock(s.start_ms)}] ${who}: ${s.text}`
+        })
         .join('\n') ?? '(无转录)'
       const summaryText = summary?.content_md ?? '(暂无纪要)'
 

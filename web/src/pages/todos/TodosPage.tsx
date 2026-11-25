@@ -262,7 +262,7 @@ export default function TodosPage(): JSX.Element {
               <div className="section-title">任务</div>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h1 className="text-2xl font-semibold text-text-1 text-balance">任务</h1>
-                <span className="text-sm text-text-3">先推进当前项，其他视图需要时再展开。</span>
+                <span className="text-sm text-text-3 hidden sm:inline">先推进当前项，其他视图需要时再展开。</span>
               </div>
             </div>
           </div>
@@ -303,8 +303,8 @@ export default function TodosPage(): JSX.Element {
                   </button>
                 </div>
               </div>
-              {/* 落点说明收成一行轻提示：告诉用户「这条会去哪」，不再抢一整块空间 */}
-              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-text-3 min-w-0">
+              {/* 落点说明收成一行轻提示：告诉用户「这条会去哪」，不再抢一整块空间（窄屏让位给画布） */}
+              <div className="mt-1.5 hidden md:flex items-center gap-1.5 text-xs text-text-3 min-w-0">
                 <span className="shrink-0 text-text-2">↓ {createContext.title}</span>
                 <span className="truncate">{createContext.detail}</span>
               </div>

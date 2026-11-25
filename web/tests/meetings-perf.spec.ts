@@ -55,7 +55,7 @@ test('多会议列表性能：50 场会议渲染 < 1s', async ({ page }) => {
 
   // 等列表渲染完（用 list 内 50 个 li 计数来检测）
   await page.waitForFunction(
-    () => document.querySelectorAll('.w-\\[300px\\] ul li').length >= 50,
+    () => document.querySelectorAll('[data-testid="meetings-list"] ul li').length >= 50,
     { timeout: 5_000 },
   ).catch(() => null)
   const navEnd = Date.now()
@@ -64,7 +64,7 @@ test('多会议列表性能：50 场会议渲染 < 1s', async ({ page }) => {
   console.log(`50-meeting list nav+render: ${navMs}ms`)
 
   // 实际渲染的会议数
-  const liCount = await page.locator('.w-\\[300px\\] ul li').count()
+  const liCount = await page.locator('[data-testid="meetings-list"] ul li').count()
   expect(liCount).toBe(50)
 
   // 性能断言：< 2s（50 会议 + Dexie liveQuery 重订阅 + React commit）

@@ -80,12 +80,12 @@ export default function ReportPage(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col px-6 md:px-12 pt-8 pb-6 gap-5 overflow-hidden">
-      <header className="flex items-end gap-4">
-        <div>
-          <div className="text-xs text-text-3">{md(ymd(range.start))} – {md(ymd(last))}{offset === 0 ? ' · 本周' : ''}</div>
+      <header className="flex flex-wrap items-start md:items-end gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <div className="text-xs text-text-3 whitespace-nowrap">{md(ymd(range.start))} – {md(ymd(last))}{offset === 0 ? ' · 本周' : ''}</div>
           <h1 className="text-2xl font-semibold tracking-tight">周报</h1>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <button className="btn-outline h-9" onClick={() => setOffset((o) => o - 1)} aria-label="上一周">‹</button>
           <button className="btn-outline h-9" onClick={() => setOffset(0)} disabled={offset === 0}>本周</button>
           <button className="btn-outline h-9" onClick={() => setOffset((o) => o + 1)} aria-label="下一周">›</button>

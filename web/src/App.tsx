@@ -26,6 +26,9 @@ import TodayPage from './pages/today/TodayPage'
 import { installSyncHooks } from './sync/outbox'
 import { syncNow } from './sync/engine'
 import { getSettings } from './db/settings'
+import { isTauri } from './lib/tauri'
+import { checkForUpdate, downloadAndInstall } from './lib/updater'
+import { useToast } from './state/toast'
 
 export default function App() {
   const view = useUI((s) => s.view)
@@ -73,6 +76,17 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [setCmdkOpen, setAiOpen, phase, start, stop])
+
+  // GitHub Releases 自动更新：启动后静默查一次，有新版本弹 toast（点「更新」下载安装并重启）
+  useEffect(() => {
+    if (!isTauri()) return
+    void (async () => {
+      const info = await checkForUpdate()
+      if (!info) return
+      const { show } = useToast.getState()
+      show(`发现新版本 v${info.version}`, { label: '更新', onClick: () => void downloadAndInstall(info) }, 30_000)
+    })()
+  }, [])
 
   // 多端同步：启动即挂 Dexie hook（此后所有本地改动自动进发件箱）；
   // 启用时每 60s 检查一次，按设置的间隔自动同步，联网恢复时也立刻补一次。

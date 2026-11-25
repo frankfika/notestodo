@@ -42,7 +42,7 @@ async function seed(page: Page): Promise<void> {
 
 async function openMindmap(page: Page): Promise<void> {
   await page.locator('aside').getByRole('button', { name: '任务' }).click()
-  await page.locator('.mindmap-canvas .me-tpc').first().waitFor({ state: 'visible', timeout: 15000 })
+  await page.locator('.mindmap-canvas [data-mm-node]').first().waitFor({ state: 'visible', timeout: 15000 })
   await page.waitForTimeout(800)
 }
 
@@ -74,7 +74,7 @@ test.describe('脑图布局 · 画布优先', () => {
     await page.getByTitle('切换项目图').click()
     await expect(page.getByRole('button', { name: '项目乙', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '项目乙', exact: true }).click()
-    await expect(page.locator('.mindmap-canvas .me-tpc[data-nodeid="meproj2"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('.mindmap-canvas [data-mm-node="proj2"]')).toBeVisible({ timeout: 10000 })
   })
 
   test('③ Inbox 浮层：捕获照旧', async ({ page }) => {
@@ -99,7 +99,7 @@ test.describe('脑图布局 · 画布优先', () => {
     await openMindmap(page)
 
     // 脑图里选一个叶子按 ⌘T 入槽
-    await page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]').click()
+    await page.locator('.mindmap-canvas [data-mm-node="a"]').click()
     await page.waitForTimeout(200)
     await page.keyboard.press('Control+t')
     await expect(page.getByTitle('今天要做的事（⌘T 入槽）')).toContainText('1/5')

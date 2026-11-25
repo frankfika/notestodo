@@ -1,12 +1,18 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type JSX,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { db } from '../../db/db'
 import { useUI } from '../../state/ui'
-import {
-  applyTodoPatches,
-  mindEventToTodoPatches,
-  todosToMindData,
-} from '../../lib/mindmap/convert'
+import { applyTodoPatches } from '../../lib/mindmap/convert'
+import { buildTask } from '../../lib/mindmap/createTask'
+import { isDescendant } from '../../lib/mindmap/cycle'
 import { tryAddTodaySlot } from '../../lib/mindmap/todayBridge'
 import { getToday } from '../../lib/mindmap/todaySlots'
 import {
@@ -18,9 +24,9 @@ import {
 import { indexByParent, isLeafTodo, todayEligible } from '../../lib/mindmap/leaf'
 import { useAllTodos } from '../../lib/useAllTodos'
 import { useOriginTitles } from '../../lib/originTitles'
-import type { MeOperation, MindmapNodeMeta } from '../../lib/mindmap/types'
 import type { ID, Todo } from '../../types'
-import { mod } from '../../lib/id'
+import { mod, now } from '../../lib/id'
+import { parseQuickAdd } from '../../lib/quickAdd'
 import './mindmap.css'
 import { applyTodoStatus } from '../../lib/todoStatus'
 import DateInput from '../../components/DateInput'
@@ -38,195 +44,28 @@ export type MindmapCanvasProps = {
   onSelectionChange?: (id: ID | null) => void
 }
 
-/**
- * F-09 · 极简：ME 默认主题是 Latte 彩虹配色（11 种高饱和色），
- * 和应用的 Notion 风冲突。换成低饱和中性色，分支线不再抢焦点。
- * 颜色细节统一由 mindmap.css 接管（接应用令牌，跟随明暗）。
- */
-const MINIMAL_PALETTE = ['#a3a3a0', '#b6b5b1', '#9aa3ab', '#b3a99f', '#a6a1ab']
+/* ── 自由画布 ─────────────────────────────────────────────────────────────
+ * 自绘画布（不再依赖 Mind Elixir 的自动树布局）：
+ *   · 每个节点有自己的世界坐标，拖到哪停在哪（pos_x/pos_y 落库）；
+ *   · 没拖过的节点交给自动布局（根在正中，子级向右 DFS 排开）；
+ *   · 连线按两节点的相对方向取锚点（水平出入 or 垂直出入），随拖随重算。
+ * 结构语义不变：父子还是 parent_id，排序还是 sort_order，
+ * 今天 / 撤销 / 来源标签全部复用原有的数据层。
+ * ─────────────────────────────────────────────────────────────────────── */
 
-/** 自适应缩放的保底下限：再小字就看不清了，低于它只居中不继续缩 */
-const MIN_FIT_SCALE = 0.6
-const DRAG_INTENT_PX = 6
-const DRAG_SETTLE_MS = 220
+type Pt = { x: number; y: number }
+type Size = { w: number; h: number }
+type Rect = Pt & Size
 
-type MindElixirInstance = {
-  init: (data: unknown) => void | Promise<void>
-  refresh?: (data: unknown) => void
-  destroy?: () => void
-  bus: { addListener: (ev: string, fn: (payload: unknown) => void) => void }
-  findEle?: (id: string) => unknown
-  selectNode?: (el: unknown, center?: boolean) => void
-  currentNode?: { nodeObj?: { id: string } }
-  container?: HTMLElement
-  addChild?: () => Promise<void> | void
-  insertSibling?: (type: 'before' | 'after') => Promise<void> | void
-  beginEdit?: () => Promise<void> | void
-  /** 直接对某个节点进编辑态（传的是 .me-tpc 元素） */
-  editTopic?: (el: unknown) => void
-  removeNodes?: (nodes: unknown[]) => Promise<void> | void
-  moveNodesIn?: (from: unknown[], to: unknown) => Promise<void> | void
-  moveNodesBefore?: (from: unknown[], to: unknown) => Promise<void> | void
-  moveNodesAfter?: (from: unknown[], to: unknown) => Promise<void> | void
-  /** 缩放到刚好放得下 + 按整棵树居中 */
-  scaleFit?: () => void
-  /** 缩放比例（scaleFit 后读它判断是否缩得太小） */
-  scaleVal?: number
-  /** 以容器中心为锚点缩放 */
-  scale?: (next: number) => void
-  /**
-   * 画布上现在的树。
-   * 注意 ME 的两个 API 形状不一样，别踩：
-   *   `getData()`      → 对象 `{ nodeData, arrows, ... }`
-   *   `stringifyData()` → **JSON 字符串**（不是对象，取 `.nodeData` 永远是 undefined）
-   */
-  getData?: () => { nodeData?: BranchNode } | undefined
-  stringifyData?: () => string | { nodeData?: BranchNode } | undefined
-}
-
-/** 拿到 ME 画布上当前的根节点（两个 API 都兼容） */
-function readMeNode(mei: MindElixirInstance): BranchNode | undefined {
-  const direct = mei.getData?.()?.nodeData
-  if (direct) return direct
-  const raw = mei.stringifyData?.()
-  if (typeof raw !== 'string') return raw?.nodeData
-  try {
-    const parsed = JSON.parse(raw) as { nodeData?: BranchNode }
-    return parsed.nodeData
-  } catch {
-    return undefined
-  }
-}
-
-/** ME 分支生成器的入参（父节点 / 子节点的几何） */
-type BranchArgs = {
-  pT: number
-  pL: number
-  pW: number
-  pH: number
-  cT: number
-  cL: number
-  cW: number
-  cH: number
-  direction: 'lhs' | 'rhs' | 'down'
-  containerHeight?: number
-  containerWidth?: number
-  isFirst?: boolean
-}
-
-type BranchTag = string | { text: string; className?: string }
-
-type BranchNode = {
-  id?: string
-  topic?: string
-  direction?: 0 | 1
-  children?: BranchNode[]
-  tags?: BranchTag[]
-  metadata?: MindmapNodeMeta
-}
-
-/**
- * F-09 · 有机树枝 · 主分支（根 → 一级）。
- *
- * ME 默认是「从父节点垂直上冲 → 折一下」，看着像流程图的连线。
- * 这里改成脑图的样子：**水平出入父/子节点，中间一条连续的三次贝塞尔**。
- */
-function organicMainBranch({
-  pT,
-  pL,
-  pW,
-  pH,
-  cT,
-  cL,
-  cW,
-  cH,
-  direction,
-}: BranchArgs): string {
-  const py = pT + pH / 2
-  const cy = cT + cH / 2
-  if (direction === 'down') {
-    const sx = pL + pW / 2
-    const ex = cL + cW / 2
-    const sy = pT + pH
-    const ey = cT
-    const k = Math.max(16, Math.min(120, (ey - sy) * 0.55))
-    return `M ${sx} ${sy} C ${sx} ${sy + k} ${ex} ${ey - k} ${ex} ${ey}`
-  }
-  const right = direction !== 'lhs'
-  const sx = right ? pL + pW : pL
-  const ex = right ? cL : cL + cW
-  const k = Math.max(16, Math.min(140, Math.abs(ex - sx) * 0.55))
-  const c1 = right ? sx + k : sx - k
-  const c2 = right ? ex - k : ex + k
-  return `M ${sx} ${py} C ${c1} ${py} ${c2} ${cy} ${ex} ${cy}`
-}
-
-/**
- * F-09 · 有机树枝 · 子分支（一级 → 二级）。
- *
- * 子分支的坐标系跟主分支**不一样**：ME 把 subLines 的 SVG 挂在节点自己的
- * wrapper 里，父节点的坐标是 wrapper 局部坐标，子节点的坐标却是子节点自己
- * 盒子里的局部坐标 —— 两者不能直接相减。
- * 所以这里沿用 ME 自己的落点换算（起点 / 终点都不变，保证一定落在子节点上），
- * 只把 ME 的「三次贝塞尔 + 一段直线 H」换成**一条连续的三次贝塞尔**：
- * 去掉了那条最像流程图的直线段。
- */
-function organicSubBranch(
-  this: { container?: HTMLElement },
-  { pT, pL, pW, pH, cT, cL, cH }: BranchArgs,
-): string {
-  // 子分支的坐标系：subLines 的 SVG 挂在节点的 wrapper 里。
-  //   p* = 父节点 topic 在 wrapper 里的位置（直接用）
-  //   c* = 子节点 wrapper 在同一个 wrapper 里的位置 —— 比 topic 多了左右各
-  //        一个 --node-gap-x 的内边距，所以 topic 左缘要 + gap
-  // （这几条换算是对着真实 DOM 量出来的，见 docs/phase2-claude-acceptance.md）
-  const gapRaw =
-    this.container && typeof getComputedStyle === 'function'
-      ? getComputedStyle(this.container).getPropertyValue('--node-gap-x')
-      : ''
-  const gap = Number.parseInt(gapRaw, 10) || 24
-  const sx = pL + pW
-  const sy = pT + pH / 2
-  const ex = cL + gap
-  const ey = cT + cH / 2
-  const k = Math.max(14, Math.min(120, Math.abs(ex - sx) * 0.55))
-  return `M ${sx} ${sy} C ${sx + k} ${sy} ${ex - k} ${ey} ${ex} ${ey}`
-}
-
-/**
- * 画布上这棵树的签名（id + 标题 + 可见元信息 + 结构）。
- *
- * 用来回答一个问题：「Dexie 里的数据，画布上是不是已经画好了？」
- * 如果是，就别再 `refresh` 重画一遍 —— 重画会重建整棵 DOM，
- * ME 自己的动画、选中态全被抹掉，手感一下就变「不丝滑」了。
- *
- * 标题要做归一化：ME 新建节点的占位文案历史上是 `New Node`（不传
- * newTopicName 时 ME 退回英文默认），而我们这边空标题渲染成
- * `未命名` —— 不归一化的话两者永远对不上，每次新建节点都会重画一次。
- * 现在 newTopicName 显式传了「新节点」，「New Node」归一化只作兼容存量。
- *
- * 签名必须带上 tags：之前只比 id + 标题 + 结构，
- * 改关联人（@chip 渲染在 tags 里）这类不动标题的变更被判定为「一致」，
- * 画布永远不重画 —— 正确性优先于省一次 refresh。
- *
- * 注意只能比 ME 自己也会保留的字段（id / topic / children / tags）：
- * ME 新建节点的 metadata 是空的，把 metadata 算进签名会让
- * 「画布刚做完操作」的比对永远不一致 → 每次操作都全量重画，手感发涩。
- */
-function treeSignature(node: BranchNode | undefined): string {
-  if (!node) return ''
-  const kids = node.children ?? []
-  const visible = JSON.stringify(node.tags ?? [])
-  return `${node.id ?? ''}~${normTopic(node.topic)}~${node.direction ?? ''}~${visible}(${kids.map(treeSignature).join(',')})`
-}
-
-function normTopic(topic: string | undefined): string {
-  const v = (topic ?? '').trim()
-  return v === '' || v === 'New Node' ? '未命名' : v
-}
-
-/** 由应用层统一实现的键（避免 ME 内建键位重复触发） */
-const APP_KEYS = new Set(['Tab', 'Enter', 'F2', 'Delete', 'Backspace'])
+/** 自动布局层间距（按深度）：根→一级留宽一点，越深越收 */
+const DX_BY_DEPTH = [0, 340, 300, 260]
+const DEEP_DX = 260
+/** 自动布局的纵向行距 */
+const PITCH = 96
+const MIN_SCALE = 0.2
+const MAX_SCALE = 2
+const DRAG_INTENT_PX = 5
+const NODE_MAX_W = 260
 
 const IS_MAC =
   typeof navigator !== 'undefined' &&
@@ -235,22 +74,22 @@ const IS_MAC =
       navigator.userAgent,
   )
 
-/** 快捷键清单：画布右下角小面板直接渲染这份表，语义与实现同源 */
+/** 快捷键清单：画布右下角「说明」面板直接渲染这份表，语义与实现同源 */
 const SHORTCUT_ROWS: { keys: string[]; desc: string; leaf?: boolean }[] = [
-  { keys: ['Tab'], desc: '新增子节点' },
-  { keys: ['Enter'], desc: '新增兄弟节点' },
+  { keys: ['Tab'], desc: '新增子任务' },
+  { keys: ['Enter'], desc: '新增同级任务' },
   { keys: ['⇧', 'Tab'], desc: '提升一级' },
   { keys: ['⌥', 'Tab'], desc: '降低一级（挂到上一个同级下）' },
   { keys: ['⌥', '↑'], desc: '同级上移一位' },
   { keys: ['⌥', '↓'], desc: '同级下移一位' },
-  { keys: ['F2'], desc: '编辑标题（也可双击）' },
-  { keys: ['⌫'], desc: '删除节点（可撤销）' },
+  { keys: ['F2'], desc: '改名（也可双击）' },
+  { keys: ['⌫'], desc: '删除（可撤销）' },
   { keys: ['Space'], desc: '完成 / 取消完成', leaf: true },
   { keys: ['⌘', 'T'], desc: '加入 Today', leaf: true },
   { keys: ['⌘', 'Z'], desc: '撤销上一步' },
   { keys: ['⌘', ']'], desc: '下一张图' },
   { keys: ['⌘', '['], desc: '上一张图' },
-  { keys: ['Ctrl', '滚轮'], desc: '缩放画布' },
+  { keys: ['滚轮'], desc: '缩放画布' },
 ]
 
 function keyLabel(k: string): string {
@@ -260,31 +99,123 @@ function keyLabel(k: string): string {
   return k
 }
 
-/**
- * ME 的 findEle 找不到节点时是**抛异常**（"FindEle: Node x not found, maybe it's
- * collapsed"），不是返回 null。节点完成 / 删除后会被折进折叠的「已完成」组，
- * 此时必须兜住 —— 否则画布组件崩溃，页面被 ErrorBoundary 吞掉，
- * 快捷键（含 ⌘Z 撤销）随之全部失灵。
- */
-function findEleSafe(mei: MindElixirInstance | null, id: string): unknown {
-  try {
-    return mei?.findEle?.(id)
-  } catch {
-    return undefined
-  }
+function bump(t: Todo, patch: Partial<Todo>): Partial<Todo> {
+  return { ...patch, updated_at: now(), sync_version: t.sync_version + 1 }
 }
 
-export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId: selectedIdProp, onSelectionChange }: MindmapCanvasProps): JSX.Element {
+/**
+ * 自动 + 手动混合布局。
+ * 手动节点（拖动中 / 已落库 pos）用其坐标；自动节点挂在父级右侧，
+ * 叶子按 DFS 顺序占一行，有孩子的取孩子的纵向中点。最后把自动节点
+ * 整体平移到以根为纵向中心，树默认铺开但不偏到画布外。
+ */
+function computeLayout(
+  rootId: ID,
+  nodes: Todo[],
+  childrenOf: Map<ID | null, Todo[]>,
+  dragOv: ReadonlyMap<ID, Pt>,
+): Map<ID, Pt> {
+  const pos = new Map<ID, Pt>()
+  let cursor = 0
+
+  const manualOf = (t: Todo): Pt | null => {
+    const ov = dragOv.get(t.id)
+    if (ov) return ov
+    if (typeof t.pos_x === 'number' && typeof t.pos_y === 'number') return { x: t.pos_x, y: t.pos_y }
+    return null
+  }
+
+  const visit = (t: Todo, depth: number): number => {
+    const kids = childrenOf.get(t.id) ?? []
+    if (t.id === rootId) {
+      pos.set(t.id, manualOf(t) ?? { x: 0, y: 0 })
+    } else {
+      const parent = t.parent_id ? pos.get(t.parent_id) : undefined
+      const manual = manualOf(t)
+      if (manual) {
+        pos.set(t.id, manual)
+      } else {
+        const dx = DX_BY_DEPTH[Math.min(depth, DX_BY_DEPTH.length - 1)] ?? DEEP_DX
+        pos.set(t.id, { x: (parent?.x ?? 0) + dx, y: 0 })
+      }
+    }
+    const ys = kids.map((k) => visit(k, depth + 1))
+    const me = pos.get(t.id)!
+    // 根固定在 (0,0)；手动节点（拖动中 / 已落库 pos）尊重用户坐标，不重排
+    if (
+      t.id !== rootId &&
+      !dragOv.has(t.id) &&
+      !(typeof t.pos_x === 'number' && typeof t.pos_y === 'number')
+    ) {
+      me.y = kids.length === 0 ? (cursor += PITCH) - PITCH / 2 : avg(ys)
+    }
+    return me.y
+  }
+
+  const root = nodes.find((t) => t.id === rootId)
+  if (root) visit(root, 0)
+  return pos
+}
+
+function avg(xs: number[]): number {
+  return xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length
+}
+
+/** 两节点间的有机连线：按相对方向选水平 / 垂直锚点，一条连续三次贝塞尔 */
+function edgePath(a: Rect, b: Rect): string {
+  const acy = a.y + a.h / 2
+  const bcy = b.y + b.h / 2
+  const acx = a.x + a.w / 2
+  const bcx = b.x + b.w / 2
+  const dx = bcx - acx
+  const dy = bcy - acy
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const right = dx >= 0
+    const sx = right ? a.x + a.w : a.x
+    const ex = right ? b.x : b.x + b.w
+    const k = Math.max(16, Math.min(140, Math.abs(ex - sx) * 0.5))
+    return `M ${sx} ${acy} C ${sx + (right ? k : -k)} ${acy} ${ex + (right ? -k : k)} ${bcy} ${ex} ${bcy}`
+  }
+  const down = dy >= 0
+  const sy = down ? a.y + a.h : a.y
+  const ey = down ? b.y : b.y + b.h
+  const k = Math.max(16, Math.min(120, Math.abs(ey - sy) * 0.5))
+  return `M ${acx} ${sy} C ${acx} ${sy + (down ? k : -k)} ${bcx} ${ey + (down ? -k : k)} ${bcx} ${ey}`
+}
+
+type DropMode = 'in' | 'before' | 'after'
+type DropHint = { id: ID; mode: DropMode }
+
+/** 基线布局用的空覆盖表（拖动位移在布局之后单独叠加，保证其它节点不漂移） */
+const EMPTY_DRAG_OV: ReadonlyMap<ID, Pt> = new Map()
+
+export default function MindmapCanvas({
+  rootId,
+  mapIds,
+  onSelectMap,
+  selectedId: selectedIdProp,
+  onSelectionChange,
+}: MindmapCanvasProps): JSX.Element {
   const openTaskDetail = useUI((s) => s.openTaskDetail)
-  const elRef = useRef<HTMLDivElement>(null)
-  const meiRef = useRef<MindElixirInstance | null>(null)
+  const vpRef = useRef<HTMLDivElement>(null)
   const coachTimer = useRef<number | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
   const [draggingUi, setDraggingUi] = useState(false)
-  const [ready, setReady] = useState(0)
-  /** 当前选中的节点（驱动底部操作栏）；编辑态用于隐藏操作栏。
-   * 页面传 selectedId 就走受控（快速添加要据此决定落点），否则内部自管。 */
+  /** 视图（平移 + 缩放）：世界坐标 → 屏幕 */
+  const [view, setView] = useState<Pt & { scale: number }>({ x: 0, y: 0, scale: 1 })
+  /** 拖动中的实时坐标覆盖（不落库，松手才提交） */
+  const [dragOv, setDragOv] = useState<Map<ID, Pt>>(new Map())
+  const [dropHint, setDropHint] = useState<DropHint | null>(null)
+  const [editing, setEditing] = useState<{ id: ID; isNew: boolean } | null>(null)
+  /** 折叠的子树根 id（本图作用域，存 kv） */
+  const collapsedKey = useMemo(() => `mindmap.collapsed.${rootId}`, [rootId])
+  const collapsedRow = useLiveQuery(() => db.kv.get(collapsedKey), [collapsedKey])
+  const collapsed = useMemo(
+    () => new Set(Array.isArray(collapsedRow?.value) ? (collapsedRow!.value as ID[]) : []),
+    [collapsedRow],
+  )
+
   const [internalSelectedId, setInternalSelectedId] = useState<ID | null>(null)
   const selectedId = selectedIdProp !== undefined ? selectedIdProp : internalSelectedId
   const setSelectedId = useCallback(
@@ -294,99 +225,122 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     },
     [onSelectionChange],
   )
-  const [editingUi, setEditingUi] = useState(false)
-  const sideKey = useMemo(() => `mindmap.side.${rootId}`, [rootId])
-  const sideRow = useLiveQuery(() => db.kv.get(sideKey), [sideKey])
-  /** 侧按钮点击 +1：只有按钮走整树重建（见 init effect 的注释），收割写入不触发 */
-  const [sideEpoch, setSideEpoch] = useState(0)
-  const mainDirections = useMemo(() => {
-    const raw = sideRow?.value
-    if (!raw || typeof raw !== 'object') return {}
-    return Object.fromEntries(
-      Object.entries(raw as Record<string, unknown>)
-        .filter(([, v]) => v === 0 || v === 1),
-    ) as Record<string, 0 | 1>
-  }, [sideRow])
-  const mainDirectionsRef = useRef(mainDirections)
-  mainDirectionsRef.current = mainDirections
-  /** 侧按钮刚写入的方向 id：下一次收割时跳过它，避免把画布上的旧位置写回去 */
-  const pendingSideWriteRef = useRef<string | null>(null)
-  /**
-   * 从 ME 当前的树里读出各一级分支的左右侧。
-   * 画布拖拽切侧不经过 operation 补丁（ME 只改自己的布局数据）——
-   * 必须从这里收，否则下一次 refresh 按 kv 里的旧值把分支弹回去。
-   */
-  const harvestDirections = useCallback((): Record<string, 0 | 1> => {
-    const mei = meiRef.current
-    if (!mei) return {}
-    const kids = readMeNode(mei)?.children ?? []
-    const harvested: Record<string, 0 | 1> = {}
-    for (const k of kids) {
-      if (typeof k.id === 'string' && (k.direction === 0 || k.direction === 1)) harvested[k.id] = k.direction
-    }
-    return harvested
-  }, [])
-  /** 把收割到的方向写进 kv（与现值一致的键跳过；只增改不清，残留键无害） */
-  const persistDirections = useCallback(
-    async (harvested: Record<string, 0 | 1>): Promise<void> => {
-      const skip = pendingSideWriteRef.current
-      const next = { ...mainDirectionsRef.current }
-      let dirty = false
-      for (const [id, d] of Object.entries(harvested)) {
-        if (id === skip) continue
-        if (next[id] !== d) {
-          next[id] = d
-          dirty = true
-        }
-      }
-      pendingSideWriteRef.current = null
-      if (dirty) await db.kv.put({ key: sideKey, value: next })
-    },
-    [sideKey],
-  )
-  /** 选中态的 ref 镜像：ME 的 click 监听器 mount 时注册一次，闭包拿不到最新 state */
-  const selectedRef = useRef<ID | null>(null)
-  selectedRef.current = selectedId
-  const dragStateRef = useRef({
-    startX: 0,
-    startY: 0,
-    onTopic: false,
-    moved: false,
-    suppressClickUntil: 0,
-  })
-  const draggingUiRef = useRef(false)
-  draggingUiRef.current = draggingUi
+
   const todos = useAllTodos()
   const focusId = useUI((s) => s.todoFocusId)
   const goNote = useUI((s) => s.goNote)
   const goMeeting = useUI((s) => s.goMeeting)
-  /** 任务来源（笔记 / 会议）标题：节点 tags 的「✎ / ●」来源标 + 操作栏跳转 */
   const origins = useOriginTitles(todos)
-  const originsRef = useRef(origins)
-  originsRef.current = origins
+
+  /** 本图全部活节点（含折叠起来的子树，折叠只是不画） */
+  const mapTodos = useMemo(
+    () => todos.filter((t) => t.deleted_at === null && t.status !== 'cancelled' && (t.id === rootId || t.map_id === rootId)),
+    [todos, rootId],
+  )
+  const byParentAll = useMemo(() => indexByParent(mapTodos), [mapTodos])
+  const childrenSorted = useCallback(
+    (id: ID): Todo[] =>
+      [...(byParentAll.get(id) ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    [byParentAll],
+  )
+
+  /** 可见节点：从根 DFS，穿过未折叠的边 */
+  const visible = useMemo(() => {
+    const out: Todo[] = []
+    const walk = (id: ID): void => {
+      for (const k of childrenSorted(id)) {
+        out.push(k)
+        if (!collapsed.has(k.id)) walk(k.id)
+      }
+    }
+    walk(rootId)
+    return out
+  }, [childrenSorted, collapsed, rootId])
+
+  /** 折叠节点的隐藏后代计数（角标用） */
+  const hiddenCount = useMemo(() => {
+    const m = new Map<ID, number>()
+    const count = (id: ID): number =>
+      childrenSorted(id).reduce((acc, k) => acc + 1 + (collapsed.has(k.id) ? 0 : count(k.id)), 0)
+    for (const t of visible) {
+      if (collapsed.has(t.id)) m.set(t.id, count(t.id))
+    }
+    return m
+  }, [visible, childrenSorted, collapsed])
 
   /**
-   * 最新 todos 快照。
-   * ME 的 operation 监听器在 mount 时注册一次（effect deps 只有 rootId），
-   * 直接闭包捕获 todos 会永远拿到初始的空数组 → byId 为空 →
-   * removeNodes / moveNodes* 的补丁被整段跳过，结构操作不落库。
+   * 布局分两阶段：先算「无拖动覆盖」的基线（自动节点的槽位因此稳定，
+   * 拖一个节点时其它节点绝不漂移），再把拖动节点的位移刚性应用到整棵子树。
    */
-  const todosRef = useRef(todos)
-  todosRef.current = todos
+  const positions = useMemo(() => {
+    const base = computeLayout(rootId, mapTodos, byParentAll, EMPTY_DRAG_OV)
+    if (dragOv.size === 0) return base
+    const out = new Map(base)
+    const stack: Array<[ID, number, number]> = []
+    for (const [id, pt] of dragOv) {
+      const b = base.get(id)
+      if (b) stack.push([id, pt.x - b.x, pt.y - b.y])
+    }
+    while (stack.length > 0) {
+      const [id, ddx, ddy] = stack.pop()!
+      const p = out.get(id)
+      if (p) out.set(id, { x: p.x + ddx, y: p.y + ddy })
+      for (const k of byParentAll.get(id) ?? []) stack.push([k.id, ddx, ddy])
+    }
+    return out
+  }, [rootId, mapTodos, byParentAll, dragOv])
 
-  /**
-   * #46：新建节点（＋子节点 / ＋同级）在进入改名**之前**就已落库，
-   * 而 ME 的 Esc 只把输入框文字回滚、不删节点 —— 用户按 Esc 会留下
-   * 一条名为「新节点」的真实任务。记住这次新建的 id 与编辑中的 id，
-   * 编辑结束时标题仍是占位就补删（走 ME 软删，⌘Z 可撤销）——
-   * 与列表 / 大纲「未命名新任务不落库」同口径。
-   */
-  const pendingNewNodeRef = useRef<string | null>(null)
-  const editingNodeIdRef = useRef<string | null>(null)
-  /** 编辑结束时发现是「未命名的占位新节点」→ 标记取消，等创建补丁写回后软删 */
-  const cancelNewNodeRef = useRef<string | null>(null)
-  /** 画布节点装饰（折叠计数 / 悬停＋）—— init effect 里创建，刷新时也要重跑 */
-  const decorateRef = useRef<(() => void) | null>(null)
+  /** 实测节点尺寸（offset 尺寸不受缩放影响），供连线锚点用 */
+  const sizesRef = useRef<Map<ID, Size>>(new Map())
+  const [measuredEpoch, setMeasuredEpoch] = useState(0)
+  useLayoutEffect(() => {
+    const root = vpRef.current
+    if (!root) return
+    let changed = false
+    const seen = new Set<ID>()
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-mm-node]'))) {
+      const id = el.dataset.mmNode ?? ''
+      if (!id) continue
+      seen.add(id)
+      const w = Math.max(el.offsetWidth, 40)
+      const h = Math.max(el.offsetHeight, 28)
+      const prev = sizesRef.current.get(id)
+      if (!prev || prev.w !== w || prev.h !== h) {
+        sizesRef.current.set(id, { w, h })
+        changed = true
+      }
+    }
+    for (const id of [...sizesRef.current.keys()]) {
+      if (!seen.has(id)) {
+        sizesRef.current.delete(id)
+        changed = true
+      }
+    }
+    if (changed) setMeasuredEpoch((n) => n + 1)
+  })
+  void measuredEpoch // 尺寸变化触发重渲染，让连线吃到新锚点
+
+  const rects = useMemo(() => {
+    const m = new Map<ID, Rect>()
+    for (const [id, p] of positions) {
+      const s = sizesRef.current.get(id) ?? { w: 160, h: 36 }
+      m.set(id, { ...p, ...s })
+    }
+    return m
+    // measuredEpoch：尺寸实测更新后重算锚点
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions, measuredEpoch])
+
+  /** 每次渲染把高频读写的快照挂到 ref，窗口级指针事件用 */
+  const snapRef = useRef({ rects, positions, view, visibleIds: new Set<ID>(), mapTodos, rootId })
+  snapRef.current = {
+    rects,
+    positions,
+    view,
+    visibleIds: new Set(visible.map((t) => t.id).concat(rootId)),
+    mapTodos,
+    rootId,
+  }
 
   /** R1 · 规则提示：非模态浮层，3.2s 后自动消失 */
   const say = useCallback((msg: string): void => {
@@ -402,527 +356,340 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     [],
   )
 
-  /**
-   * F-09 · 画布自适应。
-   *
-   * ME 默认按**根节点**居中（toCenter），树会整体偏在右下角、跟画布重心脱节；
-   * 而画布比树窄时（右侧被 Today 托盘挤过），树的右半边直接被切掉看不见。
-   * scaleFit() 按**整棵树**的包围盒居中，并在内容超出画布时自动缩小。
-   */
+  const rootTodo = mapTodos.find((t) => t.id === rootId)
+
+  /** 自适应：按全部可见节点的包围盒缩放 + 居中（下限保护可读性） */
   const fitToView = useCallback((): void => {
-    const mei = meiRef.current
-    if (!mei?.scaleFit) return
-    // 等 ME 的布局算完再量，否则量到的是上一帧的尺寸
-    requestAnimationFrame(() => {
-      try {
-        mei.scaleFit?.()
-        // scaleFit 会把大图缩到看不清（40 个节点时只剩 17px）。
-        // 低于下限时以容器中心为锚点放大回去：树仍居中，只是不再继续缩。
-        if (typeof mei.scaleVal === 'number' && mei.scaleVal < MIN_FIT_SCALE) {
-          mei.scale?.(MIN_FIT_SCALE)
-        }
-      } catch {
-        /* 布局未就绪：下一帧再试 */
-      }
+    const vp = vpRef.current
+    const { rects: r } = snapRef.current
+    if (!vp || r.size === 0) return
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const b of r.values()) {
+      if (b.x < minX) minX = b.x
+      if (b.y < minY) minY = b.y
+      if (b.x + b.w > maxX) maxX = b.x + b.w
+      if (b.y + b.h > maxY) maxY = b.y + b.h
+    }
+    const bw = Math.max(maxX - minX, 120)
+    const bh = Math.max(maxY - minY, 80)
+    const vw = vp.clientWidth
+    const vh = vp.clientHeight
+    // 窄屏（手机）保底放大到 0.62：宁可少看一点，也不把节点缩成蚂蚁
+    const minScale = vw < 640 ? 0.62 : 0.25
+    const scale = Math.min(1.15, Math.max(minScale, Math.min(vw / (bw + 160), vh / (bh + 160))))
+    // 某一轴放不下时改为对齐起点（左 / 上），保证读图起点（根节点）始终在视野里
+    const margin = 16
+    const x = (bw + 160) * scale <= vw
+      ? vw / 2 - (minX + bw / 2) * scale
+      : margin - minX * scale
+    const y = (bh + 160) * scale <= vh
+      ? vh / 2 - (minY + bh / 2) * scale
+      : margin - minY * scale
+    setView({ scale, x, y })
+  }, [])
+
+  /** 首次有数据 / 切图后自动适应一次 */
+  const fittedForRef = useRef<ID | null>(null)
+  useEffect(() => {
+    if (fittedForRef.current === rootId || visible.length === 0) return
+    fittedForRef.current = rootId
+    requestAnimationFrame(() => fitToView())
+  }, [rootId, visible.length, fitToView, measuredEpoch])
+
+  /** focusId（从别的视图带过来）：选中并滚到它 */
+  useEffect(() => {
+    if (!focusId) return
+    const { rects: r, view: v } = snapRef.current
+    const b = r.get(focusId)
+    const vp = vpRef.current
+    if (!b || !vp) return
+    setSelectedId(focusId)
+    setView({
+      scale: v.scale,
+      x: vp.clientWidth / 2 - (b.x + b.w / 2) * v.scale,
+      y: vp.clientHeight / 2 - (b.y + b.h / 2) * v.scale,
     })
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    let editObserver: MutationObserver | null = null
-    ;(async () => {
-      const MindElixir = (await import('mind-elixir')).default
-      await import('mind-elixir/style.css')
-      if (cancelled || !elRef.current) return
-      const mei = new MindElixir({
-        el: elRef.current,
-        direction: 2,
-        editable: true,
-        toolBar: false,
-        // 右键菜单保持关闭：ME 自带的「插入父节点 / 连接 / 专注」
-        // 语义与我们的数据模型对不上，发现入口由底部操作栏承担
-        contextMenu: false,
-        allowUndo: false,
-        newTopicName: '新节点',
-        // F-09 · 用有机树枝替换 ME 默认的「折线 + 直线段」
-        // （必须挂在 theme 上：ME 的 setTheme 会用 theme.generateMainBranch
-        //   覆盖构造函数的同名选项）
-        theme: {
-          name: 'Minimal',
-          type: 'light',
-          palette: MINIMAL_PALETTE,
-          generateMainBranch: organicMainBranch,
-          generateSubBranch: organicSubBranch,
-        },
-      }) as unknown as MindElixirInstance
-      const data = todosToMindData(todos, rootId, undefined, originsRef.current, mainDirections)
-      await mei.init(data)
-      const keepId = selectedRef.current
-      if (keepId) {
-        const keepEl = findEleSafe(mei, keepId)
-        if (keepEl) mei.selectNode?.(keepEl)
-      }
-      fitToView()
-
-      // F-02 · 键位语义统一由应用层实现（见 SHORTCUT_ROWS）：
-      // 把 ME 内建的 Tab/Enter/删除/编辑接管过来，避免同一动作触发两次。
-      const container = mei.container
-      const orig = container?.onkeydown
-      if (container && orig) {
-        container.onkeydown = (e: KeyboardEvent) => {
-          // ⌥↑/⌥↓ 是应用层的「同级排序」，ME 会把 ArrowUp/Down 当选中导航
-          if (APP_KEYS.has(e.key) || (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) {
-            e.preventDefault()
-            return
-          }
-          orig.call(container, e)
-        }
-      }
-
-      /**
-       * 画布节点装饰（纯 DOM，不碰数据）：
-       *   ① 折起的节点右上角显示直接子节点数 —— 收起后也知道下面压了多少条；
-       *   ② hover 节点浮出「＋」：点一下直接加子节点，不用先选中再跑底部操作栏。
-       * ME 每次重绘都会重建节点 DOM，所以靠 MutationObserver 反复补挂。
-       */
-      const decorate = (): void => {
-        const all = todosRef.current
-        const root = mei.container
-        if (!root) return
-        for (const tpc of Array.from(
-          root.querySelectorAll<HTMLElement>('.me-tpc[data-nodeid]'),
-        )) {
-          const raw = tpc.dataset.nodeid ?? ''
-          if (!raw.startsWith('me')) continue
-          const id = raw.slice(2)
-          if (id.startsWith('done-group:')) continue
-          // .me-epd 与 .me-tpc 是相邻兄弟；有 minus = 展开中
-          const epd = tpc.nextElementSibling as HTMLElement | null
-          const collapsed = !!epd?.classList?.contains('me-epd') && !epd.classList.contains('minus')
-          const kids = all.filter((t) => t.parent_id === id && !t.deleted_at).length
-
-          let badge = tpc.querySelector<HTMLElement>('.mm-count')
-          if (!badge) {
-            badge = document.createElement('span')
-            badge.className = 'mm-count'
-            badge.setAttribute('aria-hidden', 'true')
-            tpc.appendChild(badge)
-          }
-          const showBadge = collapsed && kids > 0
-          if (badge.textContent !== String(kids)) badge.textContent = String(kids)
-          badge.style.display = showBadge ? 'inline-block' : 'none'
-
-          let plus = tpc.querySelector<HTMLButtonElement>('.mm-node-add')
-          if (!plus) {
-            plus = document.createElement('button')
-            plus.type = 'button'
-            plus.className = 'mm-node-add'
-            plus.textContent = '＋'
-            plus.setAttribute('aria-label', '添加子节点')
-            tpc.appendChild(plus)
-          }
-          plus.dataset.addfor = id
-        }
-      }
-      decorateRef.current = decorate
-      decorate()
-      /** 装饰是纯 DOM 操作，按帧合并，别在 ME 频繁重绘时反复跑 */
-      let decorateScheduled = false
-      const scheduleDecorate = (): void => {
-        if (decorateScheduled) return
-        decorateScheduled = true
-        requestAnimationFrame(() => {
-          decorateScheduled = false
-          decorate()
-        })
-      }
-
-      /** 悬停「＋」加子节点：捕获阶段拦下，别让 ME 把它当成节点点击去进编辑 */
-      container?.addEventListener(
-        'pointerdown',
-        (e: Event) => {
-          const btn = (e.target as HTMLElement | null)?.closest?.(
-            '.mm-node-add',
-          ) as HTMLElement | null
-          if (!btn) return
-          e.preventDefault()
-          e.stopPropagation()
-          const id = btn.dataset.addfor
-          const el = id ? findEleSafe(mei, id) : null
-          if (!el) return
-          mei.selectNode?.(el)
-          void mei.addChild?.()
-        },
-        true,
-      )
-
-      /**
-       * 双击节点 → 直接进编辑。
-       *
-       * ME v6 的 map 视图没有 dblclick 处理，它靠「再点一次已选中的节点」
-       * 进编辑态。于是「双击一个还没选中的节点」经常不生效（第二次点击
-       * 到达时选中态还没生效）—— 实测：Tab 加完节点后再双击改名就失灵。
-       * 官方文档里「双击节点直接编辑」是承诺的行为，这里补回来。
-       */
-      container?.addEventListener('dblclick', (e: Event) => {
-        // 已经在编辑了就别再开一个
-        if (document.querySelector('#input-box')) return
-        if (performance.now() < dragStateRef.current.suppressClickUntil) return
-        const target = e.target as HTMLElement | null
-        // 标签（负责人 / 截止 / 来源）是展示信息，双击不该进改名
-        if (target?.closest?.('.tags')) return
-        const tpc = target?.closest?.(
-          '.me-tpc',
-        ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
-        if (!tpc?.nodeObj) return
-        // 合成节点（「已完成 (N)」这类）不是真待办，不能进编辑
-        if (String(tpc.nodeObj.id ?? '').startsWith('done-group:')) return
-        e.preventDefault()
-        e.stopPropagation()
-        void mei.editTopic?.(tpc)
-      })
-
-      /**
-       * 单击即改（与列表 / 今天页的行内编辑同口径）：
-       * 第一击选中节点（操作栏出现），再点一下已选中的节点 = 进编辑。
-       * 关键坑：ME 的选中是在同一次 click 里先发生的 —— 直接在 click 里
-       * 比选中态会把「第一击」也当成「再点一下」。所以用 pointerdown 的
-       * 捕获阶段快照「按下之前选的是谁」，click 时和快照比。
-       */
-      let selAtDown: string | null = null
-      let dragHintArmed =
-        typeof localStorage !== 'undefined' &&
-        !localStorage.getItem('mindmap_drag_hint_v1')
-      container?.addEventListener(
-        'pointerdown',
-        (e: Event) => {
-          selAtDown = selectedRef.current
-          const ev = e as PointerEvent
-          const tpc = (ev.target as HTMLElement | null)?.closest?.('.me-tpc')
-          dragStateRef.current.startX = ev.clientX
-          dragStateRef.current.startY = ev.clientY
-          dragStateRef.current.onTopic = Boolean(tpc)
-          dragStateRef.current.moved = false
-          if (draggingUiRef.current) setDraggingUi(false)
-        },
-        { capture: true },
-      )
-      container?.addEventListener(
-        'pointermove',
-        (e: Event) => {
-          const ev = e as PointerEvent
-          const dragState = dragStateRef.current
-          if (!dragState.onTopic) return
-          const moved =
-            Math.hypot(ev.clientX - dragState.startX, ev.clientY - dragState.startY) >= DRAG_INTENT_PX
-          if (!moved) return
-          dragState.moved = true
-          if (!draggingUiRef.current) setDraggingUi(true)
-          if (!dragHintArmed) return
-          dragHintArmed = false
-          localStorage.setItem('mindmap_drag_hint_v1', '1')
-          say('拖到节点上 = 变成它的子节点；拖到上 / 下边缘 = 排到它前面 / 后面')
-        },
-        { capture: true, passive: true },
-      )
-      const settleDragGesture = (): void => {
-        const dragState = dragStateRef.current
-        if (dragState.moved) dragState.suppressClickUntil = performance.now() + DRAG_SETTLE_MS
-        dragState.onTopic = false
-        dragState.moved = false
-        if (draggingUiRef.current) requestAnimationFrame(() => setDraggingUi(false))
-      }
-      container?.addEventListener(
-        'pointerup',
-        settleDragGesture,
-        { capture: true },
-      )
-      container?.addEventListener(
-        'pointercancel',
-        settleDragGesture,
-        { capture: true },
-      )
-      const swallowResidualTap = (e: Event): void => {
-        if (performance.now() >= dragStateRef.current.suppressClickUntil) return
-        e.preventDefault()
-        e.stopImmediatePropagation()
-      }
-      container?.addEventListener('click', swallowResidualTap, true)
-      container?.addEventListener('dblclick', swallowResidualTap, true)
-      container?.addEventListener('click', (e: Event) => {
-        if (document.querySelector('#input-box')) return
-        if (performance.now() < dragStateRef.current.suppressClickUntil) {
-          e.preventDefault()
-          e.stopPropagation()
-          return
-        }
-        const target = e.target as HTMLElement | null
-        // 悬停「＋」有自己的点击语义，别让它顺手把节点推进编辑态
-        if (target?.closest?.('.mm-node-add')) return
-        const tpc = target?.closest?.(
-          '.me-tpc',
-        ) as (HTMLElement & { nodeObj?: { id?: string } }) | null
-        if (!tpc?.nodeObj) return
-        const id = String(tpc.nodeObj.id ?? '')
-        if (id.startsWith('done-group:')) return
-        /**
-         * 节点标签是展示信息，不是标题：点它绝不能进编辑态（之前点「✎ 来源」
-         * 就落进 editTopic，像误触）。来源 chip（✎ / ●）顺手做成可点跳转，
-         * 其余 chip（@负责人 / 截止）点了一律吞掉。
-         */
-        if (target?.closest?.('.tags')) {
-          const chip = target.closest('.tags span')
-          const text = chip?.textContent ?? ''
-          const t = todosRef.current.find((x) => x.id === id)
-          if (chip && t && (text.startsWith('✎') || text.startsWith('●'))) {
-            e.preventDefault()
-            if (t.origin_note_id) goNote(t.origin_note_id)
-            else if (t.meeting_id) goMeeting(t.meeting_id)
-            return
-          }
-          /**
-           * 纯展示标签（@负责人 / 截止 / 「等待中」）：点它不该进编辑态，
-           * 但**必须把节点选中** —— 否则 ME 不会选中，
-           * 后续按 ⌘T / Space 会作用在上一个节点上（实测 Waiting 标签点不中）。
-           */
-          const el = findEleSafe(mei, id)
-          if (el) {
-            mei.selectNode?.(el)
-            setSelectedId(id)
-          }
-          return
-        }
-        if (id && id === selAtDown) {
-          e.preventDefault()
-          void mei.editTopic?.(tpc)
-        }
-      })
-
-      mei.bus.addListener('operation', (payload: unknown) => {
-        const ev = payload as MeOperation
-        // 编辑态唯一事实源在 undoStack（isMindmapEditing），这里只负责同步
-        if ((ev as { name?: string }).name === 'addChild' || (ev as { name?: string }).name === 'insertSibling') {
-          pendingNewNodeRef.current = (ev as { target?: { id?: string } }).target?.id ?? null
-        }
-        if ((ev as { name?: string }).name === 'beginEdit') {
-          if (performance.now() < dragStateRef.current.suppressClickUntil) {
-            requestAnimationFrame(() => {
-              ;(document.querySelector('#input-box') as HTMLElement | null)?.blur()
-            })
-            setMindmapEditing(false)
-            setEditingUi(false)
-            return
-          }
-          setMindmapEditing(true)
-          setEditingUi(true)
-          editingNodeIdRef.current = (ev as { target?: { id?: string } }).target?.id ?? null
-          return
-        }
-        if (ev.name === 'finishEdit') {
-          // 正常提交（标题有改动）：节点保留，清掉新建跟踪
-          pendingNewNodeRef.current = null
-          editingNodeIdRef.current = null
-          setMindmapEditing(false)
-          setEditingUi(false)
-        }
-        const byId = new Map(todosRef.current.map((t) => [t.id, t]))
-        const ops = mindEventToTodoPatches(ev, { all: todosRef.current, mapId: rootId, byId })
-        void applyTodoPatches(ops, { scope: rootId })
-      })
-      /**
-       * Escape 退出编辑时 ME v6 不会发 finishEdit —— 编辑框直接被移除，
-       * editingUi 会永远卡住（操作栏再也不出现）。统一以「#input-box 从
-       * DOM 消失」作为编辑结束的兜底信号；finishEdit 先到时这里只是
-       * 幂等地再清一次。
-       */
-      editObserver = new MutationObserver(() => {
-        // ME 重绘 / 展开收起都会改 DOM —— 先补挂折叠计数与悬停「＋」
-        scheduleDecorate()
-        if (document.querySelector('#input-box')) return
-        if (isMindmapEditing()) {
-          setMindmapEditing(false)
-          setEditingUi(false)
-        }
-        /**
-         * #46：新建节点的编辑结束（Esc / 点走 / 重绘吞掉输入框）时，
-         * 标题仍是占位就删掉这条任务 —— 与列表「Esc 丢弃未命名新任务」同口径。
-         * finishEdit 提交了真标题的情况在上面的监听里已把跟踪清掉。
-         * 创建补丁的写回与本次 observer 谁先谁后不确定：
-         * 行已在快照就直接删；还没写回才标记给下面的 effect 兜底。
-         */
-        const createdId = pendingNewNodeRef.current
-        if (createdId && createdId === editingNodeIdRef.current) {
-          const t = todosRef.current.find((x) => x.id === createdId)
-          const isPlaceholder = Boolean(t && !t.deleted_at && (!t.title || t.title === '新节点' || t.title === 'New Node'))
-          if (t && isPlaceholder) {
-            const created = findEleSafe(mei, createdId)
-            if (created) void mei.removeNodes?.([created])
-          } else if (!t) {
-            cancelNewNodeRef.current = createdId
-          }
-        }
-        pendingNewNodeRef.current = null
-        editingNodeIdRef.current = null
-      })
-      editObserver.observe(mei.container ?? elRef.current!, {
-        childList: true,
-        subtree: true,
-        // 展开 / 收起只改 .me-epd 的 class，不会触发 childList
-        attributes: true,
-        attributeFilter: ['class'],
-      })
-
-      // 选中态 → 底部操作栏：鼠标党不用背快捷键也能增删节点
-      mei.bus.addListener('selectNewNode', (node: unknown) => {
-        setSelectedId((node as { id?: string } | null)?.id ?? null)
-      })
-      mei.bus.addListener('selectNodes', (nodes: unknown) => {
-        const arr = nodes as Array<{ id?: string }>
-        setSelectedId(arr.length === 1 ? (arr[0]?.id ?? null) : null)
-      })
-      mei.bus.addListener('unselectNodes', () => setSelectedId(null))
-      meiRef.current = mei
-      setSelectedId(mei.currentNode?.nodeObj?.id ?? null)
-      // ME 是异步建的：数据可能早于它到位，置 ready 让下面的重绘补一次
-      setReady((n) => n + 1)
-    })()
-    return () => {
-      cancelled = true
-      editObserver?.disconnect()
-      editObserver = null
-      meiRef.current?.destroy?.()
-      meiRef.current = null
-    }
-    // mainDirections 故意不进依赖：收割写入 kv 会在首帧后触发一次方向「变化」，
-    // 若在这里重建整个 ME 实例，进行中的拖拽手势和编辑框会被毁掉。
-    // 方向应用分两条路：用户拖拽 → 收割持久化 + refresh（不重建）；
-    // 侧按钮 → sideEpoch +1 走这里整树重建（ME 的 refresh 不会给已存在的节点重排方向）。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootId, fitToView, setSelectedId, sideEpoch])
-
-  useEffect(() => {
-    const mei = meiRef.current
-    if (!mei || isMindmapEditing()) return
-    // 先把画布上拖出来的左右侧收进 kv 并并入本次渲染数据 —— 不然
-    // 下面 refresh(data) 用的是 kv 旧值，刚拖过去的分支会被弹回来
-    const harvested = harvestDirections()
-    // 侧按钮刚写入的节点：kv 是新的、画布是旧的，用 kv 值盖掉收割值，
-    // 否则合并结果还是旧方向，refresh 会因为「树一致」而跳过，按钮点了不挪窝
-    const pendingSide = pendingSideWriteRef.current
-    if (pendingSide && mainDirections[pendingSide] !== undefined) harvested[pendingSide] = mainDirections[pendingSide]
-    void persistDirections(harvested)
-    const data = todosToMindData(todos, rootId, undefined, origins, { ...mainDirections, ...harvested })
-    /**
-     * 渲染结果没变就别重画。
-     *
-     * refresh 会重建 ME 的整棵 DOM（清掉选中态、吞掉进行中的点击 / 双击）。
-     * 而像「Inbox 根图创建」这种**与本图无关**的 DB 变更也会触发 todos 变化，
-     * 于是画布被无谓地重画一次 —— 双击恰好落在那个窗口里就会丢。
-     * 哈希取的是真正要渲染的那棵树（含 metadata），比按 todo 字段拼更准。
-     */
-    const hash = JSON.stringify(data)
-    const prev = mei as MindElixirInstance & { __hash?: string }
-    if (prev.__hash === hash) return
-    /**
-     * ME 刚在画布上做完操作（加节点 / 移动 / 改名），数据也同步回 Dexie 了 ——
-     * 这时候画布**已经是最新**的，再按 Dexie refresh 一次只会：
-     *   ① 重建整棵 DOM（ME 的动画没了、选中态闪一下）
-     *   ② 把正在进行的点击 / 双击吞掉
-     * 所以先比一下「画布上现在的树」和「Dexie 要画的树」，一致就不画。
-     */
-    const meSig = treeSignature(readMeNode(mei))
-    const ourSig = treeSignature(data.nodeData)
-    if (meSig && meSig === ourSig) {
-      prev.__hash = hash
-      return
-    }
-    prev.__hash = hash
-    if (typeof mei.refresh === 'function') {
-      // refresh 会清空选中态；把原选中的节点选回来，连按快捷键才不断
-      const keepId = mei.currentNode?.nodeObj?.id
-      mei.refresh(data)
-      if (keepId) {
-        const el = findEleSafe(mei, keepId)
-        if (el) {
-          mei.selectNode?.(el)
-          setSelectedId(keepId)
-        }
-      }
-      fitToView()
-    } else {
-      void mei.init(data)
-      fitToView()
-    }
-    // 重绘后节点 DOM 是新的，重新补挂折叠计数 / 悬停「＋」
-    decorateRef.current?.()
-  }, [todos, rootId, ready, origins, fitToView, mainDirections, setSelectedId, harvestDirections, persistDirections])
-
-  /** #46 收尾：占位新节点被取消后，等创建补丁真正写回 todos 快照再软删（写入是异步的） */
-  useEffect(() => {
-    const id = cancelNewNodeRef.current
-    if (!id) return
-    const t = todos.find((x) => x.id === id)
-    if (!t) return
-    cancelNewNodeRef.current = null
-    if (!t.deleted_at && (!t.title || t.title === '新节点' || t.title === 'New Node')) {
-      const mei = meiRef.current
-      const el = mei ? findEleSafe(mei, id) : null
-      if (el) void mei?.removeNodes?.([el])
-    }
-  }, [todos])
-
-  useEffect(() => {
-    if (!focusId || !meiRef.current) return
-    const el = findEleSafe(meiRef.current, focusId)
-    if (el) meiRef.current.selectNode?.(el, true)
     useUI.setState({ todoFocusId: null })
-  }, [focusId])
+  }, [focusId, setSelectedId])
 
-  /** 画布拿到焦点，ME 的方向键 / 缩放等内建键位才生效 */
-  const focusCanvas = useCallback((): void => {
-    meiRef.current?.container?.focus?.({ preventScroll: true })
+  /* ── 指针手势：拖节点（自由摆放 / 换父级 / 排序）+ 空白处平移 ─────────── */
+  const gestureRef = useRef<
+    | { type: 'node'; id: ID; startX: number; startY: number; orig: Pt; moved: boolean }
+    | { type: 'pan'; startX: number; startY: number; orig: Pt }
+    | null
+  >(null)
+  const suppressClickUntil = useRef(0)
+  const dragHintArmed =
+    typeof localStorage !== 'undefined' && !localStorage.getItem('mindmap_free_drag_v1')
+
+  const onNodePointerDown = useCallback(
+    (e: React.PointerEvent, t: Todo): void => {
+      if (e.button !== 0) return
+      const { positions: p } = snapRef.current
+      gestureRef.current = {
+        type: 'node',
+        id: t.id,
+        startX: e.clientX,
+        startY: e.clientY,
+        orig: { ...(p.get(t.id) ?? { x: 0, y: 0 }) },
+        moved: false,
+      }
+    },
+    [],
+  )
+
+  const onBackgroundPointerDown = useCallback((e: React.PointerEvent): void => {
+    if (e.button !== 0) return
+    const { view: v } = snapRef.current
+    gestureRef.current = { type: 'pan', startX: e.clientX, startY: e.clientY, orig: { x: v.x, y: v.y } }
   }, [])
 
-  // 画布尺寸变了（窗口缩放 / 侧栏折叠）就重新自适应
   useEffect(() => {
-    const el = elRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => fitToView())
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [fitToView])
-
-  /** F-02 · 切图：⌘] / ⌘[ 在图库面板里前后翻 */
-  /**
-   * F-02 · ⌘] / ⌘[ 切图。
-   *
-   * 原来是「找到左侧图库面板里的按钮，替用户点一下」—— 靠 DOM 结构猜，
-   * 图库一改成浮层就断了。现在图库把「有序的图 id 列表 + 选中回调」透进来，
-   * 键盘直接切，DOM 长什么样都不影响。
-   */
-  const switchMap = useCallback(
-    (dir: 1 | -1): void => {
-      const ids = mapIds ?? []
-      if (ids.length <= 1) {
-        say('只有一张图 —— 在左上角切图入口新建')
+    const onMove = (e: PointerEvent): void => {
+      const g = gestureRef.current
+      if (!g) return
+      const dx = e.clientX - g.startX
+      const dy = e.clientY - g.startY
+      if (g.type === 'pan') {
+        setView((v) => ({ ...v, x: g.orig.x + dx, y: g.orig.y + dy }))
         return
       }
-      const idx = ids.findIndex((id) => id === rootId)
-      const next = ids[(idx + dir + ids.length) % ids.length]
-      if (!next || !onSelectMap) return
-      onSelectMap(next)
+      if (!g.moved && Math.hypot(dx, dy) < DRAG_INTENT_PX) return
+      if (!g.moved) {
+        g.moved = true
+        setDraggingUi(true)
+        if (dragHintArmed) {
+          localStorage.setItem('mindmap_free_drag_v1', '1')
+          say('拖到空白处 = 自由摆放；拖到节点上 = 挂到它下面；拖到上 / 下边缘 = 排序')
+        }
+      }
+      const { view: v, rects: r } = snapRef.current
+      const next: Pt = { x: g.orig.x + dx / v.scale, y: g.orig.y + dy / v.scale }
+      setDragOv((m) => {
+        const n = new Map(m)
+        n.set(g.id, next)
+        return n
+      })
+      // 落点探测：指针压住的其它节点（上/下 35% 是排序带，中间是成为子级）
+      // 注意坐标换算要减掉视口自身的页面偏移（侧栏 + 页头）
+      const vp = vpRef.current
+      if (!vp) return
+      const vpRect = vp.getBoundingClientRect()
+      const wx = (e.clientX - vpRect.left - v.x) / v.scale
+      const wy = (e.clientY - vpRect.top - v.y) / v.scale
+      let hint: DropHint | null = null
+      for (const [id, b] of r) {
+        if (id === g.id) continue
+        if (wx < b.x - 8 || wx > b.x + b.w + 8 || wy < b.y - 10 || wy > b.y + b.h + 10) continue
+        const rel = (wy - b.y) / b.h
+        const mode: DropMode = rel < 0.35 ? 'before' : rel > 0.65 ? 'after' : 'in'
+        hint = { id, mode: id === snapRef.current.rootId && mode !== 'in' ? 'in' : mode }
+        break
+      }
+      setDropHint(hint)
+    }
+    const onUp = (e: PointerEvent): void => {
+      const g = gestureRef.current
+      gestureRef.current = null
+      if (!g) return
+      if (g.type === 'pan') return
+      if (!g.moved) return
+      suppressClickUntil.current = performance.now() + 220
+      setDraggingUi(false)
+      const hint = dropHintRef.current
+      setDragOv(new Map())
+      setDropHint(null)
+      const snap = snapRef.current
+      const cur = snap.mapTodos.find((t) => t.id === g.id)
+      if (!cur) return
+      const finalPos = snap.positions.get(g.id) ?? g.orig
+      void (async () => {
+        if (hint && hint.id !== g.id && !isDescendant(g.id, hint.id, new Map(snap.mapTodos.map((t) => [t.id, t])))) {
+          await dropOnNode(cur, hint, finalPos)
+        } else {
+          // 自由摆放：把这个坐标存下来
+          await applyTodoPatches(
+            [{ op: 'update', id: cur.id, patch: bump(cur, { pos_x: finalPos.x, pos_y: finalPos.y }) }],
+            { scope: rootId },
+          )
+        }
+      })()
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootId])
+
+  /** dropHint 的 ref 镜像：窗口级 pointerup 闭包拿不到最新 state */
+  const dropHintRef = useRef<DropHint | null>(null)
+  dropHintRef.current = dropHint
+
+  /** 拖到别的节点上：成为子级 / 插到前 / 插到后（结构走补丁，可撤销） */
+  const dropOnNode = useCallback(
+    async (t: Todo, hint: DropHint, pos: Pt): Promise<void> => {
+      const all = snapRef.current.mapTodos
+      const byId = new Map(all.map((x) => [x.id, x]))
+      const target = byId.get(hint.id)
+      if (!target) return
+      let parentId: ID
+      let sortOrder: number
+      if (hint.mode === 'in') {
+        parentId = target.id
+        const kids = all.filter((k) => k.parent_id === parentId && k.deleted_at === null)
+        sortOrder = Math.max(0, ...kids.map((k) => k.sort_order)) + 10
+      } else {
+        parentId = target.parent_id ?? rootId
+        const anchorOrder = target.sort_order
+        const sibs = all
+          .filter((k) => k.parent_id === parentId && k.deleted_at === null && k.id !== t.id)
+          .sort((a, b) => a.sort_order - b.sort_order)
+        const aidx = sibs.findIndex((s) => s.id === target.id)
+        if (hint.mode === 'after') {
+          const next = aidx >= 0 ? sibs[aidx + 1] : undefined
+          sortOrder = next ? (anchorOrder + next.sort_order) / 2 : anchorOrder + 10
+        } else {
+          const prev = aidx > 0 ? sibs[aidx - 1] : undefined
+          sortOrder = prev ? (prev.sort_order + anchorOrder) / 2 : anchorOrder - 10
+        }
+      }
+      const newMap = parentId === rootId ? rootId : (byId.get(parentId)?.map_id ?? rootId)
+      await applyTodoPatches(
+        [
+          {
+            op: 'update',
+            id: t.id,
+            patch: bump(t, { parent_id: parentId, map_id: newMap, sort_order: sortOrder, pos_x: pos.x, pos_y: pos.y }),
+          },
+        ],
+        { scope: rootId },
+      )
     },
-    [mapIds, onSelectMap, rootId, say],
+    [rootId],
   )
 
-  /** 选中节点 / 空图判断用的父索引（操作栏与键盘共用） */
-  const byParentAll = useMemo(() => indexByParent(todos), [todos])
-  const selectedTodo = useMemo(
-    () => (selectedId ? todos.find((x) => x.id === selectedId) : undefined),
-    [todos, selectedId],
+  /* ── 滚轮缩放（以指针为锚点） ─────────────────────────────────────────── */
+  useEffect(() => {
+    const vp = vpRef.current
+    if (!vp) return
+    const onWheel = (e: WheelEvent): void => {
+      e.preventDefault()
+      const rect = vp.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      setView((v) => {
+        const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * Math.exp(-e.deltaY * 0.0012)))
+        const k = scale / v.scale
+        return { scale, x: mx - (mx - v.x) * k, y: my - (my - v.y) * k }
+      })
+    }
+    vp.addEventListener('wheel', onWheel, { passive: false })
+    return () => vp.removeEventListener('wheel', onWheel)
+  }, [])
+
+  /* ── 编辑（加节点 = 加任务，创建即改名） ────────────────────────────── */
+  const startEdit = useCallback((id: ID, isNew = false): void => {
+    setSelectedId(id)
+    setEditing({ id, isNew })
+    setMindmapEditing(true)
+  }, [setSelectedId])
+
+  const commitEdit = useCallback(
+    async (text: string): Promise<void> => {
+      const cur = snapRef.current.mapTodos.find((t) => t.id === editing?.id)
+      const wasNew = editing?.isNew ?? false
+      setEditing(null)
+      setMindmapEditing(false)
+      if (!cur) return
+      const parsed = parseQuickAdd(text)
+      if (wasNew && !parsed.title) {
+        // 新任务没写名字就撤 —— 不留空壳（与列表 Esc 丢弃同口径）
+        await applyTodoPatches([{ op: 'softDeleteSubtree', rootId: cur.id }], { scope: rootId })
+        return
+      }
+      const patch: Partial<Todo> = {}
+      if (parsed.title && parsed.title !== cur.title) patch.title = parsed.title
+      if (parsed.assignee && parsed.assignee !== cur.assignee) patch.assignee = parsed.assignee
+      if (parsed.due_date && parsed.due_date !== cur.due_date) patch.due_date = parsed.due_date
+      if (Object.keys(patch).length === 0) return
+      await applyTodoPatches([{ op: 'update', id: cur.id, patch: bump(cur, patch) }], { scope: rootId })
+    },
+    [editing, rootId],
   )
 
-  /** 完成 / 取消完成（键盘 Space 与操作栏共用一条路径） */
+  const cancelEdit = useCallback(async (): Promise<void> => {
+    const cur = snapRef.current.mapTodos.find((t) => t.id === editing?.id)
+    const wasNew = editing?.isNew ?? false
+    setEditing(null)
+    setMindmapEditing(false)
+    if (cur && wasNew) {
+      await applyTodoPatches([{ op: 'softDeleteSubtree', rootId: cur.id }], { scope: rootId })
+    }
+  }, [editing, rootId])
+
+  /** 新增子任务：落库 + 立刻进改名 —— 添加节点时就把任务写了 */
+  const addChild = useCallback(
+    async (parent: Todo): Promise<void> => {
+      const kids = childrenSorted(parent.id)
+      const todo = buildTask({
+        title: '',
+        placement: { parentId: parent.id, mapId: rootId },
+        sortOrder: Math.max(0, ...kids.map((k) => k.sort_order)) + 10,
+      })
+      await applyTodoPatches([{ op: 'add', todo }], { scope: rootId })
+      startEdit(todo.id, true)
+    },
+    [childrenSorted, rootId, startEdit],
+  )
+
+  /** 新增同级任务（插在锚点后面；⇧Enter 走 before） */
+  const addSibling = useCallback(
+    async (anchor: Todo, where: 'before' | 'after'): Promise<void> => {
+      const parentId = anchor.parent_id ?? rootId
+      const sibs = mapTodos
+        .filter((t) => t.parent_id === parentId && t.deleted_at === null)
+        .sort((a, b) => a.sort_order - b.sort_order)
+      const idx = sibs.findIndex((s) => s.id === anchor.id)
+      let sortOrder: number
+      if (where === 'after') {
+        const next = sibs[idx + 1]
+        sortOrder = next ? (anchor.sort_order + next.sort_order) / 2 : anchor.sort_order + 10
+      } else {
+        const prev = idx > 0 ? sibs[idx - 1] : undefined
+        sortOrder = prev ? (prev.sort_order + anchor.sort_order) / 2 : anchor.sort_order - 10
+      }
+      const todo = buildTask({
+        title: '',
+        placement: { parentId, mapId: rootId },
+        sortOrder,
+      })
+      await applyTodoPatches([{ op: 'add', todo }], { scope: rootId })
+      startEdit(todo.id, true)
+    },
+    [mapTodos, rootId, startEdit],
+  )
+
+  /** 软删子树（可撤销） */
+  const removeNode = useCallback(
+    (t: Todo): void => {
+      if (t.id === rootId) {
+        say('根节点不能删除')
+        return
+      }
+      void applyTodoPatches([{ op: 'softDeleteSubtree', rootId: t.id }], { scope: rootId })
+    },
+    [rootId, say],
+  )
+
+  /** 完成 / 取消完成（Space 与操作栏共用一条路径） */
   const toggleDone = useCallback(
     async (t: Todo): Promise<void> => {
       if (t.id === rootId) {
@@ -936,7 +703,6 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
       const todayBefore = await getToday()
       pushTodoStatusUndo(t.id, t.status, rootId, todayBefore)
       await applyTodoStatus(t, t.status === 'done' ? 'open' : 'done')
-      // 完成后节点会立刻折进「已完成 (N)」，不给反馈就像被误删了
       const verb = t.status === 'done' ? '已取消完成' : '已完成'
       const undoable = peekMindmapUndoLabel(rootId) ? ` · ${mod()}Z 可撤销` : ''
       say(`${verb}「${t.title || '未命名'}」${undoable}`)
@@ -947,17 +713,8 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
   /** 同级上移 / 下移（⌥↑/⌥↓ 与操作栏按钮共用一条路径，不换父级） */
   const moveSibling = useCallback(
     (t: Todo, dir: -1 | 1): void => {
-      const mei = meiRef.current
-      if (!mei) return
       if (t.id === rootId) {
         say('根节点不能移动')
-        return
-      }
-      const parent = t.parent_id
-        ? todosRef.current.find((x) => x.id === t.parent_id)
-        : undefined
-      if (parent?.status === 'done') {
-        say('已完成分组里不支持排序')
         return
       }
       const sibs = (byParentAll.get(t.parent_id) ?? [])
@@ -969,17 +726,19 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
         say(dir === -1 ? '已经是第一个了' : '已经是最后一个了')
         return
       }
-      const from = findEleSafe(mei, t.id)
-      const to = findEleSafe(mei, neighbor.id)
-      if (from && to) {
-        if (dir === -1) void mei.moveNodesBefore?.([from], to)
-        else void mei.moveNodesAfter?.([from], to)
-      }
+      const lo = Math.min(t.sort_order, neighbor.sort_order)
+      const hi = Math.max(t.sort_order, neighbor.sort_order)
+      void applyTodoPatches(
+        [
+          { op: 'update', id: t.id, patch: bump(t, { sort_order: dir === -1 ? lo - 5 : hi + 5 }) },
+        ],
+        { scope: rootId },
+      )
     },
     [byParentAll, rootId, say],
   )
 
-  /** 入 Today（键盘 ⌘T 与操作栏共用一条路径） */
+  /** 入 Today（⌘T 与操作栏共用一条路径） */
   const addToday = useCallback(
     async (t: Todo): Promise<void> => {
       if (!todayEligible(t, byParentAll)) {
@@ -997,22 +756,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     [byParentAll, rootId, say],
   )
 
-  /** 删除节点（键盘 ⌫ 与操作栏共用一条路径） */
-  const removeNode = useCallback(
-    (t: Todo): void => {
-      const mei = meiRef.current
-      if (!mei) return
-      if (t.id === rootId) {
-        say('根节点不能删除')
-        return
-      }
-      const el = findEleSafe(mei, t.id)
-      if (el) void mei.removeNodes?.([el])
-    },
-    [rootId, say],
-  )
-
-  /** 节点截止日期：在脑图里直接改，不再逼用户切去列表/菜单找入口 */
+  /** 节点截止日期：在脑图里直接改 */
   const setDueDate = useCallback(
     async (t: Todo, due: string): Promise<void> => {
       const next = due || null
@@ -1023,142 +767,143 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     [say],
   )
 
-  /** 一级分支显式切左右侧：比拖到另一边更确定，也更容易被发现。 */
-  const setMainBranchDirection = useCallback(
-    async (t: Todo, direction: 0 | 1): Promise<void> => {
-      if (t.parent_id !== rootId) {
-        say('只有一级分支可以直接切到左侧或右侧')
-        return
-      }
-      if (mainDirectionsRef.current[t.id] === direction) return
-      // 标记刚写入的节点：画布重建前若先跑一次收割，别把旧位置写回去
-      pendingSideWriteRef.current = t.id
-      await db.kv.put({
-        key: sideKey,
-        value: { ...mainDirectionsRef.current, [t.id]: direction },
-      })
-      // ME 的 refresh 不会给已存在的节点重排方向，按钮切侧走整树重建
-      setSideEpoch((n) => n + 1)
-      say(direction === 0 ? '主分支已放到左侧' : '主分支已放到右侧')
+  /** 切换折叠（kv 持久化，切图后保持） */
+  const toggleCollapse = useCallback(
+    (id: ID): void => {
+      const next = new Set(collapsed)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      void db.kv.put({ key: collapsedKey, value: [...next] })
     },
-    [rootId, say, sideKey],
+    [collapsed, collapsedKey],
   )
 
-  /** 空图引导：选中根节点并直接加第一个子节点 */
-  const startFirstNode = useCallback((): void => {
-    const mei = meiRef.current
-    if (!mei) return
-    const el = findEleSafe(mei, rootId)
-    if (el) mei.selectNode?.(el, true)
-    void mei.addChild?.()
-  }, [rootId])
+  /** 空图 / 停靠栏共用的添加入口：选中节点的下面，没选中就挂图根 */
+  const addFromDock = useCallback((): void => {
+    const sel = selectedId ? mapTodos.find((t) => t.id === selectedId) : undefined
+    const target = sel && sel.id !== rootId ? sel : (rootTodo ?? sel)
+    if (!target) return
+    void addChild(target)
+  }, [selectedId, mapTodos, rootId, rootTodo, addChild])
+
+  /** F-02 · ⌘] / ⌘[ 切图 */
+  const switchMap = useCallback(
+    (dir: 1 | -1): void => {
+      const ids = mapIds ?? []
+      if (ids.length <= 1) {
+        say('只有一张图 —— 在左上角切图入口新建')
+        return
+      }
+      const idx = ids.findIndex((id) => id === rootId)
+      const next = ids[(idx + dir + ids.length) % ids.length]
+      if (next && onSelectMap) onSelectMap(next)
+    },
+    [mapIds, onSelectMap, rootId, say],
+  )
+
+  /** 画布内不响应窗口快捷键的目标（输入中 / 别的控件上） */
+  const isTypingTarget = (el: EventTarget | null): boolean => {
+    const h = el as HTMLElement | null
+    return Boolean(
+      h && (h.tagName === 'INPUT' || h.tagName === 'TEXTAREA' || h.tagName === 'BUTTON' || h.isContentEditable),
+    )
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      const mei = meiRef.current
-      if (!mei) return
-      const el = e.target as HTMLElement | null
-      // BUTTON 也要放行：工具栏按钮上的 Enter/Space 只该激活按钮，
-      // 否则焦点在「切换项目图 / 全屏」上按回车会顺手往画布里插节点
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON' || el.isContentEditable)) return
+      if (isTypingTarget(e.target)) return
       if (isMindmapEditing()) return
-
       const isMod = e.metaKey || e.ctrlKey
 
-      // 切图不依赖选中节点
       if (isMod && (e.key === ']' || e.key === '[')) {
         e.preventDefault()
         switchMap(e.key === ']' ? 1 : -1)
         return
       }
-
-      const node = mei.currentNode?.nodeObj
-      if (!node || node.id.startsWith('done-group:')) return
-      const byParent = indexByParent(todos)
-      const t = todos.find((x) => x.id === node.id)
+      const t = selectedId ? mapTodos.find((x) => x.id === selectedId) : undefined
       if (!t) return
 
-      // Space：完成 / 取消完成（R1 · 仅叶子）
       if (e.code === 'Space') {
         e.preventDefault()
         void toggleDone(t)
         return
       }
-
-      // ⌘T：入 Today（R1 · 仅叶子 + open + 无 Waiting）
       if (isMod && e.key.toLowerCase() === 't') {
         e.preventDefault()
         void addToday(t)
         return
       }
-
-      // ⌥↑ / ⌥↓：同级上移 / 下移一位（排序，不换父级。
-      // 拖拽的上下边缘落点太细，键盘给一条确定的路径）
       if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
         moveSibling(t, e.key === 'ArrowUp' ? -1 : 1)
         return
       }
-
-      // 层级：Tab 加子节点 / ⇧Tab 提升 / ⌥Tab 降低
       if (e.key === 'Tab') {
         e.preventDefault()
-        const parent = t.parent_id ? todos.find((x) => x.id === t.parent_id) : undefined
-        if (parent?.status === 'done') {
-          say('已完成分组里不支持调整层级')
-          return
-        }
         if (e.shiftKey) {
+          // 提升一级：挂到父级的后面
           if (!t.parent_id || t.parent_id === rootId) {
             say('已经是最外层了')
             return
           }
-          const from = findEleSafe(mei, t.id)
-          const to = findEleSafe(mei, t.parent_id)
-          if (from && to) void mei.moveNodesAfter?.([from], to)
+          const parent = mapTodos.find((x) => x.id === t.parent_id)
+          if (!parent) return
+          void applyTodoPatches(
+            [
+              {
+                op: 'update',
+                id: t.id,
+                patch: bump(t, { parent_id: parent.parent_id ?? rootId, sort_order: parent.sort_order + 5 }),
+              },
+            ],
+            { scope: rootId },
+          )
           return
         }
         if (e.altKey) {
-          // 挂到「上一个可见同级」下（画布上 done 节点在折叠组里，不算同级）
-          const sibs = (byParent.get(t.parent_id) ?? [])
+          // 降低一级：挂到上一个同级下
+          const sibs = (byParentAll.get(t.parent_id) ?? [])
             .filter((s) => s.status !== 'done')
             .sort((a, b) => a.sort_order - b.sort_order)
           const idx = sibs.findIndex((s) => s.id === t.id)
-          const prevSib = idx > 0 ? sibs[idx - 1] : undefined
-          if (!prevSib) {
+          const prev = idx > 0 ? sibs[idx - 1] : undefined
+          if (!prev) {
             say('已经是第一个同级 —— 没有更上一层可挂')
             return
           }
-          const from = findEleSafe(mei, t.id)
-          const to = findEleSafe(mei, prevSib.id)
-          if (from && to) void mei.moveNodesIn?.([from], to)
+          void applyTodoPatches(
+            [
+              {
+                op: 'update',
+                id: t.id,
+                patch: bump(t, { parent_id: prev.id, sort_order: Date.now() }),
+              },
+            ],
+            { scope: rootId },
+          )
           return
         }
-        void mei.addChild?.()
+        void addChild(t)
         return
       }
-
-      // Enter：新增兄弟节点（⇧Enter 插到前面）；⌘Enter / F2：编辑
       if (e.key === 'Enter') {
         e.preventDefault()
         if (isMod) {
-          void mei.beginEdit?.()
+          startEdit(t.id)
           return
         }
         if (t.id === rootId) {
-          say('根节点没有兄弟节点 —— 按 Tab 加子节点')
+          say('根节点没有同级 —— 按 Tab 加子任务')
           return
         }
-        void mei.insertSibling?.(e.shiftKey ? 'before' : 'after')
+        void addSibling(t, e.shiftKey ? 'before' : 'after')
         return
       }
       if (e.key === 'F2') {
         e.preventDefault()
-        void mei.beginEdit?.()
+        startEdit(t.id)
         return
       }
-
-      // 删除：软删子树，业务 ⌘Z 可撤销
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
         removeNode(t)
@@ -1166,19 +911,14 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [todos, rootId, say, switchMap, toggleDone, addToday, removeNode, moveSibling])
+  }, [selectedId, mapTodos, rootId, say, switchMap, toggleDone, addToday, moveSibling, addChild, addSibling, startEdit, removeNode, byParentAll])
 
-  const isDoneGroupSel = Boolean(selectedId?.startsWith('done-group:'))
-  const rootKids = byParentAll.get(rootId) ?? []
-  const isMainBranchSelected = Boolean(selectedTodo && selectedTodo.parent_id === rootId)
-  const mainBranchDirection =
-    selectedTodo && selectedTodo.parent_id === rootId ? mainDirections[selectedTodo.id] : undefined
-  // 选中态可能是页面从大纲视图带进来的其他图节点 —— 本图画布上没它，不出操作栏
-  const showActionBar = Boolean(
-    selectedTodo && selectedTodo.map_id === rootId && !editingUi && !isDoneGroupSel,
-  )
-  // 选中任务的来源跳转：从笔记创建的 → 跳笔记详情；会议产出的 → 跳会议详情。
-  // 「task 从哪来」在脑图上必须可发现，不能只在列表 hover 才看得见。
+  /* ── 渲染 ─────────────────────────────────────────────────────────── */
+
+  const selectedTodo = selectedId ? mapTodos.find((x) => x.id === selectedId) : undefined
+  const showActionBar = Boolean(selectedTodo && snapRef.current.visibleIds.has(selectedTodo.id) && !editing)
+  const rootKids = childrenSorted(rootId)
+
   const originJump = selectedTodo
     ? selectedTodo.origin_note_id
       ? {
@@ -1193,38 +933,233 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
         : null
     : null
 
+  const today = new Date()
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  /** 节点卡片上的信息 chip（@负责人 / 截止 / 等待 / 来源） */
+  const chipsFor = (t: Todo): JSX.Element | null => {
+    const chips: JSX.Element[] = []
+    if (t.assignee) chips.push(<span key="a" className="mm-chip">@{t.assignee}</span>)
+    if (t.due_date) {
+      const overdue = t.due_date < todayIso
+      chips.push(
+        <span
+          key="d"
+          className={`mm-chip ${overdue ? 'mm-chip-overdue' : t.due_date === todayIso ? 'mm-chip-today' : ''}`}
+        >
+          {overdue ? `逾期 ${t.due_date.slice(5, 10).replace('-', '/')}` : `截止 ${t.due_date.slice(5, 10).replace('-', '/')}`}
+        </span>,
+      )
+    }
+    if (t.waiting_reason && t.status === 'open') chips.push(<span key="w" className="mm-chip mm-chip-waiting">等待中</span>)
+    if (t.origin_note_id) {
+      chips.push(
+        <button
+          key="n"
+          type="button"
+          className="mm-chip mm-chip-origin"
+          title={`跳到来源笔记（✎ ${origins.noteTitles.get(t.origin_note_id) ?? '笔记'}）`}
+          onClick={(e) => {
+            e.stopPropagation()
+            goNote(t.origin_note_id!)
+          }}
+        >
+          ✎ {(origins.noteTitles.get(t.origin_note_id) ?? '笔记').slice(0, 12)}
+        </button>,
+      )
+    } else if (t.meeting_id) {
+      chips.push(
+        <button
+          key="m"
+          type="button"
+          className="mm-chip mm-chip-origin"
+          title={`跳到来源会议（● ${origins.meetingTitles.get(t.meeting_id) ?? '会议'}）`}
+          onClick={(e) => {
+            e.stopPropagation()
+            goMeeting(t.meeting_id!)
+          }}
+        >
+          ● {(origins.meetingTitles.get(t.meeting_id) ?? '会议').slice(0, 12)}
+        </button>,
+      )
+    }
+    if (chips.length === 0) return null
+    return <span className="mm-chips">{chips}</span>
+  }
+
   return (
-    <div className={`mindmap-wrap relative w-full h-full min-h-[420px]${draggingUi ? ' is-dragging' : ''}`} onMouseDown={focusCanvas}>
-      {/* 教练提示常驻挂载、用 visibility 切显隐 —— 这样消失时能淡出，
-          而不是「啪」地没了（内容为空时对读屏无影响）。 */}
+    <div className={`mindmap-wrap${draggingUi ? ' is-dragging' : ''}`}>
+      <div
+        ref={vpRef}
+        className="mindmap-viewport mindmap-canvas"
+        data-testid="mindmap-canvas"
+        onPointerDown={onBackgroundPointerDown}
+        onClick={() => setSelectedId(null)}
+      >
+        <div
+          className="mindmap-world"
+          style={{
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          }}
+        >
+          {/* 连线层 */}
+          <svg className="mindmap-edges" aria-hidden="true">
+            {visible.map((t) => {
+              if (!t.parent_id) return null
+              const a = rects.get(t.parent_id)
+              const b = rects.get(t.id)
+              if (!a || !b) return null
+              return <path key={t.id} d={edgePath(a, b)} />
+            })}
+          </svg>
+
+          {/* 节点层 */}
+          {mapTodos.map((t) => {
+            if (t.id !== rootId && !snapRef.current.visibleIds.has(t.id)) return null
+            const p = positions.get(t.id)
+            if (!p) return null
+            const isRoot = t.id === rootId
+            const isSel = selectedId === t.id
+            const done = t.status === 'done'
+            const kids = childrenSorted(t.id)
+            const isCollapsed = collapsed.has(t.id)
+            const hint = dropHint?.id === t.id ? dropHint : null
+            const count = hiddenCount.get(t.id)
+            return (
+              <div
+                key={t.id}
+                data-mm-node={t.id}
+                data-testid="mm-node"
+                className={[
+                  'mm-node',
+                  isRoot ? 'mm-root' : '',
+                  isSel ? 'is-selected' : '',
+                  done ? 'is-done' : '',
+                  t.waiting_reason && t.status === 'open' ? 'is-waiting' : '',
+                  draggingUi && dragOv.has(t.id) ? 'is-dragging' : '',
+                ].filter(Boolean).join(' ')}
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  maxWidth: isRoot ? undefined : NODE_MAX_W,
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  onNodePointerDown(e, t)
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (performance.now() < suppressClickUntil.current) return
+                  if (isSel) startEdit(t.id)
+                  else setSelectedId(t.id)
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  if (performance.now() < suppressClickUntil.current) return
+                  startEdit(t.id)
+                }}
+              >
+                {hint?.mode === 'in' && <span className="mm-drop-in" aria-hidden="true" />}
+                {hint?.mode === 'before' && <span className="mm-drop-line mm-drop-before" aria-hidden="true" />}
+                {hint?.mode === 'after' && <span className="mm-drop-line mm-drop-after" aria-hidden="true" />}
+                {kids.length > 0 && (
+                  <button
+                    type="button"
+                    className="mm-fold"
+                    aria-label={isCollapsed ? `展开 ${hiddenCount.get(t.id) ?? kids.length} 条` : '折叠子树'}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleCollapse(t.id)
+                    }}
+                  >
+                    {isCollapsed ? '▸' : '▾'}
+                  </button>
+                )}
+                <div className="mm-title">{t.title || '未命名'}</div>
+                {chipsFor(t)}
+                {isCollapsed && count !== undefined && count > 0 && (
+                  <span className="mm-count" aria-hidden="true">{count}</span>
+                )}
+                {!isRoot && (
+                  <button
+                    type="button"
+                    className="mm-node-add"
+                    aria-label="添加子任务"
+                    title="添加子任务（Tab）"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void addChild(t)
+                    }}
+                  >
+                    ＋
+                  </button>
+                )}
+              </div>
+            )
+          })}
+
+          {/* 行内改名：加节点 = 写任务，创建即编辑 */}
+          {editing &&
+            (() => {
+              const p = positions.get(editing.id)
+              if (!p) return null
+              return (
+                <input
+                  key={editing.id}
+                  data-testid="mm-editor"
+                  className="mm-editor"
+                  style={{ left: p.x - 2, top: p.y - 2 }}
+                  defaultValue={mapTodos.find((t) => t.id === editing.id)?.title ?? ''}
+                  placeholder="要做什么？回车创建，支持「@张三 明天」"
+                  autoFocus
+                  onFocus={(e) => e.target.select()}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void commitEdit(e.currentTarget.value)
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      void cancelEdit()
+                    }
+                  }}
+                  onBlur={(e) => void commitEdit(e.target.value)}
+                />
+              )
+            })()}
+        </div>
+      </div>
+
+      {/* 内联教练提示 */}
       <div className="mindmap-coach" role="status" data-show={coach ? '1' : '0'}>
         {coach ?? ''}
       </div>
-      <div ref={elRef} className="mindmap-canvas w-full h-full min-h-[420px]" />
 
-      {/* 空图引导：不给用户一面空白画布去猜 */}
-      {rootKids.length === 0 && (
+      {/* 空图引导 */}
+      {rootKids.length === 0 && rootTodo && (
         <div className="mindmap-empty">
           <div className="mindmap-empty-title">先从一条真正要推进的事开始</div>
-          <button type="button" className="mindmap-empty-btn" onClick={startFirstNode}>
+          <button type="button" className="mindmap-empty-btn" onClick={() => void addChild(rootTodo)}>
             ＋ 添加第一条任务
           </button>
           <div className="mindmap-empty-hint">
-            先写主干，再逐层拆开。选中节点后，底部会出现更细的操作。
+            点一下就能写任务；写完回车，再用 Tab 逐层拆开。
           </div>
         </div>
       )}
 
-      {/* 选中节点的操作栏：增删节点不用背快捷键（主按钮带键位，次级操作收成图标钮） */}
+      {/* 选中节点的操作栏 */}
       {showActionBar && selectedTodo && (
         <div className="mindmap-actionbar" role="toolbar" aria-label="节点操作">
-          <button type="button" onClick={() => void meiRef.current?.addChild?.()}>
-            子节点 <kbd className="mindmap-kbd">Tab</kbd>
+          <button type="button" onClick={() => void addChild(selectedTodo)}>
+            子任务 <kbd className="mindmap-kbd">Tab</kbd>
           </button>
           <button
             type="button"
             disabled={selectedTodo.id === rootId}
-            onClick={() => void meiRef.current?.insertSibling?.('after')}
+            onClick={() => void addSibling(selectedTodo, 'after')}
           >
             同级 <kbd className="mindmap-kbd">{IS_MAC ? '⏎' : 'Enter'}</kbd>
           </button>
@@ -1250,7 +1185,7 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
             ↓
           </button>
           <span className="mindmap-actionbar-sep" aria-hidden="true" />
-          <button type="button" onClick={() => void meiRef.current?.beginEdit?.()}>
+          <button type="button" onClick={() => startEdit(selectedTodo.id)}>
             改名 <kbd className="mindmap-kbd">F2</kbd>
           </button>
           <div className="mindmap-actionbar-date">
@@ -1291,28 +1226,6 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           <button type="button" onClick={() => openTaskDetail(selectedTodo.id)}>
             详情
           </button>
-          {isMainBranchSelected && (
-            <div className="mindmap-actionbar-group" role="group" aria-label="主分支位置">
-              <button
-                type="button"
-                className={mainBranchDirection === 0 ? 'is-active' : undefined}
-                aria-pressed={mainBranchDirection === 0}
-                title="放到左侧"
-                onClick={() => void setMainBranchDirection(selectedTodo, 0)}
-              >
-                左侧
-              </button>
-              <button
-                type="button"
-                className={mainBranchDirection === 1 ? 'is-active' : undefined}
-                aria-pressed={mainBranchDirection === 1}
-                title="放到右侧"
-                onClick={() => void setMainBranchDirection(selectedTodo, 1)}
-              >
-                右侧
-              </button>
-            </div>
-          )}
           <span className="mindmap-actionbar-sep" aria-hidden="true" />
           <button
             type="button"
@@ -1345,48 +1258,23 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           </button>
         </div>
       )}
-      {/* F-02 · 轻量提示：默认只有一个角标，点开才是清单（R5 · 不堆画布噪点） */}
-      <div className="mindmap-hint">
-        {showKeys && (
-          <div className="mindmap-hint-panel" role="menu" aria-label="脑图快捷键">
-            <div className="mindmap-hint-title">使用方式</div>
-            <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">单击节点：选中，底部出操作栏</span>
-            </div>
-            <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">再点一下（或双击）：改名</span>
-            </div>
-            <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">拖拽节点：换父级 / 调整顺序</span>
-            </div>
-            <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">节点里写「@张三 明天」：自动识别负责人和截止</span>
-            </div>
-            <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">右上角「沉浸」：全屏画布；Esc 退出</span>
-            </div>
-            <div className="mindmap-hint-row">
-              <span className="mindmap-hint-desc">点「适应画布」：大图一键回到看得清的缩放</span>
-            </div>
-            <div className="mindmap-hint-title">键盘</div>
-            {SHORTCUT_ROWS.map((row) => (
-              <div className="mindmap-hint-row" key={row.desc}>
-                <span className="mindmap-hint-keys">
-                  {row.keys.map((k) => (
-                    <kbd className="mindmap-kbd" key={k}>
-                      {keyLabel(k)}
-                    </kbd>
-                  ))}
-                </span>
-                <span className="mindmap-hint-desc">
-                  {row.desc}
-                  {row.leaf && <em className="mindmap-hint-leaf">仅叶子</em>}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+
+      {/* 左下角停靠栏：添加任务的常驻入口（加节点 = 写任务）+ 视图控制 */}
+      <div className="mindmap-dock">
+        <button type="button" className="mindmap-dock-add" onClick={() => void addFromDock()}>
+          ＋ 添加任务
+        </button>
         <div className="mindmap-hint-actions">
+          <button type="button" className="mindmap-hint-btn" title="缩小" onClick={() => setView((v) => ({ ...v, scale: Math.max(MIN_SCALE, v.scale / 1.2) }))}>−</button>
+          <button
+            type="button"
+            className="mindmap-hint-btn mindmap-dock-zoom"
+            title="恢复 100%"
+            onClick={() => setView((v) => ({ ...v, scale: 1 }))}
+          >
+            {Math.round(view.scale * 100)}%
+          </button>
+          <button type="button" className="mindmap-hint-btn" title="放大" onClick={() => setView((v) => ({ ...v, scale: Math.min(MAX_SCALE, v.scale * 1.2) }))}>＋</button>
           <button type="button" className="mindmap-hint-btn" onClick={fitToView}>
             适应
           </button>
@@ -1400,6 +1288,41 @@ export default function MindmapCanvas({ rootId, mapIds, onSelectMap, selectedId:
           </button>
         </div>
       </div>
+
+      {/* 说明面板 */}
+      {showKeys && (
+        <div className="mindmap-hint-panel" role="menu" aria-label="脑图使用方式">
+          <div className="mindmap-hint-title">使用方式</div>
+          <div className="mindmap-hint-row">
+            <span className="mindmap-hint-desc">＋ 添加任务 / 悬停节点点「＋」：建任务并直接命名</span>
+          </div>
+          <div className="mindmap-hint-row">
+            <span className="mindmap-hint-desc">拖节点：自由摆放（位置会记住）；拖到别的节点上 = 挂到它下面</span>
+          </div>
+          <div className="mindmap-hint-row">
+            <span className="mindmap-hint-desc">拖到节点的上 / 下边缘 = 排到它前面 / 后面</span>
+          </div>
+          <div className="mindmap-hint-row">
+            <span className="mindmap-hint-desc">单击选中，再点一下（或双击）改名；任务里写「@张三 明天」自动识别</span>
+          </div>
+          <div className="mindmap-hint-title">键盘</div>
+          {SHORTCUT_ROWS.map((row) => (
+            <div className="mindmap-hint-row" key={row.desc}>
+              <span className="mindmap-hint-keys">
+                {row.keys.map((k) => (
+                  <kbd className="mindmap-kbd" key={k}>
+                    {keyLabel(k)}
+                  </kbd>
+                ))}
+              </span>
+              <span className="mindmap-hint-desc">
+                {row.desc}
+                {row.leaf && <em className="mindmap-hint-leaf">仅叶子</em>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

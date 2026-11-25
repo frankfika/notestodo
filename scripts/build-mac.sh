@@ -10,7 +10,16 @@
 # 用法：bash scripts/build-mac.sh          # .app + .dmg
 #       bash scripts/build-mac.sh --app-only
 set -euo pipefail
-cd "$(dirname "$0")/../web"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# tauri.conf.json 开了 createUpdaterArtifacts：本地打包也要签名，
+# 私钥不入库（.gitignore），固定在仓库根 .tauri-signing/，或可用环境变量覆盖
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" && -f "$ROOT/.tauri-signing/opennotion.key" ]]; then
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat "$ROOT/.tauri-signing/opennotion.key")"
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"
+fi
+
+cd "$ROOT/web"
 
 APP_ONLY=false
 [[ "${1:-}" == "--app-only" ]] && APP_ONLY=true

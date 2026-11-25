@@ -97,14 +97,14 @@ test('多会议列表：分组 + 计数 + 状态徽章 + MeetingPreview 联动',
   // Use the list within the 300px-wide sidebar list area
   // 每行有两个 button：行主体（打开会议）+ ⋯ 菜单（更多操作）——
   // 所以这里数「会议行主体」，不能直接数所有 button
-  const allMeetingButtons = await page.locator('.w-\\[300px\\] ul li button:not([aria-haspopup="menu"])').count()
+  const allMeetingButtons = await page.locator('[data-testid="meetings-list"] ul li button:not([aria-haspopup="menu"])').count()
   expect(allMeetingButtons).toBe(6)
 
   // 2) 分组：进行中 / 今天 / 更早，每组带计数
   //    进行中 = 还在流水线里的（transcribed×2 + processing×1）
   //    今天   = 今天开始且已跑完流程的（failed×1）
   //    更早   = 之前的（failed×1 + summarized×1）
-  const groupLabels = await page.locator('.w-\\[300px\\] .tracking-widest').allInnerTexts()
+  const groupLabels = await page.locator('[data-testid="meetings-list"] .tracking-widest').allInnerTexts()
   expect(groupLabels.length).toBe(3)
   expect(groupLabels[0]).toContain('进行中')
   expect(groupLabels[1]).toContain('今天')
@@ -118,7 +118,7 @@ test('多会议列表：分组 + 计数 + 状态徽章 + MeetingPreview 联动',
   expect(await page.getByText('今天·分享').count()).toBeGreaterThanOrEqual(1)
 
   // 4) 状态徽章 + 状态点：每行都带徽章，transcribed→整理中 / summarized→已完成 / failed→失败
-  const firstRow = page.locator('.w-\\[300px\\] ul li button').first()
+  const firstRow = page.locator('[data-testid="meetings-list"] ul li button').first()
   await expect(firstRow.locator('span.rounded-full').first()).toBeAttached()
   await expect(firstRow.getByText('整理中').first()).toBeAttached()
   await expect(page.getByText('已完成').first()).toBeAttached()
@@ -135,6 +135,6 @@ test('多会议列表：分组 + 计数 + 状态徽章 + MeetingPreview 联动',
   await expect(page.locator('main').getByText('今天·分享').first()).toBeAttached()
 
   // 7) 「今天·晨会」是最近一个 — 在列表最前
-  const firstListTitle = await page.locator('.w-\\[300px\\] ul li button').first().innerText()
+  const firstListTitle = await page.locator('[data-testid="meetings-list"] ul li button').first().innerText()
   expect(firstListTitle).toContain('今天')
 })

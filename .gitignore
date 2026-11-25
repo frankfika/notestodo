@@ -13,3 +13,4 @@ promo/audio/_scratch/
 promo/build/_tmp/
 promo/capture/.video-tmp/
 __pycache__/
+.tauri-signing/

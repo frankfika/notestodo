@@ -26,6 +26,7 @@ import { reindexKnowledge } from '../../lib/knowledge'
 import { importGithubIssues } from '../../lib/github'
 import { importFeishuEvents } from '../../lib/feishu'
 import { useToast } from '../../state/toast'
+import { checkForUpdate, downloadAndInstall } from '../../lib/updater'
 
 /**
  * 设置页：AI Provider / 语音转录 / 隐私 / 日历 + 导入导出。
@@ -99,7 +100,7 @@ export default function SettingsPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-[960px] mx-auto px-6 py-8">
-        <div className="flex items-end justify-between mb-6">
+        <div className="flex flex-wrap items-end justify-between gap-2 mb-6">
           <div>
             <div className="section-title">SETTINGS</div>
             <h1 className="text-2xl font-semibold text-text-1 mt-1">设置</h1>
@@ -112,14 +113,14 @@ export default function SettingsPage(): JSX.Element {
           >保存修改</button>
         </div>
 
-        <div className="flex gap-6 items-start">
-          <nav className="w-40 shrink-0 sticky top-0 space-y-0.5">
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
+          <nav className="w-full md:w-40 shrink-0 md:sticky md:top-0 flex md:flex-col flex-row overflow-x-auto md:overflow-visible gap-1 md:space-y-0.5 pb-1 md:pb-0 -mx-6 px-6 md:mx-0 md:px-0 bg-bg md:bg-transparent">
             {SETTINGS_GROUPS.map((g) => (
               <button
                 key={g.key}
                 type="button"
                 onClick={() => setGroup(g.key)}
-                className={`w-full text-left px-3 py-1.5 rounded-[8px] text-sm transition-colors ${
+                className={`shrink-0 md:w-full text-left px-3 py-1.5 rounded-[8px] text-sm whitespace-nowrap transition-colors ${
                   group === g.key ? 'bg-bg-raise text-text-1 font-medium shadow-sm' : 'text-text-3 hover:text-text-1'
                 }`}
               >{g.label}</button>
@@ -293,6 +294,7 @@ export default function SettingsPage(): JSX.Element {
                           <option value="minimax">MiniMax</option>
                           <option value="openai-whisper">OpenAI Whisper 兼容</option>
                           <option value="deepgram">Deepgram</option>
+                          <option value="deepseek">DeepSeek 语音识别</option>
                         </select>
                       </FieldRow>
                       <FieldRow label="Base URL">
@@ -463,6 +465,10 @@ export default function SettingsPage(): JSX.Element {
                   <TagManager flash={flash} />
                 </Section>
 
+                <Section title="应用更新" desc="从 GitHub Releases 自动检查、下载并安装新版本。">
+                  <UpdateRow />
+                </Section>
+
                 <Section title="诊断">
                   <details>
                     <summary className="cursor-pointer text-sm text-text-2 hover:text-text-1">查看当前 settings JSON</summary>
@@ -506,6 +512,7 @@ const LLM_PRESETS: { label: string; provider: AppSettings['llm_provider']; base_
 
 const ASR_PRESETS: { label: string; provider: AppSettings['asr_provider']; base_url: string; model: string; key_url: string }[] = [
   { label: 'MiniMax', provider: 'minimax', base_url: 'https://api.minimaxi.com', model: 'asr-1.0', key_url: 'https://platform.minimaxi.com/' },
+  { label: 'DeepSeek 语音识别', provider: 'deepseek', base_url: 'https://api.deepseek.com', model: '-', key_url: 'https://platform.deepseek.com/' },
   { label: 'OpenAI Whisper', provider: 'openai-whisper', base_url: 'https://api.openai.com/v1', model: 'whisper-1', key_url: 'https://platform.openai.com/api-keys' },
   { label: 'Deepgram', provider: 'deepgram', base_url: 'https://api.deepgram.com', model: 'nova-2', key_url: 'https://console.deepgram.com/' },
 ]
@@ -1028,6 +1035,56 @@ async function restoreAll(snap: TableSnap[]): Promise<void> {
       if (s.rows.length) await s.table.bulkPut(s.rows)
     }
   })
+}
+
+/** 应用更新：显示当前版本 + 手动检查；桌面 app 启动时也会自动查一次 */
+function UpdateRow(): JSX.Element {
+  const { show } = useToast()
+  const [version, setVersion] = useState<string>('…')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { getVersion } = await import('@tauri-apps/api/app')
+        setVersion(await getVersion())
+      } catch {
+        setVersion('web 预览')
+      }
+    })()
+  }, [])
+
+  const check = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const info = await checkForUpdate()
+      if (!info) {
+        show('已是最新版本')
+      } else {
+        show(`发现新版本 v${info.version}，开始下载…`)
+        await downloadAndInstall(info)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!isTauri()) {
+    return <p className="text-[11px] text-text-3">浏览器预览不含自动更新；桌面 app 会从 GitHub Releases 检查并安装新版本。</p>
+  }
+  return (
+    <FieldRow label="当前版本">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-text-1 tabular-nums">v{version}</span>
+        <button
+          type="button"
+          onClick={() => void check()}
+          disabled={busy}
+          className="btn-outline h-8 text-xs px-3"
+        >{busy ? '检查中…' : '检查更新'}</button>
+      </div>
+    </FieldRow>
+  )
 }
 
 function ExportImportRow({ flash }: { flash: (msg: string) => void }): JSX.Element {

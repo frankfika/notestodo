@@ -32,6 +32,7 @@ function navOf(v: ViewName): ViewName {
  * 页面树（PR1 IA）：自由页面按 parent_id 嵌套，会议纪要留在「会议」里不进树。
  * 默认全展开（个人笔记量级），点击 chevron 折叠；hover 行尾 ＋ 新建子页面。
  * 存在笔记本时按笔记本分区；无笔记本的页面落到最后的「未分配」区。
+ * 分区头（笔记本 / 未分配）同样可折叠：点 chevron 收起整区页面。
  */
 function PageTree(): JSX.Element {
   const notes = useLiveQuery(
@@ -47,6 +48,8 @@ function PageTree(): JSX.Element {
   const currentId = useUI((s) => s.noteId)
   const { show } = useToast()
   const [collapsed, setCollapsed] = useState<ReadonlySet<ID>>(new Set())
+  // 分区（笔记本 / 未分配）折叠状态：key = 笔记本 id 或 'root'
+  const [collapsedSec, setCollapsedSec] = useState<ReadonlySet<string>>(new Set())
   const [dragPageId, setDragPageId] = useState<ID | null>(null)
   const [dropTarget, setDropTarget] = useState<ID | null>(null) // 行 id 或 'nb:<id>'/'root'
   const [renamingNb, setRenamingNb] = useState<ID | null>(null)
@@ -161,6 +164,14 @@ function PageTree(): JSX.Element {
       return next
     })
 
+  const toggleSec = (key: string): void =>
+    setCollapsedSec((s) => {
+      const next = new Set(s)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
   const newPage = async (pid: ID | null, notebookId: ID | null = null): Promise<void> => {
     goNote(await createPage(pid, notebookId))
   }
@@ -241,18 +252,38 @@ function PageTree(): JSX.Element {
     }, 6000)
   }
 
-  const sectionHeader = (label: ReactNode, onAdd: () => void, addTitle: string, dropKey: ID | null, nb?: { id: ID; name: string }): ReactNode => (
+  const sectionHeader = (
+    label: ReactNode,
+    onAdd: () => void,
+    addTitle: string,
+    dropKey: ID | null,
+    nb?: { id: ID; name: string },
+    secOpen = true,
+    onToggleSec?: () => void,
+  ): ReactNode => (
     <div
-      className={`group/nb flex items-center px-4 mb-1 mt-2 first:mt-0 rounded-[6px] ${dropTarget === `sec:${dropKey ?? 'root'}` ? 'outline outline-1 outline-accent bg-accent/10' : ''}`}
+      className={`group/nb flex items-center px-4 mb-1 mt-2 first:mt-0 rounded-[6px] ${onToggleSec ? 'cursor-pointer hover:bg-bg-overlay' : ''} ${dropTarget === `sec:${dropKey ?? 'root'}` ? 'outline outline-1 outline-accent bg-accent/10' : ''}`}
+      onClick={onToggleSec}
       onDragOver={(e) => { if (!dragPageId) return; e.preventDefault(); setDropTarget(`sec:${dropKey ?? 'root'}`) }}
       onDragLeave={() => setDropTarget((t) => (t === `sec:${dropKey ?? 'root'}` ? null : t))}
       onDrop={(e) => { e.preventDefault(); void dropOnSection(dropKey) }}
     >
+      {onToggleSec && (
+        <button
+          type="button"
+          aria-label={secOpen ? '折叠分区' : '展开分区'}
+          aria-expanded={secOpen}
+          title={secOpen ? '折叠分区' : '展开分区'}
+          className={`flex items-center justify-center w-6 h-6 -ml-2 shrink-0 rounded text-[13px] text-text-2 group-hover/nb:text-text-1 transition-transform ${secOpen ? '' : '-rotate-90'}`}
+          onClick={(e) => { e.stopPropagation(); onToggleSec() }}
+        >▾</button>
+      )}
       {nb && renamingNb === nb.id ? (
         <input
           autoFocus
           defaultValue={nb.name}
           aria-label="笔记本名称"
+          onClick={(e) => e.stopPropagation()}
           onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing) return
@@ -263,10 +294,10 @@ function PageTree(): JSX.Element {
           className="input !h-5 !py-0 px-1 text-[11px] flex-1 min-w-0"
         />
       ) : (
-        <span className="text-[11px] tracking-wide text-text-3 truncate">{label}</span>
+        <span className="text-[11px] tracking-wide text-text-3 truncate flex-1 min-w-0">{label}</span>
       )}
       {nb && (
-        <span className="ml-1 opacity-0 group-hover/nb:opacity-100 flex gap-0.5">
+        <span className="ml-1 opacity-0 group-hover/nb:opacity-100 flex gap-0.5" onClick={(e) => e.stopPropagation()}>
           <button type="button" title="重命名" className="text-text-3 hover:text-accent text-[10px]" onClick={() => void renameNotebook(nb)}>✎</button>
           <button type="button" title="删除笔记本" className="text-text-3 hover:text-danger text-[10px]" onClick={() => void deleteNotebook(nb)}>🗑</button>
         </span>
@@ -276,7 +307,7 @@ function PageTree(): JSX.Element {
         aria-label={addTitle}
         title={addTitle}
         className="ml-auto shrink-0 text-text-3 hover:text-accent text-sm leading-none"
-        onClick={onAdd}
+        onClick={(e) => { e.stopPropagation(); onAdd() }}
       >＋</button>
     </div>
   )
@@ -368,22 +399,35 @@ function PageTree(): JSX.Element {
       </div>
       {searchInput}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-        {notebooks.map((nb) => (
-          <div key={nb.id}>
-            {sectionHeader(
-              <>{nb.icon} {nb.name}</>,
-              () => void newPage(null, nb.id),
-              `在「${nb.name}」下新建页面`,
-              nb.id,
-              nb,
-            )}
-            <ul>{renderLevel(null, 0, nb.id)}</ul>
-          </div>
-        ))}
+        {notebooks.map((nb) => {
+          const secOpen = !collapsedSec.has(nb.id)
+          return (
+            <div key={nb.id}>
+              {sectionHeader(
+                <>{nb.icon} {nb.name}</>,
+                () => void newPage(null, nb.id),
+                `在「${nb.name}」下新建页面`,
+                nb.id,
+                nb,
+                secOpen,
+                () => toggleSec(nb.id),
+              )}
+              {secOpen && <ul>{renderLevel(null, 0, nb.id)}</ul>}
+            </div>
+          )
+        })}
         {hasUnassigned && (
           <div>
-            {sectionHeader('未分配', () => void newPage(null, null), '新建页面', null)}
-            <ul>{renderLevel(null, 0, null)}</ul>
+            {sectionHeader(
+              '未分配',
+              () => void newPage(null, null),
+              '新建页面',
+              null,
+              undefined,
+              !collapsedSec.has('root'),
+              () => toggleSec('root'),
+            )}
+            {!collapsedSec.has('root') && <ul>{renderLevel(null, 0, null)}</ul>}
           </div>
         )}
       </div>

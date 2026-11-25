@@ -173,6 +173,12 @@ export interface Todo extends EntityMeta {
   completed_at?: ISODateTime | null
   /** 图根归档时间；仅 parent_id null 的根有意义 */
   archived_at?: ISODateTime | null
+  /**
+   * 自由画布坐标（世界系，相对图根）：节点被用户拖放过就有值，
+   * null/缺省 = 交给自动布局。子节点想摆左 / 摆右 / 摆哪都行。
+   */
+  pos_x?: number | null
+  pos_y?: number | null
 }
 
 // ── 评论（块级，锚定引文）─────────────────────────────────────────────────────
@@ -301,7 +307,7 @@ export interface AppSettings {
   llm_api_key: string
   llm_model: string
   asr_mode: AiMode   // 'builtin' = 应用内置 whisper.cpp；'local' = 自建 whisper 兼容服务；'cloud' = BYOK
-  asr_provider: 'minimax' | 'openai-whisper' | 'deepgram'
+  asr_provider: 'minimax' | 'openai-whisper' | 'deepgram' | 'deepseek'
   asr_base_url: string
   asr_api_key: string
   asr_model: string
@@ -444,7 +450,7 @@ export function resolveLLMConfig(s: AppSettings): {
  */
 export function resolveASRConfig(s: AppSettings): {
   /** 实际调用的 provider（local 强制 openai-whisper；builtin 走应用内置 whisper.cpp） */
-  provider: 'minimax' | 'openai-whisper' | 'deepgram' | 'builtin'
+  provider: 'minimax' | 'openai-whisper' | 'deepgram' | 'builtin' | 'deepseek'
   base_url: string
   api_key: string
   model: string

@@ -91,8 +91,8 @@ export default function MeetingsPage(): JSX.Element {
 
   return (
     <div className="h-full flex">
-      {/* 列表 */}
-      <div className="w-[300px] shrink-0 border-r border-line overflow-y-auto">
+      {/* 列表：移动端占满整栏；点选进入预览后隐藏（预览层提供返回） */}
+      <div data-testid="meetings-list" className={`w-full md:w-[300px] shrink-0 border-r border-line overflow-y-auto ${selectedId ? 'hidden md:block' : ''}`}>
         <div className="sticky top-0 z-10 bg-bg/95 backdrop-blur px-5 py-4 border-b border-line flex items-center">
           <h1 className="text-sm font-semibold text-text-1">会议</h1>
           <span className="ml-2 text-[11px] text-text-3 tabular-nums">{meetings.length}</span>
@@ -209,8 +209,14 @@ export default function MeetingsPage(): JSX.Element {
         )}
       </div>
 
-      {/* 预览 */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
+      {/* 预览：移动端只在点选后出现（占满整栏），桌面端常驻含未选中的占位提示 */}
+      <div className={`flex-1 min-w-0 overflow-y-auto ${selectedId ? '' : 'hidden md:block'}`}>
+        {selectedId && (
+          <button
+            onClick={() => setSelectedId(null)}
+            className="md:hidden sticky top-0 z-10 flex items-center gap-1 px-4 py-2.5 bg-bg/95 backdrop-blur border-b border-line text-sm text-text-2"
+          >‹ 会议列表</button>
+        )}
         {active ? (
           <MeetingPreview meeting={active} onOpen={() => goMeeting(active.id)} />
         ) : (

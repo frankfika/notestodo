@@ -88,8 +88,8 @@ test.describe('完成记录 + 关联人', () => {
   test('①b 脑图里 Space 完成也记完成日期（口径一致）', async ({ page }) => {
     await seed(page)
     await page.locator('aside').getByRole('button', { name: '任务' }).click()
-    await page.locator('.mindmap-canvas .me-tpc').first().waitFor({ state: 'visible', timeout: 15000 })
-    await page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]').click()
+    await page.locator('.mindmap-canvas [data-mm-node]').first().waitFor({ state: 'visible', timeout: 15000 })
+    await page.locator('.mindmap-canvas [data-mm-node="a"]').click()
     await page.waitForTimeout(200)
     await page.keyboard.press('Space')
     await expect.poll(async () => (await todoOf(page, 'a'))?.status).toBe('done')
@@ -197,9 +197,9 @@ test.describe('完成记录 + 关联人', () => {
       await db.todos.update('a', { status: 'cancelled', archived_at: new Date().toISOString() })
     })
     await page.locator('aside').getByRole('button', { name: '任务' }).click()
-    await page.locator('.mindmap-canvas .me-tpc').first().waitFor({ state: 'visible', timeout: 15000 })
+    await page.locator('.mindmap-canvas [data-mm-node]').first().waitFor({ state: 'visible', timeout: 15000 })
     await page.waitForTimeout(600)
-    await expect(page.locator('.mindmap-canvas .me-tpc[data-nodeid="mea"]')).toHaveCount(0)
+    await expect(page.locator('.mindmap-canvas [data-mm-node="a"]')).toHaveCount(0)
   })
 
   test('⑦ 完成 / 归档后，Today 槽位自动让出来', async ({ page }) => {
@@ -233,14 +233,11 @@ test.describe('完成记录 + 关联人', () => {
       await db.todos.update('a', { assignee: '李娜', completed_at: new Date().toISOString(), status: 'done' })
     })
     await page.locator('aside').getByRole('button', { name: '任务' }).click()
-    await page.locator('.mindmap-canvas .me-tpc').first().waitFor({ state: 'visible', timeout: 15000 })
-    // 「已完成 (1)」折叠组里挂着完成项
-    const group = page.locator('.mindmap-canvas .me-tpc', { hasText: '已完成' }).first()
-    await expect(group).toBeVisible()
-    // 展开用 ME 的折叠三角（双击文字是「改名」，不是展开）
-    await page.locator('.mindmap-canvas .me-epd').first().click()
-    await page.waitForTimeout(800)
-    await expect(page.locator('.mindmap-canvas .me-tpc', { hasText: '定稿需求' }).first()).toBeVisible()
-    await expect(page.locator('.mindmap-canvas .me-tpc .tags').first()).toContainText('@李娜')
+    await page.locator('.mindmap-canvas [data-mm-node]').first().waitFor({ state: 'visible', timeout: 15000 })
+    // 完成项留在画布上：压灰划线 + @人 chip（谁 · 什么时候 · 完成了什么）
+    const doneNode = page.locator('.mindmap-canvas [data-mm-node="a"]')
+    await expect(doneNode).toBeVisible()
+    await expect(doneNode).toHaveClass(/is-done/)
+    await expect(doneNode.locator('.mm-chip', { hasText: '@李娜' })).toBeVisible()
   })
 })
