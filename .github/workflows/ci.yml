@@ -51,6 +51,14 @@ jobs:
         env:
           SHIBEI_URL: http://127.0.0.1:5173/
 
+      - name: 上传 e2e 产物（trace / 截图，失败时排查用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: web/test-results
+          retention-days: 7
+
   rust:
     name: Rust 桌面壳检查（${{ matrix.os }}）
     # 内置模型依赖 macOS 专属 crate（whisper-rs / llama-cpp-2 / sherpa-onnx）；
