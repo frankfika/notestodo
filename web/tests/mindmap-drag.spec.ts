@@ -142,13 +142,22 @@ test('先点选再拖拽（真实用户路径）→ 换父级落库，且不弹�
   // 用户自然操作：先单击选中 c，再按住拖走。
   await topic(page, 'c').click()
   await expect(page.locator('.mindmap-actionbar')).toBeVisible()
+  // hover 会让节点放大并播放入场动画（translateY 4px），慢机器（CI）上
+  // 坐标会在动画中途漂移：等它稳定再量坐标，避免 pointerdown 落空。
+  await page.waitForTimeout(350)
 
-  const from = await topic(page, 'c').boundingBox()
-  const to = await topic(page, 'b').boundingBox()
-  expect(from && to).toBeTruthy()
+  let from = await topic(page, 'c').boundingBox()
+  expect(from).toBeTruthy()
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+  await page.waitForTimeout(250)
+  // 移动鼠标可能触发 hover 尺寸变化，按下前再取一次真实中心。
+  from = await topic(page, 'c').boundingBox()
+  expect(from).toBeTruthy()
 
   await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
   await page.mouse.down()
+  const to = await topic(page, 'b').boundingBox()
+  expect(to).toBeTruthy()
   await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 20 })
   await page.waitForTimeout(300)
   await page.mouse.up()
