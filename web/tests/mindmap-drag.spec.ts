@@ -44,6 +44,27 @@ function topic(page: Page, id: string) {
   return page.locator(`.mindmap-canvas [data-mm-node="${id}"]`)
 }
 
+/** 等节点在屏幕上停稳再取坐标。
+ *  字体/异步测量会触发画布的多次自动适配（fitToView），慢机器（CI）上
+ *  节点会在挂载后持续漂移：量完坐标再拖，按下时节点早已挪走。轮询到
+ *  坐标连续几轮不变才算稳定。 */
+async function stableBox(page: Page, id: string, rounds = 3) {
+  let prev = await topic(page, id).boundingBox()
+  let steady = 0
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(150)
+    const next = await topic(page, id).boundingBox()
+    if (prev && next && Math.abs(prev.x - next.x) < 0.6 && Math.abs(prev.y - next.y) < 0.6) {
+      steady += 1
+      if (steady >= rounds) return next
+    } else {
+      steady = 0
+    }
+    prev = next
+  }
+  return prev
+}
+
 test('拖到空白处 = 自由摆放：位置落库并生效', async ({ page }) => {
   await seed(page)
   await page.locator('aside').getByRole('button', { name: '任务' }).click()
@@ -142,21 +163,14 @@ test('先点选再拖拽（真实用户路径）→ 换父级落库，且不弹�
   // 用户自然操作：先单击选中 c，再按住拖走。
   await topic(page, 'c').click()
   await expect(page.locator('.mindmap-actionbar')).toBeVisible()
-  // hover 会让节点放大并播放入场动画（translateY 4px），慢机器（CI）上
-  // 坐标会在动画中途漂移：等它稳定再量坐标，避免 pointerdown 落空。
-  await page.waitForTimeout(350)
 
-  let from = await topic(page, 'c').boundingBox()
+  // 画布会随字体/测量完成反复自动适配，必须等节点在屏幕上停稳，
+  // 否则量到的坐标在按下前就漂走，pointerdown 落空（CI 慢机器必现）。
+  const from = await stableBox(page, 'c')
   expect(from).toBeTruthy()
-  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
-  await page.waitForTimeout(250)
-  // 移动鼠标可能触发 hover 尺寸变化，按下前再取一次真实中心。
-  from = await topic(page, 'c').boundingBox()
-  expect(from).toBeTruthy()
-
   await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
   await page.mouse.down()
-  const to = await topic(page, 'b').boundingBox()
+  const to = await stableBox(page, 'b', 2)
   expect(to).toBeTruthy()
   await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 20 })
   await page.waitForTimeout(300)
