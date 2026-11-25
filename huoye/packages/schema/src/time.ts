@@ -19,8 +19,8 @@ export function formatIso(date: Date, timeZone = "Asia/Shanghai"): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}${normalized}`;
 }
 
-export function nowIso(timeZone = "Asia/Shanghai"): string {
-  return formatIso(new Date(), timeZone);
+export function nowIso(timeZone = "Asia/Shanghai", date?: Date): string {
+  return formatIso(date ?? new Date(), timeZone);
 }
 
 /** 给界面看的本地时间，例如「11月23日 14:20」，不直接展示 ISO。 */

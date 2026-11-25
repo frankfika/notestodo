@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,8 +14,10 @@ function tempApp() {
 describe("本地文件夹连接器 HTTP", () => {
   it("可以添加、列出顶层内容并移除，记录写在工作区而不是仓库里", async () => {
     const { app, home } = tempApp();
-    const root = path.join(home, "attached");
-    mkdirSync(root, { recursive: true });
+    const rootRaw = path.join(home, "attached");
+    mkdirSync(rootRaw, { recursive: true });
+    // macOS 上 os.tmpdir() 是 /var 的符号链接，注册表返回的是规范化后的真实路径。
+    const root = realpathSync(rootRaw);
     writeFileSync(path.join(root, "note.md"), "hi\n");
     mkdirSync(path.join(root, "docs"));
 

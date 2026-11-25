@@ -283,13 +283,13 @@ async function say(app: TestApp, chatId: string, content: string): Promise<Recor
   return done!;
 }
 
-function todayStamp(timeZone = "Asia/Shanghai"): string {
+function todayStamp(timeZone = "Asia/Shanghai", date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(date);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -616,7 +616,8 @@ describe("@huoye/server memory loop", () => {
     expect(body.task.finishedAt).toBeTruthy();
     expect(body.task.schedule?.enabled).toBe(false);
     expect(body.events.some((event) => event.message.includes("到点"))).toBe(true);
-    const diary = workspace.memory.readFile(`diaries/${todayStamp()}.md`);
+    // 日记按注入时钟的日期落盘（2026-11-23），不能按真实今天去读。
+    const diary = workspace.memory.readFile(`diaries/${todayStamp("Asia/Shanghai", now)}.md`);
     expect(diary.content).toContain(`出处：task:${task.id}`);
   });
 

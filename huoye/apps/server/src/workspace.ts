@@ -46,7 +46,10 @@ export interface Workspace {
   audit(event: Parameters<typeof recordAudit>[1]): void;
 }
 
-export function openWorkspace(home = getHuoyeHome(), options: { fetchImpl?: typeof fetch } = {}): Workspace {
+export function openWorkspace(
+  home = getHuoyeHome(),
+  options: { fetchImpl?: typeof fetch; now?: () => Date } = {},
+): Workspace {
   const paths = workspacePaths(home);
   mkdirSync(paths.home, { recursive: true });
   mkdirSync(paths.agentDir, { recursive: true });
@@ -65,6 +68,7 @@ export function openWorkspace(home = getHuoyeHome(), options: { fetchImpl?: type
     memoryRoot: paths.memory,
     seedDir: fixtures.memorySeed,
     timezone: DEFAULT_TIMEZONE,
+    now: options.now,
   });
   memory.seed();
 

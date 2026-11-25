@@ -53,6 +53,8 @@ export interface MemoryStoreOptions {
   memoryRoot: string;
   seedDir?: string;
   timezone?: string;
+  /** 可注入的时钟，测试时固定“今天”，默认用真实时间。 */
+  now?: () => Date;
 }
 
 export class MemoryStore {
@@ -60,11 +62,13 @@ export class MemoryStore {
   readonly seedDir?: string;
   readonly timezone: string;
   private readonly useGit: boolean;
+  private readonly now: () => Date;
 
   constructor(options: MemoryStoreOptions) {
     this.memoryRoot = options.memoryRoot;
     this.seedDir = options.seedDir;
     this.timezone = options.timezone ?? "Asia/Shanghai";
+    this.now = options.now ?? (() => new Date());
     mkdirSync(this.memoryRoot, { recursive: true });
     this.useGit = canUseGit(this.memoryRoot);
   }
@@ -165,7 +169,7 @@ export class MemoryStore {
       fm.id = current.id;
       fm.kind = inferKind(relative, fm.kind);
       fm.title = inferTitle(relative, fm, parsed.body);
-      fm.updatedAt = nowIso(this.timezone);
+      fm.updatedAt = nowIso(this.timezone, this.now());
       if (typeof fm.createdAt !== "string") fm.createdAt = current.createdAt;
       fm.readonly = relative === ABOUT_MD_PATH || fm.readonly === true;
       const next = stringifyFrontmatter(fm, parsed.body);
@@ -185,8 +189,8 @@ export class MemoryStore {
       fm.title = inferTitle(relative, fm, parsed.body);
       fm.pinned = fm.pinned === true;
       fm.readonly = fm.readonly === true;
-      fm.createdAt = typeof fm.createdAt === "string" ? fm.createdAt : nowIso(this.timezone);
-      fm.updatedAt = nowIso(this.timezone);
+      fm.createdAt = typeof fm.createdAt === "string" ? fm.createdAt : nowIso(this.timezone, this.now());
+      fm.updatedAt = nowIso(this.timezone, this.now());
       writeFileSync(absolute, stringifyFrontmatter(fm, parsed.body), "utf8");
     }
     const saved = toMemoryFile(absolute, relative, this.readPins(), this.timezone);
@@ -326,8 +330,8 @@ export class MemoryStore {
       createdAt:
         typeof existing.frontmatter.createdAt === "string"
           ? existing.frontmatter.createdAt
-          : nowIso(this.timezone),
-      updatedAt: nowIso(this.timezone),
+          : nowIso(this.timezone, this.now()),
+      updatedAt: nowIso(this.timezone, this.now()),
     };
     writeFileSync(absolute, stringifyFrontmatter(fm, composed.markdown), "utf8");
     return toMemoryFile(absolute, ABOUT_MD_PATH, this.readPins(), this.timezone);
@@ -340,11 +344,11 @@ export class MemoryStore {
     sourceRef?: string;
     actor?: Provenance;
   }): MemoryFile {
-    const date = input.date ?? todayInZone(this.timezone);
+    const date = input.date ?? todayInZone(this.timezone, this.now);
     const relative = `diaries/${date}.md`;
     const { absolute } = resolveSafe(this.memoryRoot, relative);
     mkdirSync(path.dirname(absolute), { recursive: true });
-    const time = timeInZone(this.timezone);
+    const time = timeInZone(this.timezone, this.now);
     const label = input.sourceLabel ?? "来自聊天";
     const blockLines = [`## ${time} · ${label}`, "", `- ${input.fact}`];
     if (input.sourceRef) blockLines.push(`- 出处：${input.sourceRef}`);
@@ -357,14 +361,14 @@ export class MemoryStore {
         kind: "diary",
         pinned: false,
         readonly: false,
-        createdAt: nowIso(this.timezone),
-        updatedAt: nowIso(this.timezone),
+        createdAt: nowIso(this.timezone, this.now()),
+        updatedAt: nowIso(this.timezone, this.now()),
       };
       writeFileSync(absolute, stringifyFrontmatter(fm, block), "utf8");
     } else {
       const raw = readFileSync(absolute, "utf8");
       const parsed = parseFrontmatter(raw);
-      parsed.frontmatter.updatedAt = nowIso(this.timezone);
+      parsed.frontmatter.updatedAt = nowIso(this.timezone, this.now());
       const body = `${parsed.body.replace(/\n*$/, "\n")}\n${block}`;
       writeFileSync(absolute, stringifyFrontmatter(parsed.frontmatter, body), "utf8");
     }
@@ -394,11 +398,11 @@ export class MemoryStore {
     if (fields.length === 0) {
       throw new MemoryPathError("请至少写一项健康记录");
     }
-    const date = input.date ?? todayInZone(this.timezone);
+    const date = input.date ?? todayInZone(this.timezone, this.now);
     const relative = healthRelativePath(date);
     const { absolute } = resolveSafe(this.memoryRoot, relative);
     mkdirSync(path.dirname(absolute), { recursive: true });
-    const time = timeInZone(this.timezone);
+    const time = timeInZone(this.timezone, this.now);
     const label = input.sourceLabel ?? "手记";
     const blockLines = [`## ${time} · ${label}`, ""];
     for (const field of fields) {
@@ -414,15 +418,15 @@ export class MemoryStore {
         kind: "other",
         pinned: false,
         readonly: false,
-        createdAt: nowIso(this.timezone),
-        updatedAt: nowIso(this.timezone),
+        createdAt: nowIso(this.timezone, this.now()),
+        updatedAt: nowIso(this.timezone, this.now()),
       };
       writeFileSync(absolute, stringifyFrontmatter(fm, block), "utf8");
     } else {
       const raw = readFileSync(absolute, "utf8");
       const parsed = parseFrontmatter(raw);
       parsed.frontmatter.createdAt = coerceTimestamp(parsed.frontmatter.createdAt, this.timezone);
-      parsed.frontmatter.updatedAt = nowIso(this.timezone);
+      parsed.frontmatter.updatedAt = nowIso(this.timezone, this.now());
       parsed.frontmatter.readonly = false;
       if (parsed.frontmatter.kind === "system_summary") parsed.frontmatter.kind = "other";
       const body = `${parsed.body.replace(/\n*$/, "\n")}\n${block}`;
@@ -441,7 +445,7 @@ export class MemoryStore {
   }
 
   readHealthNote(date?: string): MemoryFile | null {
-    const day = date ?? todayInZone(this.timezone);
+    const day = date ?? todayInZone(this.timezone, this.now);
     const relative = healthRelativePath(day);
     const { absolute } = resolveSafe(this.memoryRoot, relative);
     if (!existsSync(absolute) || statSync(absolute).isDirectory()) return null;
@@ -484,8 +488,8 @@ export class MemoryStore {
       createdAt:
         typeof existing?.frontmatter.createdAt === "string"
           ? existing.frontmatter.createdAt
-          : nowIso(this.timezone),
-      updatedAt: nowIso(this.timezone),
+          : nowIso(this.timezone, this.now()),
+      updatedAt: nowIso(this.timezone, this.now()),
     };
     if (input.mimeType) fm.mimeType = input.mimeType;
     if (input.audioExt) fm.audioExt = input.audioExt;
@@ -648,7 +652,7 @@ export class MemoryStore {
     const id = newId(ID_PREFIXES.activity);
     const activity: MemoryActivity = {
       id,
-      at: nowIso(this.timezone),
+      at: nowIso(this.timezone, this.now()),
       actor: input.actor,
       op: input.op,
       path: input.path,
@@ -913,8 +917,8 @@ function listMarkdownFiles(store: MemoryStore, folder: string): MemoryFile[] {
 }
 
 
-function todayInZone(timeZone: string): string {
-  return dateInZone(new Date(), timeZone);
+function todayInZone(timeZone: string, now: () => Date = () => new Date()): string {
+  return dateInZone(now(), timeZone);
 }
 
 function dateInZone(date: Date, timeZone: string): string {
@@ -928,13 +932,13 @@ function dateInZone(date: Date, timeZone: string): string {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-function timeInZone(timeZone: string): string {
+function timeInZone(timeZone: string, now: () => Date = () => new Date()): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone,
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date());
+  }).formatToParts(now());
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return `${get("hour")}:${get("minute")}`;
 }

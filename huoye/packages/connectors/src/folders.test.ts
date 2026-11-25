@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -78,19 +78,22 @@ describe("normalizeFolderInput / 拒绝范围过大的路径", () => {
 describe("LocalFolderRegistry", () => {
   it("添加后持久化，移除后从工作区文件里删掉", () => {
     const { folders, store } = registry();
-    const one = path.join(tempDir("huoye-folder-a-"), "notes");
-    const two = path.join(tempDir("huoye-folder-b-"), "photos");
-    mkdirSync(one, { recursive: true });
-    mkdirSync(two, { recursive: true });
+    const oneRaw = path.join(tempDir("huoye-folder-a-"), "notes");
+    const twoRaw = path.join(tempDir("huoye-folder-b-"), "photos");
+    mkdirSync(oneRaw, { recursive: true });
+    mkdirSync(twoRaw, { recursive: true });
+    // macOS 上 os.tmpdir() 是 /var 的符号链接，注册表保存的是规范化后的真实路径。
+    const one = realpathSync(oneRaw);
+    const two = realpathSync(twoRaw);
 
-    const added = folders.add(one);
+    const added = folders.add(oneRaw);
     expect(added).toEqual([one]);
-    folders.add(two);
+    folders.add(twoRaw);
     expect(existsSync(store)).toBe(true);
     const saved = JSON.parse(readFileSync(store, "utf8")) as { localFolders: string[] };
     expect(saved.localFolders).toEqual([one, two]);
 
-    const after = folders.remove(one);
+    const after = folders.remove(oneRaw);
     expect(after).toEqual([two]);
     const savedAgain = JSON.parse(readFileSync(store, "utf8")) as { localFolders: string[] };
     expect(savedAgain.localFolders).toEqual([two]);
@@ -118,10 +121,11 @@ describe("LocalFolderRegistry", () => {
 
   it("已经添加的目录后来被删掉时，状态是错误而不是已连接", () => {
     const { folders } = registry();
-    const dir = path.join(tempDir("huoye-folder-gone-"), "later-gone");
-    mkdirSync(dir, { recursive: true });
-    folders.add(dir);
-    rmdirSync(dir);
+    const dirRaw = path.join(tempDir("huoye-folder-gone-"), "later-gone");
+    mkdirSync(dirRaw, { recursive: true });
+    const dir = realpathSync(dirRaw);
+    folders.add(dirRaw);
+    rmdirSync(dirRaw);
     const views = folders.inspect();
     expect(views).toEqual([{ path: dir, status: "error", error: FOLDER_ERROR.missing }]);
     const catalogItem = publicCatalog(folders).find((item) => item.id === "local-folders");

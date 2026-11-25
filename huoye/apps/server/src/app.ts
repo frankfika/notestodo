@@ -115,7 +115,8 @@ export interface CreateAppOptions {
 }
 
 export function createApp(options: CreateAppOptions = {}) {
-  const workspace = options.workspace ?? openWorkspace(options.home, { fetchImpl: options.fetchImpl });
+  const workspace =
+    options.workspace ?? openWorkspace(options.home, { fetchImpl: options.fetchImpl, now: options.now });
   const clock = options.now ?? (() => new Date());
   const app = new Hono();
   ensureNoteDirs(workspace);
