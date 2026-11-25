@@ -1,0 +1,150 @@
+/* ------------------------------------------------------------------
+   对话：气泡 + 轻附带卡。
+   用户气泡略灰、助理气泡白；附带的笔记/任务卡只留标题 + 一句说明，
+   全文点进去再看。层次靠「白面 + 淡边 + 轻影」，不靠深色描边。
+   ------------------------------------------------------------------ */
+
+.hy-chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.hy-chat-row {
+  display: flex;
+  width: 100%;
+}
+
+.hy-chat-row-user { justify-content: flex-end; }
+.hy-chat-row-assistant { justify-content: flex-start; }
+
+.hy-chat-bubble {
+  display: inline-block;
+  max-width: min(78%, 36rem);
+  border-radius: 20px;
+  padding: 0.6rem 0.95rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  font-size: var(--hy-fs-base);
+  line-height: 1.8;
+  backdrop-filter: var(--hy-blur);
+  -webkit-backdrop-filter: var(--hy-blur);
+}
+
+.hy-chat-bubble-user {
+  background: rgba(116, 130, 152, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: var(--hy-ink-soft);
+  border-bottom-right-radius: 10px;
+}
+
+.hy-chat-bubble-assistant {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--hy-line);
+  color: var(--hy-ink);
+  border-bottom-left-radius: 10px;
+  box-shadow: 0 1px 2px rgba(36, 50, 72, 0.04);
+}
+
+.hy-chat-bubble .markdown-body p,
+.hy-chat-bubble p {
+  margin: 0;
+}
+
+.hy-chat-bubble .markdown-body p + p,
+.hy-chat-bubble p + p {
+  margin-top: 0.55em;
+}
+
+.hy-chat-bubble .markdown-body ul { padding-left: 1.15em; }
+.hy-chat-bubble .markdown-body li { margin: 0.18em 0; }
+
+/* 附带的卡（笔记/任务/确认）：玻璃面，暖白边，不和气泡抢层级。 */
+.hy-chat-bubble .hy-glass,
+.hy-chat-panel .hy-glass {
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--hy-line);
+  border-radius: var(--hy-radius);
+  box-shadow: var(--hy-shadow);
+  backdrop-filter: var(--hy-blur);
+  -webkit-backdrop-filter: var(--hy-blur);
+}
+
+.hy-chat-card-title {
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--hy-ink);
+  line-height: 1.6;
+}
+
+.hy-chat-card-summary {
+  color: var(--hy-ink-soft);
+  font-size: var(--hy-fs-sm);
+  line-height: 1.75;
+}
+
+/* 长文折叠：只留标题 + 一句说明，其余收在「查看全文」后面。 */
+.hy-chat-preview-title {
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--hy-ink);
+  line-height: 1.6;
+}
+
+.hy-chat-preview-desc {
+  margin-top: 0.2rem;
+  color: var(--hy-ink-soft);
+  font-size: var(--hy-fs-sm);
+  line-height: 1.75;
+}
+
+.hy-chat-expand {
+  margin-top: 0.5rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--hy-accent);
+  font-size: var(--hy-fs-sm);
+  cursor: pointer;
+}
+
+.hy-chat-expand:hover {
+  color: var(--hy-accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 悬浮胶囊输入：白面 + 淡边 + 轻影，浮在内容之上。 */
+.hy-composer-pill {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--hy-line);
+  box-shadow: var(--hy-shadow-lift);
+  backdrop-filter: var(--hy-blur);
+  -webkit-backdrop-filter: var(--hy-blur);
+  padding: 9px 9px 9px 18px;
+  gap: 10px;
+}
+
+.hy-composer-pill:focus-within {
+  border-color: rgba(47, 111, 176, 0.45);
+}
+
+.hy-composer-pill textarea {
+  font-size: var(--hy-fs-base);
+  line-height: 1.7;
+}
+
+/* 窄屏输入不小于 16px：浏览器会自动放大更小的输入框，
+   放大后输入胶囊会压到底栏之上。 */
+@media (max-width: 899px) {
+  .hy-composer-pill textarea {
+    font-size: var(--hy-fs-md);
+  }
+}
+
+.hy-composer-pill .hy-btn {
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  box-shadow: none;
+}

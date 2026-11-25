@@ -1,0 +1,32 @@
+{
+  "name": "huoye",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "活页（Huoye）：开源、本地优先的个人助手",
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "desktop": "pnpm --filter @huoye/desktop start",
+    "test": "vitest run",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "oxlint ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "concurrently": "^9.2.1",
+    "oxlint": "^1.28.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "jszip": "^3.10.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  }
+}

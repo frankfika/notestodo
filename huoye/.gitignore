@@ -1,0 +1,42 @@
+node_modules
+dist
+build
+out
+coverage
+target
+.turbo
+.huoye-tmp
+*.log
+*.tsbuildinfo
+.DS_Store
+.vite
+.idea
+.vscode
+Thumbs.db
+
+# Environment files may be copied from .env.example; they must never hold model keys.
+.env
+.env.*
+!.env.example
+
+# Secrets and local databases, wherever they appear
+secrets.json
+**/secrets.json
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+data/channels-state.json
+data/local-folders.json
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
+
+# If HUOYE_HOME points at the repository root, keep the live workspace out of git.
+# fixtures/memory-seed and fixtures/agent-seed are not affected.
+/config.json
+/secrets.json
+/memory/
+/data/
+/logs/
+/tmp/
+/agent/

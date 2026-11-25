@@ -1,0 +1,25 @@
+{
+  "name": "@huoye/memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@huoye/config": "workspace:*",
+    "@huoye/schema": "workspace:*",
+    "gray-matter": "^4.0.3",
+    "jszip": "^3.10.1",
+    "ulid": "^2.4.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}
